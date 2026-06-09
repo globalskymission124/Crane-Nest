@@ -53,7 +53,8 @@ async function runOcr(imageUrl: string): Promise<{ fullName: string; passportNum
   try {
     // tesseract.js を動的インポート（バンドルサイズ削減）
     const { createWorker } = await import("tesseract.js");
-    const worker = await createWorker("eng");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const worker = await createWorker("eng" as any);
 
     // MRZ 用の文字集合に絞り込んで精度向上
     await worker.setParameters({
