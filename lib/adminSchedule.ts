@@ -25,6 +25,7 @@ export interface KanbanCard {
   roomNumber: string;
   roomPhotoUrl: string | null;
   guestName: string;
+  passportImageUrl: string | null;
   destinationName: string;
   destinationImageUrl: string | null;
   flightTime: string; // ISO文字列
@@ -81,17 +82,17 @@ export function toDateString(date: Date): string {
 }
 
 // 出発予定時刻をもとにレーンを判定
-// 優先順位: suggested_departure_time → preferred_departure_time → flight_time
+// 優先順位: preferred_departure_time（ゲスト希望）→ suggested_departure_time（算出値）→ flight_time
 export function assignLane(card: KanbanCard): TimeLane {
   let hour: number;
 
-  if (card.departureTime) {
-    // ISO文字列（suggested_departure_time）
-    hour = new Date(card.departureTime).getHours();
-  } else if (card.preferredDepartureTime) {
-    // "HH:mm" 形式（preferred_departure_time）
+  if (card.preferredDepartureTime) {
+    // ゲストが指定した希望出発時刻（"HH:mm" 形式）を最優先
     const h = parseInt(card.preferredDepartureTime.split(":")[0] ?? "0", 10);
     hour = Number.isNaN(h) ? 0 : h;
+  } else if (card.departureTime) {
+    // システム算出の提案時刻（ISO文字列）
+    hour = new Date(card.departureTime).getHours();
   } else if (card.flightTime) {
     // フライト時刻にフォールバック
     hour = new Date(card.flightTime).getHours();
@@ -103,6 +104,13 @@ export function assignLane(card: KanbanCard): TimeLane {
     TIME_LANES.find((lane) => hour >= lane.startHour && hour < lane.endHour) ??
     TIME_LANES[TIME_LANES.length - 1]
   );
+}
+
+// 表示用の希望出発時刻を返す（優先順位: preferred → suggested → null）
+export function getDisplayDepartureLabel(card: KanbanCard): string | null {
+  if (card.preferredDepartureTime) return card.preferredDepartureTime;
+  if (card.departureTime) return formatTime(card.departureTime);
+  return null;
 }
 
 export function formatTime(iso: string) {

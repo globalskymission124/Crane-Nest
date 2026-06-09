@@ -35,14 +35,14 @@ interface RawTransferRow {
   luggage_small: number;
   luggage_special: number;
   status: TransferStatus;
-  guests: { full_name: string } | { full_name: string }[] | null;
+  guests: { full_name: string; passport_image_url: string | null } | { full_name: string; passport_image_url: string | null }[] | null;
   destinations: { name: string; image_url: string | null } | { name: string; image_url: string | null }[] | null;
 }
 
-function pickGuest(value: RawTransferRow["guests"], fallback: string): string {
-  if (!value) return fallback;
+function pickGuest(value: RawTransferRow["guests"], fallback: string): { name: string; photoUrl: string | null } {
+  if (!value) return { name: fallback, photoUrl: null };
   const record = Array.isArray(value) ? value[0] : value;
-  return record?.full_name || fallback;
+  return { name: record?.full_name || fallback, photoUrl: record?.passport_image_url ?? null };
 }
 
 function pickDestination(value: RawTransferRow["destinations"]): { name: string; imageUrl: string | null } {
@@ -54,11 +54,13 @@ function pickDestination(value: RawTransferRow["destinations"]): { name: string;
 function toCard(row: RawTransferRow, t: AdminDictionary, rooms: RoomInfo[]): KanbanCard {
   const dest = pickDestination(row.destinations);
   const room = rooms.find((r) => r.name === row.room_number);
+  const guest = pickGuest(row.guests, t.board.unnamedGuest);
   return {
     id: row.id,
     roomNumber: row.room_number,
     roomPhotoUrl: room?.photo_url ?? null,
-    guestName: pickGuest(row.guests, t.board.unnamedGuest),
+    guestName: guest.name,
+    passportImageUrl: guest.photoUrl,
     destinationName: dest.name || t.board.unsetDestination,
     destinationImageUrl: dest.imageUrl,
     flightTime: row.flight_time,
@@ -118,7 +120,7 @@ export default function TransferKanbanBoard() {
     async function load() {
       const SELECT_FIELDS = `id, room_number, flight_time, suggested_departure_time, preferred_departure_time,
            passenger_count, luggage_large, luggage_small, luggage_special, status,
-           guests ( full_name ),
+           guests ( full_name, passport_image_url ),
            destinations ( name, image_url )`;
 
       // transfer_date で絞り込んだ新形式データ

@@ -10,7 +10,7 @@
 // =========================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, ImageOff, Loader2, Users } from "lucide-react";
+import { Download, ImageOff, Loader2, Users, X, Phone, MapPin, Calendar, Hash, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
@@ -121,6 +121,7 @@ export default function GuestRecordsManager() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [downloading, setDownloading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [detailRecord, setDetailRecord] = useState<GuestRecord | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,6 +319,88 @@ export default function GuestRecordsManager() {
 
   return (
     <div className="flex flex-col gap-4">
+
+      {/* ===== 詳細モーダル ===== */}
+      {detailRecord && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setDetailRecord(null)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 閉じるボタン */}
+            <button
+              type="button"
+              onClick={() => setDetailRecord(null)}
+              className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/20 text-white hover:bg-black/40 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* パスポート写真（全幅） */}
+            {detailRecord.passportImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={detailRecord.passportImageUrl}
+                alt={t.records.passportPhotoAlt(detailRecord.fullName)}
+                className="h-56 w-full object-cover object-top"
+              />
+            ) : (
+              <div className="flex h-40 w-full flex-col items-center justify-center gap-2 bg-slate-100 text-slate-400">
+                <ImageOff className="h-8 w-8" />
+                <span className="text-sm">{t.records.noPhoto}</span>
+              </div>
+            )}
+
+            {/* 詳細情報 */}
+            <div className="p-5 flex flex-col gap-4">
+              {/* 名前 + パスポート番号 */}
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{detailRecord.fullName}</h2>
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
+                  <Hash className="h-3.5 w-3.5" />
+                  {detailRecord.passportNumber}
+                </p>
+              </div>
+
+              {/* グリッド詳細 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.roomLabel}</span>
+                  <span className="text-sm font-semibold text-slate-800">{detailRecord.roomNumber}</span>
+                </div>
+                <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.destinationLabel}</span>
+                  <span className="text-sm font-semibold text-slate-800">{detailRecord.destinationName}</span>
+                </div>
+                {detailRecord.transferDate && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-brand-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-400">{t.records.transferDateLabel}</span>
+                    <span className="text-sm font-bold text-brand-700">{detailRecord.transferDate}</span>
+                  </div>
+                )}
+                {detailRecord.phoneNumber && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.phoneLabel}</span>
+                    <span className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+                      <Phone className="h-3 w-3" />
+                      {detailRecord.phoneNumber}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 予約日時 */}
+              <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Clock className="h-3.5 w-3.5" />
+                {t.records.bookingDateTimeLabel}: {formatDateTimeLabel(detailRecord.createdAt)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 月選択 & ダウンロード */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="flex items-center gap-3">
@@ -373,9 +456,11 @@ export default function GuestRecordsManager() {
           </p>
         ) : (
           filteredRecords.map((record) => (
-            <div
+            <button
               key={record.transferId}
-              className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+              type="button"
+              onClick={() => setDetailRecord(record)}
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-brand-300 hover:shadow-sm active:scale-[0.99]"
             >
               {record.passportImageUrl ? (
                 <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200">
@@ -411,7 +496,7 @@ export default function GuestRecordsManager() {
                   {record.phoneNumber ? `・${t.records.phoneLabel}: ${record.phoneNumber}` : ""}
                 </p>
               </div>
-            </div>
+            </button>
           ))
         )}
       </div>

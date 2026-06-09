@@ -59,9 +59,13 @@ async function uploadPassportPhoto(previewUrl: string): Promise<string | null> {
       contentType: "image/jpeg",
     });
 
-    if (uploadError) return null;
+    if (uploadError) {
+      console.error("[passport upload] storage upload error:", uploadError.message, uploadError);
+      return null;
+    }
 
     const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
+    console.log("[passport upload] publicUrl:", data.publicUrl);
     return data.publicUrl;
   } catch {
     return null;
