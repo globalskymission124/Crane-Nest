@@ -17,40 +17,53 @@ import TransferCard from "./TransferCard";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
 
+// 部屋情報（写真URL検索用）
+interface RoomInfo {
+  name: string;
+  photo_url: string | null;
+}
+
 // Supabaseの結合クエリ結果の型。
-// guests / destinations はリレーション先のため、PostgRESTの返却形式（単一 or 配列）の両方を許容しておく。
 interface RawTransferRow {
   id: string;
   room_number: string;
   flight_time: string;
   suggested_departure_time: string | null;
+  preferred_departure_time: string | null;
   passenger_count: number;
   luggage_large: number;
   luggage_small: number;
   luggage_special: number;
   status: TransferStatus;
   guests: { full_name: string } | { full_name: string }[] | null;
-  destinations: { name: string } | { name: string }[] | null;
+  destinations: { name: string; image_url: string | null } | { name: string; image_url: string | null }[] | null;
 }
 
-function pickField<T extends string>(
-  value: { [k in T]: string } | { [k in T]: string }[] | null,
-  field: T,
-  fallback: string
-): string {
+function pickGuest(value: RawTransferRow["guests"], fallback: string): string {
   if (!value) return fallback;
   const record = Array.isArray(value) ? value[0] : value;
-  return record?.[field] || fallback;
+  return record?.full_name || fallback;
 }
 
-function toCard(row: RawTransferRow, t: AdminDictionary): KanbanCard {
+function pickDestination(value: RawTransferRow["destinations"]): { name: string; imageUrl: string | null } {
+  if (!value) return { name: "", imageUrl: null };
+  const record = Array.isArray(value) ? value[0] : value;
+  return { name: record?.name ?? "", imageUrl: record?.image_url ?? null };
+}
+
+function toCard(row: RawTransferRow, t: AdminDictionary, rooms: RoomInfo[]): KanbanCard {
+  const dest = pickDestination(row.destinations);
+  const room = rooms.find((r) => r.name === row.room_number);
   return {
     id: row.id,
     roomNumber: row.room_number,
-    guestName: pickField(row.guests, "full_name", t.board.unnamedGuest),
-    destinationName: pickField(row.destinations, "name", t.board.unsetDestination),
+    roomPhotoUrl: room?.photo_url ?? null,
+    guestName: pickGuest(row.guests, t.board.unnamedGuest),
+    destinationName: dest.name || t.board.unsetDestination,
+    destinationImageUrl: dest.imageUrl,
     flightTime: row.flight_time,
     departureTime: row.suggested_departure_time,
+    preferredDepartureTime: row.preferred_departure_time,
     passengerCount: row.passenger_count,
     luggageLarge: row.luggage_large,
     luggageSmall: row.luggage_small,
@@ -76,8 +89,20 @@ function tomorrowString(): string {
 export default function TransferKanbanBoard() {
   const { t } = useAdminTranslation();
   const [cards, setCards] = useState<KanbanCard[]>([]);
+  const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [selectedDate, setSelectedDate] = useState<string>(tomorrowString);
+
+  // 部屋リスト（写真URL含む）を初回取得
+  useEffect(() => {
+    supabase
+      .from("rooms")
+      .select("name, photo_url")
+      .eq("is_active", true)
+      .then(({ data }) => {
+        if (data) setRooms(data as RoomInfo[]);
+      });
+  }, []);
 
   // transfer_date が存在する場合はそれで絞り込む。
   // 古いレコード（transfer_date = NULL）は flight_time の日付範囲で対応（後方互換）
@@ -91,32 +116,29 @@ export default function TransferKanbanBoard() {
     setState("loading");
 
     async function load() {
+      const SELECT_FIELDS = `id, room_number, flight_time, suggested_departure_time, preferred_departure_time,
+           passenger_count, luggage_large, luggage_small, luggage_special, status,
+           guests ( full_name ),
+           destinations ( name, image_url )`;
+
       // transfer_date で絞り込んだ新形式データ
       const { data: newData, error: newError } = await supabase
         .from("transfer_requests")
-        .select(
-          `id, room_number, flight_time, suggested_departure_time,
-           passenger_count, luggage_large, luggage_small, luggage_special, status,
-           guests ( full_name ),
-           destinations ( name )`
-        )
+        .select(SELECT_FIELDS)
         .neq("status", "cancelled")
         .eq("transfer_date", selectedDate)
+        .order("suggested_departure_time", { ascending: true, nullsFirst: true })
         .order("flight_time", { ascending: true, nullsFirst: false });
 
       // 後方互換: transfer_date がない古いレコードは flight_time 範囲で取得
       const { data: legacyData, error: legacyError } = await supabase
         .from("transfer_requests")
-        .select(
-          `id, room_number, flight_time, suggested_departure_time,
-           passenger_count, luggage_large, luggage_small, luggage_special, status,
-           guests ( full_name ),
-           destinations ( name )`
-        )
+        .select(SELECT_FIELDS)
         .neq("status", "cancelled")
         .is("transfer_date", null)
         .gte("flight_time", dateStart.toISOString())
         .lt("flight_time", dateEnd.toISOString())
+        .order("suggested_departure_time", { ascending: true, nullsFirst: true })
         .order("flight_time", { ascending: true });
 
       if (cancelled) return;
@@ -130,7 +152,7 @@ export default function TransferKanbanBoard() {
         ...((newData ?? []) as unknown as RawTransferRow[]),
         ...((legacyData ?? []) as unknown as RawTransferRow[]),
       ];
-      setCards(combined.map((row) => toCard(row, t)));
+      setCards(combined.map((row) => toCard(row, t, rooms)));
       setState("ready");
     }
 
@@ -138,7 +160,7 @@ export default function TransferKanbanBoard() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, dateStart, dateEnd]);
+  }, [selectedDate, dateStart, dateEnd, rooms]);
 
   // 前日・翌日ナビゲーション
   const shiftDate = (days: number) => {

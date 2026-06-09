@@ -84,17 +84,19 @@ export async function submitBooking(
       : null;
 
     // 同一パスポート番号のゲストは情報を更新しつつ再利用する（upsert）
+    // 新しい写真がある場合のみ passport_image_url を更新（nullで既存を上書きしない）
+    const guestPayload: Record<string, unknown> = {
+      passport_number: passport.passportNumber,
+      full_name: passport.fullName,
+      phone_number: passport.phoneNumber || null,
+    };
+    if (uploadedImageUrl) {
+      guestPayload.passport_image_url = uploadedImageUrl;
+    }
+
     const { data: guestRow, error: guestError } = await supabase
       .from("guests")
-      .upsert(
-        {
-          passport_number: passport.passportNumber,
-          full_name: passport.fullName,
-          phone_number: passport.phoneNumber || null,
-          passport_image_url: uploadedImageUrl,
-        },
-        { onConflict: "passport_number" }
-      )
+      .upsert(guestPayload, { onConflict: "passport_number" })
       .select("id")
       .single();
 

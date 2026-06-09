@@ -48,20 +48,36 @@ function parseMrzLines(lines: string[]): { fullName: string; passportNumber: str
   return { fullName, passportNumber };
 }
 
-// パスポート画像の下部30%（MRZ帯）をcanvasでクロップして返す
-async function cropToMrzArea(imageUrl: string): Promise<string> {
+// MRZ領域を切り出し、3倍拡大＋2値化（白黒）で前処理する
+async function preprocessMrz(imageUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const mrzH = Math.floor(img.height * 0.30);
+      // MRZはパスポート下部 約20%
+      const mrzH = Math.floor(img.height * 0.22);
+      const scale = 3; // 3倍拡大でOCR精度向上
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = mrzH;
+      canvas.width = img.width * scale;
+      canvas.height = mrzH * scale;
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(imageUrl); return; }
-      // コントラスト強調（グレースケール＋閾値処理）
-      ctx.filter = "grayscale(1) contrast(1.8)";
-      ctx.drawImage(img, 0, img.height - mrzH, img.width, mrzH, 0, 0, img.width, mrzH);
+
+      // MRZ帯を拡大描画
+      ctx.drawImage(
+        img,
+        0, img.height - mrzH, img.width, mrzH,
+        0, 0, canvas.width, canvas.height
+      );
+
+      // 2値化（グレースケール → 閾値128で白黒）
+      const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const v = gray > 128 ? 255 : 0;
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+      ctx.putImageData(id, 0, 0);
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => resolve(imageUrl);
@@ -72,18 +88,24 @@ async function cropToMrzArea(imageUrl: string): Promise<string> {
 // Tesseract.js を動的インポートしてパスポート画像からMRZを読み取る
 async function runOcr(imageUrl: string): Promise<{ fullName: string; passportNumber: string }> {
   try {
-    // MRZ領域（下部30%）にクロップして精度向上
-    const mrzImage = await cropToMrzArea(imageUrl);
+    // MRZ領域を前処理
+    const mrzImage = await preprocessMrz(imageUrl);
 
-    // tesseract.js を動的インポート（バンドルサイズ削減）
     const { createWorker } = await import("tesseract.js");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const worker = await createWorker("eng" as any);
 
+    // PSM 6: 均一なテキストブロックとして認識
+    await worker.setParameters({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tessedit_pageseg_mode: "6" as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<" as any,
+    });
+
     const { data } = await worker.recognize(mrzImage);
     await worker.terminate();
 
-    // 行ごとに分割してMRZ候補を探す
     const lines = data.text
       .split("\n")
       .map((l) => l.replace(/[^A-Z0-9<]/gi, "").toUpperCase())
