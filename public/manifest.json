@@ -2,7 +2,7 @@
   "name": "送迎予約＆事前チェックイン",
   "short_name": "送迎予約",
   "description": "関西空港周辺ゲストハウスの送迎予約・事前チェックインアプリ",
-  "start_url": "/",
+  "start_url": "/admin",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
