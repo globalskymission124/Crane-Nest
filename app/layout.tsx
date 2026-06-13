@@ -5,6 +5,11 @@ import ThemeStyleInjector from "@/components/ThemeStyleInjector";
 export const metadata: Metadata = {
   title: "送迎予約＆事前チェックイン",
   description: "関西空港周辺ゲストハウスの送迎予約・事前チェックインアプリ",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  manifest: "/manifest.json",
 };
 
 // ルートレイアウトはhtml/bodyの土台のみ。
