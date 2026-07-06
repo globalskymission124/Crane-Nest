@@ -1,0 +1,25 @@
+# Crane Nest
+
+> Crane Nest (クレインネスト) is a direct-booking accommodation platform for Kansai, Japan.
+> Guests can book entire-house guesthouses and machiya townhouses near Kansai International
+> Airport (KIX), Osaka Namba and Kyoto — with airport transfer arrangement, passport-based
+> online pre-check-in, host chat, coupons, long-stay discounts and secure Stripe payment.
+
+## Key facts
+- Service: accommodation direct booking + airport transfer, Kansai (Osaka / Kyoto), Japan
+- Lower service fees than major OTAs; weekly (7+ nights) and monthly (28+ nights) discounts
+- Online pre-check-in by photographing your passport
+- Cancellation policies: flexible (full refund until 1 day before), moderate, strict — refunds calculated automatically
+- Payment: credit cards via Stripe (Visa, Mastercard, AMEX)
+- Languages: Japanese, English, Chinese (multi-currency display: JPY/USD/EUR/KRW/CNY)
+
+## Pages
+- [Official site (Japanese)](/site)
+- [Official site (English)](/site/en)
+- [Official site (Chinese)](/site/zh)
+- [Search & book stays](/stays)
+- [Airport transfer booking](/)
+
+## For hosts
+- Free listing; low commission only on confirmed bookings
+- Smart pricing suggestions, revenue analytics, coupons, add-on upsells, Airbnb iCal calendar sync

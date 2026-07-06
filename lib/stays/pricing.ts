@@ -1,7 +1,7 @@
 // =========================================================
 // 料金計算・キャンセル返金・スマート価格提案
 // =========================================================
-import type { Booking, CalendarBlock, Coupon, Listing } from "./types";
+import type { Addon, Booking, CalendarBlock, Coupon, Listing, PlatformSettings } from "./types";
 import { nightsBetween } from "./types";
 import { addDays, buildBlockedNights, todayStr } from "./availability";
 
@@ -12,15 +12,21 @@ export interface Quote {
   longStayDiscount: number;  // 週/月割引額
   longStayLabel: string | null;
   couponDiscount: number;
-  total: number;
+  addonsTotal: number;       // アドオン（アップセル）合計
+  guestFee: number;          // ゲストサービス料（プラットフォーム収益）
+  hostCommission: number;    // オーナー成約手数料（プラットフォーム収益）
+  hostPayout: number;        // オーナー受取額
+  total: number;             // ゲスト支払総額
 }
 
-// 料金見積り（長期割引 + クーポン適用）
+// 料金見積り（長期割引 + クーポン + アドオン + プラットフォーム手数料）
 export function calcQuote(
   listing: Listing,
   checkIn: string,
   checkOut: string,
-  coupon?: Coupon | null
+  coupon?: Coupon | null,
+  settings?: PlatformSettings | null,
+  addons: Addon[] = []
 ): Quote {
   const nights = nightsBetween(checkIn, checkOut);
   const subtotal = nights * listing.price_per_night;
@@ -45,6 +51,17 @@ export function calcQuote(
         : Math.min(coupon.value, base);
   }
 
+  const stayTotal = Math.max(0, base - couponDiscount);
+  const addonsTotal = nights > 0 ? addons.reduce((s, a) => s + a.price, 0) : 0;
+  const guestFee =
+    settings?.enable_guest_fee && nights > 0
+      ? Math.round((stayTotal * Number(settings.guest_fee_pct)) / 100)
+      : 0;
+  const hostCommission =
+    settings?.enable_host_commission && nights > 0
+      ? Math.round((stayTotal * Number(settings.host_commission_pct)) / 100)
+      : 0;
+
   return {
     nights,
     subtotal,
@@ -52,7 +69,11 @@ export function calcQuote(
     longStayDiscount,
     longStayLabel,
     couponDiscount,
-    total: Math.max(0, base - couponDiscount),
+    addonsTotal,
+    guestFee,
+    hostCommission,
+    hostPayout: stayTotal + addonsTotal - hostCommission,
+    total: stayTotal + addonsTotal + guestFee,
   };
 }
 

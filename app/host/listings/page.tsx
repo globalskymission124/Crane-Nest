@@ -4,10 +4,13 @@
 // オーナー：物件管理（作成 / 編集 / 公開切替 / 削除）
 // =========================================================
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Rocket } from "lucide-react";
 import { fetchAllListings, fetchHost } from "@/lib/stays/queries";
 import { supabase } from "@/lib/supabase";
 import { deleteListing, upsertListing } from "@/lib/stays/host";
+import { audit, fetchPlatformSettings, isFeatured, setFeatured } from "@/lib/stays/v2";
+import { addDays, todayStr } from "@/lib/stays/availability";
+import { useStaysSession } from "@/lib/stays/auth";
 import { ALL_AMENITIES, AMENITY_LABELS, CANCELLATION_POLICY_LABELS, PROPERTY_TYPE_LABELS, formatJPY } from "@/lib/stays/types";
 import type { CancellationPolicy, Host, Listing, PropertyType } from "@/lib/stays/types";
 
@@ -37,6 +40,7 @@ const empty: Partial<Listing> = {
 };
 
 export default function HostListingsPage() {
+  const { session } = useStaysSession();
   const [listings, setListings] = useState<Listing[]>([]);
   const [host, setHost] = useState<Host | null>(null);
   const [editing, setEditing] = useState<Partial<Listing> | null>(null);
@@ -100,6 +104,25 @@ export default function HostListingsPage() {
     if (!confirm(`「${l.title}」を削除しますか？`)) return;
     await deleteListing(l.id);
     setListings((prev) => prev.filter((x) => x.id !== l.id));
+  }
+
+  // 掲載ブースト購入（検索結果の最上位に「PR」表示）
+  async function boost(l: Listing) {
+    const settings = await fetchPlatformSettings();
+    if (!settings.enable_featured) return alert("現在ブースト機能は無効です");
+    const daysStr = prompt(
+      `「${l.title}」を検索結果の上位に表示します。\n料金: ${formatJPY(settings.featured_price_per_day)}/日\n何日間ブーストしますか?`,
+      "7"
+    );
+    const days = Number(daysStr);
+    if (!days || days <= 0) return;
+    const price = settings.featured_price_per_day * days;
+    if (!confirm(`${days}日間 = ${formatJPY(price)} でブーストを開始しますか?\n（デモ: 決済はスキップされます）`)) return;
+    const base = l.featured_until && l.featured_until >= todayStr() ? l.featured_until : todayStr();
+    const until = addDays(base, days);
+    await setFeatured(l.id, until);
+    await audit(session?.email || "host", session?.role || "host", "listing.boost", l.id, `${days}days ¥${price}`);
+    setListings((prev) => prev.map((x) => (x.id === l.id ? { ...x, featured_until: until } : x)));
   }
 
   const field = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
@@ -174,6 +197,10 @@ export default function HostListingsPage() {
               <input type="checkbox" checked={editing.instant_book || false} onChange={(e) => setEditing({ ...editing, instant_book: e.target.checked })} />
               即時予約を有効にする（承認不要で自動確定）
             </label>
+            <label className="flex items-end gap-2 pb-2 text-xs font-semibold text-slate-500">
+              <input type="checkbox" checked={editing.auto_pricing || false} onChange={(e) => setEditing({ ...editing, auto_pricing: e.target.checked })} />
+              AI自動価格調整（稼働率に応じて料金を自動最適化）
+            </label>
             <label className="text-xs font-semibold text-slate-500">週割引（7泊以上・%）
               <input type="number" min={0} max={90} value={editing.weekly_discount_pct ?? 0} onChange={(e) => setEditing({ ...editing, weekly_discount_pct: Number(e.target.value) })} className={field} />
             </label>
@@ -234,6 +261,16 @@ export default function HostListingsPage() {
                 <button onClick={() => togglePublish(l)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600">
                   {l.is_published ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   {l.is_published ? "非公開" : "公開"}
+                </button>
+                <button
+                  onClick={() => boost(l)}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                    isFeatured(l) ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"
+                  }`}
+                  title={isFeatured(l) ? `PR掲載中（〜${l.featured_until}）` : "検索上位に表示"}
+                >
+                  <Rocket className="h-3.5 w-3.5" />
+                  {isFeatured(l) ? "PR中" : "ブースト"}
                 </button>
                 <button onClick={() => remove(l)} className="flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600">
                   <Trash2 className="h-3.5 w-3.5" />

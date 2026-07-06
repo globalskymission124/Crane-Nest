@@ -1,11 +1,15 @@
 {
-  "name": "送迎予約＆事前チェックイン",
-  "short_name": "送迎予約",
-  "description": "関西空港周辺ゲストハウスの送迎予約・事前チェックインアプリ",
-  "start_url": "/admin",
+  "name": "Crane Nest — Book Kansai Stays & Airport Transfer",
+  "short_name": "Crane Nest",
+  "description": "Book guesthouses and machiya in Kansai, Japan. Airport transfer and passport pre-check-in in one app.",
+  "start_url": "/stays",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "categories": ["travel", "lifestyle"],
   "icons": [
     {
       "src": "/apple-touch-icon.png",
@@ -15,7 +19,14 @@
     {
       "src": "/icon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    { "name": "宿を探す", "url": "/stays" },
+    { "name": "旅程", "url": "/stays/trips" },
+    { "name": "送迎予約", "url": "/" },
+    { "name": "オーナー管理", "url": "/host" }
   ]
 }

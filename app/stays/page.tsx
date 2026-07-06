@@ -10,17 +10,19 @@ import Link from "next/link";
 import { Search, MapPin, Users, Star, Map as MapIcon, List, Zap } from "lucide-react";
 import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
 import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
+import SmartSearchBar from "@/components/stays/SmartSearchBar";
 import WishlistButton from "@/components/stays/WishlistButton";
 import { fetchListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
-import { fetchWishlist } from "@/lib/stays/v2";
+import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
-import { PROPERTY_TYPE_LABELS } from "@/lib/stays/types";
+import { useStaysT } from "@/lib/stays/i18n";
 import type { Listing, Review } from "@/lib/stays/types";
 
 export default function StaysHomePage() {
   const { session } = useStaysSession();
   const { fmt } = useCurrency();
+  const { t } = useStaysT();
   const [listings, setListings] = useState<Listing[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [saved, setSaved] = useState<Set<string>>(new Set());
@@ -38,7 +40,7 @@ export default function StaysHomePage() {
         setListings(ls);
         setReviews(rv);
       } catch (e: any) {
-        setError("データを取得できませんでした。Supabaseの設定を確認してください。");
+        setError("!"); // 表示は t.dataError を使用
       } finally {
         setLoading(false);
       }
@@ -91,11 +93,11 @@ export default function StaysHomePage() {
       case "rating":
         return [...list].sort((a, b) => avg(b) - avg(a));
       default:
-        // おすすめ順: 評価 × レビュー数を軽く加味
+        // おすすめ順: ブースト掲載を最優先し、評価 × レビュー数を加味
         return [...list].sort(
           (a, b) =>
-            avg(b) + Math.min(1, (reviewsByListing.get(b.id)?.length || 0) * 0.1) -
-            (avg(a) + Math.min(1, (reviewsByListing.get(a.id)?.length || 0) * 0.1))
+            (isFeatured(b) ? 100 : 0) + avg(b) + Math.min(1, (reviewsByListing.get(b.id)?.length || 0) * 0.1) -
+            ((isFeatured(a) ? 100 : 0) + avg(a) + Math.min(1, (reviewsByListing.get(a.id)?.length || 0) * 0.1))
         );
     }
   }, [listings, q, guests, filters, reviewsByListing]);
@@ -113,6 +115,14 @@ export default function StaysHomePage() {
 
   return (
     <div>
+      {/* AI自然文検索 */}
+      <SmartSearchBar
+        onParsed={(p) => {
+          if (p.q) setQ(p.q);
+          if (p.guests) setGuests(Math.min(8, p.guests));
+          setFilters(p.filters);
+        }}
+      />
       {/* 検索バー */}
       <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
         <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-50 px-3">
@@ -120,7 +130,7 @@ export default function StaysHomePage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="エリア・宿名で検索（例: 難波、京都）"
+            placeholder={t.searchPlaceholder}
             className="w-full bg-transparent py-2.5 text-sm outline-none"
           />
         </div>
@@ -133,16 +143,16 @@ export default function StaysHomePage() {
           >
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <option key={n} value={n}>
-                ゲスト{n}名
+                {n} {t.guestsN}
               </option>
             ))}
           </select>
         </div>
         <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs">
           {([
-            ["split", "分割"],
-            ["list", "一覧"],
-            ["map", "地図"],
+            ["split", t.viewSplit],
+            ["list", t.viewList],
+            ["map", t.viewMap],
           ] as const).map(([v, label]) => (
             <button
               key={v}
@@ -161,16 +171,16 @@ export default function StaysHomePage() {
       {/* フィルター・並び替え */}
       <div className="mb-5 flex items-center justify-between">
         <SearchFilters filters={filters} onChange={setFilters} />
-        <p className="text-xs text-slate-400">{filtered.length}件</p>
+        <p className="text-xs text-slate-400">{filtered.length} {t.results}</p>
       </div>
 
       {error && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {error}
+          {t.dataError}
         </div>
       )}
       {loading ? (
-        <p className="py-20 text-center text-slate-400">読み込み中…</p>
+        <p className="py-20 text-center text-slate-400">{t.loading}</p>
       ) : (
         <div
           className={`grid gap-6 ${
@@ -181,7 +191,7 @@ export default function StaysHomePage() {
             <div className="grid gap-5 sm:grid-cols-2">
               {filtered.length === 0 && (
                 <p className="col-span-full py-10 text-center text-slate-400">
-                  条件に合う宿が見つかりませんでした。
+                  {t.noResults}
                 </p>
               )}
               {filtered.map((l) => {
@@ -222,7 +232,12 @@ export default function StaysHomePage() {
                     </div>
                     <div className="p-3">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 font-semibold text-slate-800">{l.title}</h3>
+                        <h3 className="line-clamp-1 font-semibold text-slate-800">
+                          {isFeatured(l) && (
+                            <span className="mr-1 rounded bg-brand-600 px-1.5 py-0.5 align-middle text-[9px] font-bold text-white">PR</span>
+                          )}
+                          {l.title}
+                        </h3>
                         {avg > 0 && (
                           <span className="flex shrink-0 items-center gap-1 text-sm">
                             <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
@@ -231,12 +246,12 @@ export default function StaysHomePage() {
                         )}
                       </div>
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                        <MapPin className="h-3 w-3" /> {l.city}・{PROPERTY_TYPE_LABELS[l.property_type]}・最大{l.max_guests}名
+                        <MapPin className="h-3 w-3" /> {l.city}・{t.ptype[l.property_type]}・{t.maxN} {l.max_guests} {t.guestsN}
                         {l.instant_book && <Zap className="h-3 w-3 text-amber-500" />}
                       </p>
                       <p className="mt-2 text-sm">
                         <span className="font-bold text-slate-900">{fmt(l.price_per_night)}</span>
-                        <span className="text-slate-500"> / 泊</span>
+                        <span className="text-slate-500"> {t.perNight}</span>
                       </p>
                     </div>
                   </Link>

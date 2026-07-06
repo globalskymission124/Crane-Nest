@@ -40,6 +40,8 @@ export interface Listing {
   photos: string[];
   airbnb_ical_url: string | null;
   is_published: boolean;
+  featured_until?: string | null;
+  auto_pricing?: boolean;
   instant_book: boolean;
   cancellation_policy: CancellationPolicy;
   property_type: PropertyType;
@@ -74,7 +76,46 @@ export interface Booking {
   payment_status: PaymentStatus;
   coupon_code: string | null;
   discount_amount: number;
+  guest_fee?: number;
+  host_commission?: number;
+  addons?: { name: string; price: number; qty?: number }[];
   created_at?: string;
+}
+
+export interface PlatformSettings {
+  id: number;
+  guest_fee_pct: number;
+  host_commission_pct: number;
+  featured_price_per_day: number;
+  enable_guest_fee: boolean;
+  enable_host_commission: boolean;
+  enable_featured: boolean;
+  enable_addons: boolean;
+  points_earn_pct?: number;
+  referral_bonus_points?: number;
+}
+
+export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  id: 1,
+  guest_fee_pct: 10,
+  host_commission_pct: 3,
+  featured_price_per_day: 500,
+  enable_guest_fee: true,
+  enable_host_commission: true,
+  enable_featured: true,
+  enable_addons: true,
+  points_earn_pct: 1,
+  referral_bonus_points: 500,
+};
+
+export interface Addon {
+  id: string;
+  host_id: string | null;
+  listing_id: string | null;
+  name: string;
+  description: string;
+  price: number;
+  is_active: boolean;
 }
 
 export interface Review {
@@ -106,6 +147,17 @@ export interface StaysUser {
   is_suspended: boolean;
   passport_number?: string | null;
   phone?: string | null;
+  referral_code?: string | null;
+  referred_by?: string | null;
+  created_at?: string;
+}
+
+export interface PointsEntry {
+  id: string;
+  user_email: string;
+  delta: number;
+  reason: string;
+  booking_id: string | null;
   created_at?: string;
 }
 

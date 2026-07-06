@@ -38,12 +38,23 @@ export default function HostAnalyticsPage() {
         const blocked = buildBlockedNights(bl, bk);
         let occ = 0;
         for (let i = 0; i < 30; i++) if (blocked.has(addDays(todayStr(), i))) occ++;
+        let suggestion = suggestPrice(l, bl, bk);
+        // AI自動価格調整ON物件は提案価格を自動適用
+        if (l.auto_pricing && suggestion.suggested !== l.price_per_night) {
+          try {
+            await upsertListing({ id: l.id, price_per_night: suggestion.suggested });
+            l = { ...l, price_per_night: suggestion.suggested };
+            suggestion = { ...suggestion, reason: `【自動適用済み】${suggestion.reason}` };
+          } catch {
+            // 失敗時は提案表示のみ
+          }
+        }
         return {
           listing: l,
           bookings: bk,
           blocks: bl,
           occupancy: Math.round((occ / 30) * 100),
-          suggestion: suggestPrice(l, bl, bk),
+          suggestion,
         };
       })
     );
@@ -57,6 +68,9 @@ export default function HostAnalyticsPage() {
   const allBookings = useMemo(() => rows.flatMap((r) => r.bookings), [rows]);
   const active = useMemo(() => allBookings.filter((b) => b.status !== "cancelled"), [allBookings]);
   const totalRevenue = active.reduce((s, b) => s + b.total_price, 0);
+  const totalCommission = active.reduce((s, b) => s + (b.host_commission || 0), 0);
+  const totalGuestFee = active.reduce((s, b) => s + (b.guest_fee || 0), 0);
+  const payout = totalRevenue - totalGuestFee - totalCommission; // 受取額 = 支払総額 - サービス料 - 手数料
   const totalNights = active.reduce((s, b) => s + nightsBetween(b.check_in, b.check_out), 0);
   const adr = totalNights > 0 ? Math.round(totalRevenue / totalNights) : 0;
   const avgOcc = rows.length ? Math.round(rows.reduce((s, r) => s + r.occupancy, 0) / rows.length) : 0;
@@ -83,7 +97,7 @@ export default function HostAnalyticsPage() {
       </h1>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="累計売上（有効予約）" value={formatJPY(totalRevenue)} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />
+        <StatCard label="受取見込額（手数料差引後）" value={formatJPY(payout)} sub={`総流通 ${formatJPY(totalRevenue)}・手数料 ${formatJPY(totalCommission)}`} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />
         <StatCard label="今後30日の平均稼働率" value={`${avgOcc}%`} icon={<CalendarCheck2 className="h-4 w-4 text-slate-300" />} />
         <StatCard label="平均宿泊単価 (ADR)" value={formatJPY(adr)} icon={<TrendingUp className="h-4 w-4 text-slate-300" />} />
         <StatCard label="レビュー平均" value={avgRating ? avgRating.toFixed(1) : "—"} sub={`${reviews.length}件`} icon={<Star className="h-4 w-4 text-slate-300" />} />

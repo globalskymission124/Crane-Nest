@@ -5,6 +5,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogIn, ScanLine, UserPlus } from "lucide-react";
 import { login, loginWithPassport, signup, useStaysSession, logout } from "@/lib/stays/auth";
+import { applyReferral } from "@/lib/stays/v2";
+import { useStaysT } from "@/lib/stays/i18n";
+import { useEffect } from "react";
 
 const DEMO_ACCOUNTS = [
   { role: "ゲスト", email: "guest@demo.com", to: "/stays" },
@@ -15,24 +18,39 @@ const DEMO_ACCOUNTS = [
 export default function LoginPage() {
   const router = useRouter();
   const { session } = useStaysSession();
+  const { t } = useStaysT();
   const [mode, setMode] = useState<"login" | "signup" | "passport">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passportNo, setPassportNo] = useState("");
+  const [refInput, setRefInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 招待リンク（?ref=CODE）からの流入なら紹介コードを自動入力し新規登録モードへ
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) {
+      setRefInput(ref.toUpperCase());
+      setMode("signup");
+    }
+  }, []);
 
   async function submit(em = email, pw = password) {
     setBusy(true);
     setError(null);
     try {
+      const isSignup = mode === "signup" && em === email;
       const s =
         mode === "passport"
           ? await loginWithPassport(passportNo, name)
-          : mode === "signup" && em === email
+          : isSignup
             ? await signup(name, em, pw)
             : await login(em, pw);
+      if (isSignup && refInput.trim()) {
+        await applyReferral(s.id, s.email, refInput);
+      }
       router.push(s.role === "admin" ? "/admin/stays" : s.role === "host" ? "/host" : "/stays");
     } catch (e: any) {
       setError(e?.message || "ログインに失敗しました");
@@ -60,24 +78,24 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md py-8">
       <h1 className="text-center text-2xl font-extrabold">
-        {mode === "login" ? "ログイン" : mode === "passport" ? "パスポート番号でログイン" : "新規登録"}
+        {mode === "login" ? t.loginTitle : mode === "passport" ? t.passportLoginTitle : t.signupTitle}
       </h1>
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         {mode === "passport" ? (
           <>
             <p className="mb-3 text-xs text-slate-500">
-              送迎予約でパスポート登録済みの方は、パスポート番号と登録時の氏名でログインできます。
+              {t.passportLoginHint}
             </p>
             <input
               value={passportNo}
               onChange={(e) => setPassportNo(e.target.value)}
-              placeholder="パスポート番号"
+              placeholder={t.passportNoPh}
               className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-mono uppercase"
             />
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="氏名（パスポート登録時と同じ表記）"
+              placeholder={t.passportNamePh}
               className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
             />
           </>
@@ -87,24 +105,32 @@ export default function LoginPage() {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="お名前"
+                placeholder={t.namePh}
                 className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
               />
             )}
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="メールアドレス"
+              placeholder={t.emailPh}
               type="email"
               className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
             />
             <input
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="パスワード"
+              placeholder={t.passwordPh}
               type="password"
               className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
             />
+            {mode === "signup" && (
+              <input
+                value={refInput}
+                onChange={(e) => setRefInput(e.target.value.toUpperCase())}
+                placeholder={t.refCodePh}
+                className="mt-2 w-full rounded-lg border border-dashed border-brand-300 px-3 py-2.5 font-mono text-sm uppercase"
+              />
+            )}
           </>
         )}
         {error && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
@@ -114,29 +140,29 @@ export default function LoginPage() {
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 py-3 font-semibold text-white disabled:opacity-50"
         >
           {mode === "signup" ? <UserPlus className="h-4 w-4" /> : mode === "passport" ? <ScanLine className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-          {busy ? "処理中…" : mode === "signup" ? "登録する" : "ログイン"}
+          {busy ? "…" : mode === "signup" ? t.signupBtn : t.loginBtn}
         </button>
         <div className="mt-3 flex flex-col gap-1 text-center text-xs">
           {mode !== "passport" && (
             <button onClick={() => { setMode("passport"); setError(null); }} className="text-brand-600 underline">
-              パスポート番号でログイン（送迎予約をご利用の方）
+              {t.toPassport}
             </button>
           )}
           {mode !== "signup" && (
             <button onClick={() => { setMode("signup"); setError(null); }} className="text-brand-600 underline">
-              アカウントを作成する
+              {t.toSignup}
             </button>
           )}
           {mode !== "login" && (
             <button onClick={() => { setMode("login"); setError(null); }} className="text-brand-600 underline">
-              メール+パスワードでログイン
+              {t.toLogin}
             </button>
           )}
         </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
-        <p className="mb-2 text-xs font-bold text-slate-500">デモアカウント（パスワード: demo123）</p>
+        <p className="mb-2 text-xs font-bold text-slate-500">{t.demoAccounts}</p>
         <div className="grid gap-1.5">
           {DEMO_ACCOUNTS.map((a) => (
             <button

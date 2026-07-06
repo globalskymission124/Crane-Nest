@@ -3,6 +3,7 @@ import "./globals.css";
 import ThemeStyleInjector from "@/components/ThemeStyleInjector";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://crane-nest-cmn2.vercel.app"),
   title: "送迎予約＆事前チェックイン",
   description: "関西空港周辺ゲストハウスの送迎予約・事前チェックインアプリ",
   icons: {

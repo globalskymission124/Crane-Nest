@@ -4,15 +4,17 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useCurrency } from "@/lib/stays/currency";
+import { useStaysT } from "@/lib/stays/i18n";
 import type { Listing } from "@/lib/stays/types";
 
 export default function SimilarListings({ listings }: { listings: Listing[] }) {
   const { fmt } = useCurrency();
+  const { t } = useStaysT();
   if (listings.length === 0) return null;
   return (
     <div>
       <h2 className="mb-3 flex items-center gap-2 text-lg font-bold">
-        <Sparkles className="h-5 w-5 text-brand-600" /> この宿に似ているおすすめ
+        <Sparkles className="h-5 w-5 text-brand-600" /> {t.similar}
       </h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {listings.map((l) => (
@@ -26,7 +28,7 @@ export default function SimilarListings({ listings }: { listings: Listing[] }) {
             <div className="p-2">
               <p className="line-clamp-1 text-xs font-semibold text-slate-700">{l.title}</p>
               <p className="text-xs text-slate-500">
-                <span className="font-bold text-slate-800">{fmt(l.price_per_night)}</span> / 泊
+                <span className="font-bold text-slate-800">{fmt(l.price_per_night)}</span> {t.perNight}
               </p>
             </div>
           </Link>

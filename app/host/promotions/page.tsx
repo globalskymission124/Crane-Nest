@@ -4,12 +4,12 @@
 // オーナー：クーポン / プロモーション管理
 // =========================================================
 import { useEffect, useState } from "react";
-import { Plus, Tag, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Gift, Plus, Tag, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { fetchAllListings } from "@/lib/stays/queries";
-import { deleteCoupon, fetchCoupons, upsertCoupon, audit } from "@/lib/stays/v2";
+import { deleteAddon, deleteCoupon, fetchAllAddons, fetchCoupons, upsertAddon, upsertCoupon, audit } from "@/lib/stays/v2";
 import { useStaysSession } from "@/lib/stays/auth";
 import { formatJPY } from "@/lib/stays/types";
-import type { Coupon, Listing } from "@/lib/stays/types";
+import type { Addon, Coupon, Listing } from "@/lib/stays/types";
 
 const emptyCoupon: Partial<Coupon> = {
   code: "",
@@ -29,10 +29,36 @@ export default function HostPromotionsPage() {
   const [editing, setEditing] = useState<Partial<Coupon> | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [addons, setAddons] = useState<Addon[]>([]);
+
   async function load() {
-    const [cs, ls] = await Promise.all([fetchCoupons(), fetchAllListings()]);
+    const [cs, ls, ads] = await Promise.all([fetchCoupons(), fetchAllListings(), fetchAllAddons()]);
     setCoupons(cs);
     setListings(ls);
+    setAddons(ads);
+  }
+
+  // ---- アドオン（アップセル商品）----
+  async function addAddon() {
+    const name = prompt("オプション名（例: 空港送迎）:");
+    if (!name?.trim()) return;
+    const price = Number(prompt("価格（円）:", "2000"));
+    if (!price || price < 0) return;
+    const description = prompt("説明（任意）:") || "";
+    const created = await upsertAddon({ name: name.trim(), price, description, host_id: session?.host_id || null });
+    await audit(session?.email || "", session?.role || "host", "addon.create", created.id, name);
+    setAddons((prev) => [created, ...prev]);
+  }
+
+  async function toggleAddon(a: Addon) {
+    await upsertAddon({ id: a.id, is_active: !a.is_active });
+    setAddons((prev) => prev.map((x) => (x.id === a.id ? { ...x, is_active: !x.is_active } : x)));
+  }
+
+  async function removeAddon(a: Addon) {
+    if (!confirm(`「${a.name}」を削除しますか?`)) return;
+    await deleteAddon(a.id);
+    setAddons((prev) => prev.filter((x) => x.id !== a.id));
   }
   useEffect(() => {
     load();
@@ -169,6 +195,36 @@ export default function HostPromotionsPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* ---- アドオン（アップセル商品） ---- */}
+      <div className="mb-4 mt-10 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-xl font-extrabold">
+          <Gift className="h-5 w-5 text-brand-600" /> オプション商品（アップセル）
+        </h2>
+        <button onClick={addAddon} className="flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+          <Plus className="h-4 w-4" /> 追加
+        </button>
+      </div>
+      <p className="mb-3 text-sm text-slate-500">予約時にゲストが追加購入できる商品です（送迎・朝食・レイトチェックアウトなど）。</p>
+      <div className="grid gap-2">
+        {addons.map((a) => (
+          <div key={a.id} className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white p-4 ${a.is_active ? "border-slate-200" : "border-slate-100 opacity-60"}`}>
+            <div>
+              <p className="font-semibold text-slate-800">{a.name}</p>
+              <p className="text-xs text-slate-500">{formatJPY(a.price)}{a.description && `・${a.description}`}{!a.host_id && "・サイト共通"}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => toggleAddon(a)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                {a.is_active ? <ToggleRight className="h-4 w-4 text-emerald-600" /> : <ToggleLeft className="h-4 w-4" />}
+                {a.is_active ? "有効" : "無効"}
+              </button>
+              <button onClick={() => removeAddon(a)} className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

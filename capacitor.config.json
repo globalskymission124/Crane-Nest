@@ -1,0 +1,9 @@
+{
+  "appId": "com.cranenest.stays",
+  "appName": "Crane Nest",
+  "webDir": "public",
+  "server": {
+    "url": "https://crane-nest-cmn2.vercel.app",
+    "cleartext": false
+  }
+}

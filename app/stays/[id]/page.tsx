@@ -11,6 +11,7 @@ import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag
 import StaysMap from "@/components/stays/StaysMap";
 import BookingWidget from "@/components/stays/BookingWidget";
 import ReviewsSection from "@/components/stays/ReviewsSection";
+import ReviewHighlights from "@/components/stays/ReviewHighlights";
 import ContactHostCard from "@/components/stays/ContactHostCard";
 import SimilarListings from "@/components/stays/SimilarListings";
 import WishlistButton from "@/components/stays/WishlistButton";
@@ -25,15 +26,12 @@ import {
 } from "@/lib/stays/queries";
 import { createReport, fetchWishlist, similarListings } from "@/lib/stays/v2";
 import { useStaysSession } from "@/lib/stays/auth";
-import {
-  AMENITY_LABELS,
-  CANCELLATION_POLICY_LABELS,
-  PROPERTY_TYPE_LABELS,
-} from "@/lib/stays/types";
+import { useStaysT } from "@/lib/stays/i18n";
 import type { Booking, CalendarBlock, Host, Listing, Review } from "@/lib/stays/types";
 
 export default function ListingDetailPage({ params }: { params: { id: string } }) {
   const { session } = useStaysSession();
+  const { t } = useStaysT();
   const [listing, setListing] = useState<Listing | null>(null);
   const [similar, setSimilar] = useState<Listing[]>([]);
   const [host, setHost] = useState<Host | null>(null);
@@ -105,7 +103,7 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
   return (
     <div>
       <Link href="/stays" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-        <ArrowLeft className="h-4 w-4" /> 一覧に戻る
+        <ArrowLeft className="h-4 w-4" /> {t.backToList}
       </Link>
 
       <div className="flex items-start justify-between gap-3">
@@ -120,10 +118,10 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
             <span className="flex items-center gap-1">
               <MapPin className="h-4 w-4" /> {listing.address || listing.city}
             </span>
-            <span>{PROPERTY_TYPE_LABELS[listing.property_type]}</span>
+            <span>{t.ptype[listing.property_type]}</span>
             {listing.instant_book && (
               <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600">
-                <Zap className="h-3 w-3" /> 即時予約
+                <Zap className="h-3 w-3" /> {t.instantBook}
               </span>
             )}
           </p>
@@ -168,10 +166,10 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
         {/* 左：本文 */}
         <div className="space-y-8 lg:col-span-2">
           <div className="flex flex-wrap gap-4 border-b border-slate-100 pb-5 text-sm text-slate-600">
-            <span className="flex items-center gap-1.5"><Users className="h-4 w-4" /> 最大{listing.max_guests}名</span>
-            <span className="flex items-center gap-1.5"><BedDouble className="h-4 w-4" /> 寝室{listing.bedrooms}・ベッド{listing.beds}</span>
-            <span className="flex items-center gap-1.5"><Bath className="h-4 w-4" /> バス{listing.baths}</span>
-            {listing.min_nights > 1 && <span>最低{listing.min_nights}泊〜</span>}
+            <span className="flex items-center gap-1.5"><Users className="h-4 w-4" /> {listing.max_guests} {t.maxGuestsLabel}</span>
+            <span className="flex items-center gap-1.5"><BedDouble className="h-4 w-4" /> {listing.bedrooms} {t.bedrooms}</span>
+            <span className="flex items-center gap-1.5"><Bath className="h-4 w-4" /> {listing.baths} {t.baths}</span>
+            {listing.min_nights > 1 && <span>{t.minNightsLabel}: {listing.min_nights}</span>}
           </div>
 
           {host && (
@@ -180,24 +178,24 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
                 {host.name.charAt(0)}
               </div>
               <div>
-                <p className="font-semibold">ホスト：{host.name}</p>
+                <p className="font-semibold">{t.hostLabel}: {host.name}</p>
                 <p className="text-xs text-slate-500">{listing.city}</p>
               </div>
             </div>
           )}
 
           <div>
-            <h2 className="mb-2 text-lg font-bold">この宿について</h2>
+            <h2 className="mb-2 text-lg font-bold">{t.about}</h2>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{listing.description}</p>
           </div>
 
           {listing.amenities.length > 0 && (
             <div>
-              <h2 className="mb-3 text-lg font-bold">アメニティ</h2>
+              <h2 className="mb-3 text-lg font-bold">{t.amenitiesTitle}</h2>
               <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 sm:grid-cols-3">
                 {listing.amenities.map((a) => (
                   <span key={a} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                    ✓ {AMENITY_LABELS[a] || a}
+                    ✓ {t.amenity[a] || a}
                   </span>
                 ))}
               </div>
@@ -206,22 +204,22 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <h2 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-700">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" /> キャンセルポリシー
+              <ShieldCheck className="h-4 w-4 text-emerald-600" /> {t.policyTitle}
             </h2>
             <p className="text-sm text-slate-600">
-              {CANCELLATION_POLICY_LABELS[listing.cancellation_policy]}
+              {t.policy[listing.cancellation_policy]}
             </p>
             {(listing.weekly_discount_pct > 0 || listing.monthly_discount_pct > 0) && (
               <p className="mt-1 text-xs text-emerald-600">
-                {listing.weekly_discount_pct > 0 && `7泊以上で${listing.weekly_discount_pct}%OFF`}
+                {listing.weekly_discount_pct > 0 && `${listing.weekly_discount_pct}${t.weeklyOff}`}
                 {listing.weekly_discount_pct > 0 && listing.monthly_discount_pct > 0 && "・"}
-                {listing.monthly_discount_pct > 0 && `28泊以上で${listing.monthly_discount_pct}%OFF`}
+                {listing.monthly_discount_pct > 0 && `${listing.monthly_discount_pct}${t.monthlyOff}`}
               </p>
             )}
           </div>
 
           <div>
-            <h2 className="mb-3 text-lg font-bold">場所</h2>
+            <h2 className="mb-3 text-lg font-bold">{t.location}</h2>
             {listing.lat != null && listing.lng != null ? (
               <StaysMap
                 markers={[{ id: listing.id, lat: listing.lat, lng: listing.lng, title: listing.title, price: listing.price_per_night }]}
@@ -230,11 +228,12 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
                 className="h-72 w-full overflow-hidden rounded-2xl border border-slate-200"
               />
             ) : (
-              <p className="text-sm text-slate-400">位置情報は登録されていません。</p>
+              <p className="text-sm text-slate-400">{t.noLocation}</p>
             )}
           </div>
 
           <div id="reviews">
+            <ReviewHighlights reviews={reviews} />
             <ReviewsSection listingId={listing.id} initialReviews={reviews} />
           </div>
           <ContactHostCard listing={listing} host={host} />

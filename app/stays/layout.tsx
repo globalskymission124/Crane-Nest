@@ -4,11 +4,15 @@ import Link from "next/link";
 import { Heart, Home, LayoutGrid, LogIn, LogOut, Luggage } from "lucide-react";
 import NotificationsBell from "@/components/stays/NotificationsBell";
 import CurrencySwitcher from "@/components/stays/CurrencySwitcher";
+import InstallBanner from "@/components/stays/InstallBanner";
+import StaysLangSwitcher from "@/components/stays/StaysLangSwitcher";
 import { logout, useStaysSession } from "@/lib/stays/auth";
+import { useStaysT } from "@/lib/stays/i18n";
 
-// Stays（Airbnb型予約サイト）ゲスト向けレイアウト v2
+// Stays（Airbnb型予約サイト）ゲスト向けレイアウト v2（多言語）
 export default function StaysLayout({ children }: { children: React.ReactNode }) {
   const { session } = useStaysSession();
+  const { t } = useStaysT();
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -22,32 +26,33 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
               href="/stays"
               className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100 sm:flex"
             >
-              <LayoutGrid className="h-4 w-4" /> 宿を探す
+              <LayoutGrid className="h-4 w-4" /> {t.searchStays}
             </Link>
             <Link
               href="/stays/wishlist"
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100"
             >
-              <Heart className="h-4 w-4" /> <span className="hidden sm:inline">お気に入り</span>
+              <Heart className="h-4 w-4" /> <span className="hidden sm:inline">{t.wishlist}</span>
             </Link>
             <Link
               href="/stays/trips"
               className="flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100"
             >
-              <Luggage className="h-4 w-4" /> <span className="hidden sm:inline">旅程</span>
+              <Luggage className="h-4 w-4" /> <span className="hidden sm:inline">{t.trips}</span>
             </Link>
             <NotificationsBell />
+            <StaysLangSwitcher />
             <CurrencySwitcher />
             {session ? (
               <div className="flex items-center gap-1.5">
                 {session.role === "host" && (
                   <Link href="/host" className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
-                    オーナー管理
+                    {t.hostConsole}
                   </Link>
                 )}
                 {session.role === "admin" && (
                   <Link href="/admin/stays" className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
-                    管理者
+                    {t.adminConsole}
                   </Link>
                 )}
                 <Link href="/stays/profile" className="inline-block max-w-[90px] truncate text-xs font-semibold text-slate-500 hover:text-brand-600 hover:underline">
@@ -62,7 +67,7 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
                 href="/stays/login"
                 className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 font-semibold text-white hover:bg-slate-700"
               >
-                <LogIn className="h-4 w-4" /> ログイン
+                <LogIn className="h-4 w-4" /> {t.login}
               </Link>
             )}
           </nav>
@@ -70,8 +75,9 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
       <footer className="border-t border-slate-100 py-8 text-center text-xs text-slate-400">
-        Crane Nest Stays — デモ予約サイト
+        {t.footer}
       </footer>
+      <InstallBanner />
     </div>
   );
 }

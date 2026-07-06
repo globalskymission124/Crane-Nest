@@ -6,10 +6,10 @@
 // アカウントは初回ここでパスワードを設定する）
 // =========================================================
 import { useEffect, useState } from "react";
-import { BadgeCheck, KeyRound, ShieldAlert, UserCircle2 } from "lucide-react";
+import { BadgeCheck, Coins, Gift, KeyRound, ShieldAlert, UserCircle2 } from "lucide-react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { updateProfile, useStaysSession } from "@/lib/stays/auth";
-import { audit } from "@/lib/stays/v2";
+import { audit, ensureReferralCode, fetchPointsBalance } from "@/lib/stays/v2";
 
 function ProfileBody() {
   const { session } = useStaysSession();
@@ -19,14 +19,27 @@ function ProfileBody() {
   const [pw2, setPw2] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [points, setPoints] = useState(0);
+  const [refCode, setRefCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (session) {
       setName(session.name);
       // 内部発行の仮メール（xxx@passport.guest）は空欄表示にして本メール入力を促す
       setEmail(session.email.endsWith("@passport.guest") ? "" : session.email);
+      fetchPointsBalance(session.email).then(setPoints);
+      ensureReferralCode(session.id).then(setRefCode);
     }
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function copyInvite() {
+    if (!refCode) return;
+    const url = `${window.location.origin}/stays/login?ref=${refCode}`;
+    await navigator.clipboard.writeText(`Crane Nestで宿を予約しませんか? 紹介コード ${refCode} で登録するとポイントがもらえます → ${url}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
 
   if (!session) return null;
   const isPseudoEmail = session.email.endsWith("@passport.guest");
@@ -86,6 +99,25 @@ function ProfileBody() {
           </span>
         </div>
       )}
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="flex items-center gap-1.5 text-xs font-bold text-amber-700">
+            <Coins className="h-4 w-4" /> ポイント残高
+          </p>
+          <p className="mt-1 text-2xl font-extrabold text-amber-700">{points.toLocaleString()}<span className="text-sm font-bold"> pt</span></p>
+          <p className="text-[10px] text-amber-600">1pt = ¥1として予約時に利用できます</p>
+        </div>
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4">
+          <p className="flex items-center gap-1.5 text-xs font-bold text-brand-700">
+            <Gift className="h-4 w-4" /> 友達紹介
+          </p>
+          <p className="mt-1 font-mono text-xl font-extrabold tracking-widest text-brand-700">{refCode || "…"}</p>
+          <button onClick={copyInvite} className="mt-1 rounded-lg bg-brand-600 px-3 py-1 text-[11px] font-bold text-white">
+            {copied ? "コピーしました ✓" : "招待リンクをコピー"}
+          </button>
+        </div>
+      </div>
 
       {session.passport_number && (
         <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, MapPin, Image as ImageIcon, Palette, BedDouble, FileDown, Star, BarChart3, Users, Flag } from "lucide-react";
+import { LayoutDashboard, MapPin, Image as ImageIcon, Palette, BedDouble, FileDown, Star, BarChart3, Users, Flag, BadgeJapaneseYen } from "lucide-react";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
 import type { AdminLocale } from "@/lib/i18n/admin/types";
@@ -28,6 +28,11 @@ const REPORTS_LABEL: Record<AdminLocale, string> = {
   zh: "举报",
   en: "Reports",
 };
+const MONETIZE_LABEL: Record<AdminLocale, string> = {
+  ja: "収益化",
+  zh: "变现",
+  en: "Monetize",
+};
 
 function buildNavItems(t: AdminDictionary, locale: AdminLocale) {
   return [
@@ -38,6 +43,7 @@ function buildNavItems(t: AdminDictionary, locale: AdminLocale) {
     { href: "/admin/records", label: t.nav.records, icon: FileDown },
     { href: "/admin/reviews", label: REVIEWS_LABEL[locale], icon: Star },
     { href: "/admin/stays", label: STAYS_LABEL[locale], icon: BarChart3 },
+    { href: "/admin/monetize", label: MONETIZE_LABEL[locale], icon: BadgeJapaneseYen },
     { href: "/admin/users", label: USERS_LABEL[locale], icon: Users },
     { href: "/admin/reports", label: REPORTS_LABEL[locale], icon: Flag },
     { href: "/admin/settings", label: t.nav.settings, icon: Palette },

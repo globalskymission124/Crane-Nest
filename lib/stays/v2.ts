@@ -4,18 +4,153 @@
 // =========================================================
 import { supabase } from "@/lib/supabase";
 import type {
+  Addon,
   AuditLog,
   Booking,
   Coupon,
   Listing,
   Notification,
   Payment,
+  PlatformSettings,
   Report,
   Review,
   StaysUser,
   Wishlist,
 } from "./types";
-import { nightsBetween } from "./types";
+import { DEFAULT_PLATFORM_SETTINGS, nightsBetween } from "./types";
+
+// ---------------- プラットフォーム設定（料率） ----------------
+export async function fetchPlatformSettings(): Promise<PlatformSettings> {
+  try {
+    const { data } = await supabase.from("stays_platform_settings").select("*").eq("id", 1).maybeSingle();
+    return (data as PlatformSettings) || DEFAULT_PLATFORM_SETTINGS;
+  } catch {
+    return DEFAULT_PLATFORM_SETTINGS;
+  }
+}
+
+export async function updatePlatformSettings(patch: Partial<PlatformSettings>) {
+  const { error } = await supabase.from("stays_platform_settings").update(patch).eq("id", 1);
+  if (error) throw error;
+}
+
+// ---------------- アドオン（アップセル） ----------------
+export async function fetchAddons(listingId?: string, hostId?: string): Promise<Addon[]> {
+  const { data } = await supabase.from("stays_addons").select("*").eq("is_active", true);
+  const all = (data as Addon[]) || [];
+  if (!listingId) return all;
+  return all.filter(
+    (a) =>
+      (!a.listing_id || a.listing_id === listingId) &&
+      (!a.host_id || !hostId || a.host_id === hostId)
+  );
+}
+
+export async function fetchAllAddons(): Promise<Addon[]> {
+  const { data } = await supabase.from("stays_addons").select("*").order("created_at", { ascending: false });
+  return (data as Addon[]) || [];
+}
+
+export async function upsertAddon(a: Partial<Addon>): Promise<Addon> {
+  if (a.id) {
+    const { id, ...rest } = a;
+    const { data, error } = await supabase.from("stays_addons").update(rest).eq("id", id).select().single();
+    if (error) throw error;
+    return data as Addon;
+  }
+  const { data, error } = await supabase.from("stays_addons").insert(a).select().single();
+  if (error) throw error;
+  return data as Addon;
+}
+
+export async function deleteAddon(id: string) {
+  const { error } = await supabase.from("stays_addons").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------- 掲載ブースト ----------------
+export async function setFeatured(listingId: string, untilDate: string | null) {
+  const { error } = await supabase
+    .from("stays_listings")
+    .update({ featured_until: untilDate })
+    .eq("id", listingId);
+  if (error) throw error;
+}
+
+export function isFeatured(l: Listing): boolean {
+  return !!l.featured_until && l.featured_until >= new Date().toISOString().slice(0, 10);
+}
+
+// ---------------- ポイントプログラム（1pt = 1円） ----------------
+export async function fetchPointsBalance(userEmail: string): Promise<number> {
+  try {
+    const { data } = await supabase
+      .from("stays_points_ledger")
+      .select("delta")
+      .eq("user_email", userEmail);
+    return ((data as { delta: number }[]) || []).reduce((s, r) => s + r.delta, 0);
+  } catch {
+    return 0;
+  }
+}
+
+export async function addPoints(
+  userEmail: string,
+  delta: number,
+  reason: string,
+  bookingId?: string | null
+) {
+  if (!delta) return;
+  try {
+    await supabase.from("stays_points_ledger").insert({
+      user_email: userEmail,
+      delta,
+      reason,
+      booking_id: bookingId || null,
+    });
+  } catch {
+    // ポイント処理失敗は主要フローを止めない
+  }
+}
+
+// ---------------- 友達紹介（リファラル） ----------------
+function genReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+// 自分の紹介コードを取得（未発行なら発行して保存）
+export async function ensureReferralCode(userId: string): Promise<string> {
+  const { data } = await supabase.from("stays_users").select("referral_code").eq("id", userId).maybeSingle();
+  const existing = (data as any)?.referral_code;
+  if (existing) return existing;
+  const code = genReferralCode();
+  await supabase.from("stays_users").update({ referral_code: code }).eq("id", userId);
+  return code;
+}
+
+// 新規登録時に紹介コードを適用（双方にボーナスpt付与）
+export async function applyReferral(newUserId: string, newUserEmail: string, refCode: string): Promise<boolean> {
+  try {
+    const code = refCode.trim().toUpperCase();
+    if (!code) return false;
+    const { data: referrer } = await supabase
+      .from("stays_users")
+      .select("id,email,referral_code")
+      .eq("referral_code", code)
+      .maybeSingle();
+    if (!referrer || (referrer as any).email === newUserEmail) return false;
+    const settings = await fetchPlatformSettings();
+    const bonus = settings.referral_bonus_points ?? 500;
+    await supabase.from("stays_users").update({ referred_by: code }).eq("id", newUserId);
+    await addPoints(newUserEmail, bonus, `友達紹介ボーナス（コード: ${code}）`);
+    await addPoints((referrer as any).email, bonus, "友達紹介ボーナス（紹介成立）");
+    await notify((referrer as any).email, "友達紹介が成立しました", `${bonus}ポイントを獲得しました`, "/stays/profile");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // ---------------- ウィッシュリスト ----------------
 export async function fetchWishlist(userEmail: string): Promise<Wishlist[]> {
