@@ -3,7 +3,8 @@
 // 旅程（マイ予約）: 支払い / キャンセル（ポリシーに基づく返金） / レビュー導線
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, CreditCard, Luggage } from "lucide-react";
+import { CalendarDays, CreditCard, Luggage, TicketCheck } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
@@ -107,6 +108,9 @@ function TripsBody() {
 
   function BookingCard({ b }: { b: Booking }) {
     const l = listings.get(b.listing_id);
+    const [showPass, setShowPass] = useState(false);
+    // デジタル到着パス: 確定済み予約の証明QR（オーナーが到着時に確認）
+    const passPayload = `CRANE-NEST-PASS|${b.id}|${b.guest_name}|${b.check_in}|${b.check_out}|${b.guests_count}pax|${b.payment_status}`;
     const st = STATUS_LABEL[b.status];
     const pay_ = PAY_LABEL[b.payment_status] || PAY_LABEL.unpaid;
     const canPay = b.payment_status === "unpaid" && b.status !== "cancelled";
@@ -163,7 +167,27 @@ function TripsBody() {
                 レビューを書く
               </Link>
             )}
+            {b.status === "confirmed" && (
+              <button
+                onClick={() => setShowPass((s) => !s)}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-1.5 text-xs font-semibold text-white"
+              >
+                <TicketCheck className="h-3.5 w-3.5" /> 到着パス
+              </button>
+            )}
           </div>
+          {showPass && b.status === "confirmed" && (
+            <div className="mt-3 flex items-center gap-4 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/50 p-4">
+              <div className="shrink-0 rounded-xl bg-white p-2 shadow-sm">
+                <QRCodeSVG value={passPayload} size={96} />
+              </div>
+              <div className="min-w-0 text-xs text-slate-600">
+                <p className="font-bold text-brand-700">Digital Arrival Pass</p>
+                <p className="mt-1">到着時にこのQRをホストに見せてください。予約内容(氏名・日程・人数・支払状況)を即座に確認できます。</p>
+                <p className="mt-1 font-mono text-[10px] text-slate-400">#{b.id.slice(0, 8).toUpperCase()}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

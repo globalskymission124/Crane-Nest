@@ -14,6 +14,16 @@ export default function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  const seenIds = useRef<Set<string>>(new Set());
+  const firstLoad = useRef(true);
+  const [notifPerm, setNotifPerm] = useState<string>("unsupported");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotifPerm(Notification.permission);
+    }
+  }, []);
+
   useEffect(() => {
     if (!session) {
       setItems([]);
@@ -22,7 +32,22 @@ export default function NotificationsBell() {
     let alive = true;
     const load = async () => {
       const n = await fetchNotifications(session.email);
-      if (alive) setItems(n);
+      if (!alive) return;
+      // 新着をブラウザ通知（スマホPWAでも表示される）
+      if (!firstLoad.current && "Notification" in window && Notification.permission === "granted") {
+        for (const item of n) {
+          if (!item.is_read && !seenIds.current.has(item.id)) {
+            try {
+              new Notification(item.title, { body: item.body, icon: "/icon.png" });
+            } catch {
+              // 一部環境では未対応
+            }
+          }
+        }
+      }
+      n.forEach((item) => seenIds.current.add(item.id));
+      firstLoad.current = false;
+      setItems(n);
     };
     load();
     const t = setInterval(load, 20000);
@@ -31,6 +56,12 @@ export default function NotificationsBell() {
       clearInterval(t);
     };
   }, [session?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function enableNotifications() {
+    if (!("Notification" in window)) return;
+    const p = await Notification.requestPermission();
+    setNotifPerm(p);
+  }
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -64,6 +95,14 @@ export default function NotificationsBell() {
       {open && (
         <div className="absolute right-0 top-10 z-40 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
           <p className="px-3 py-2 text-xs font-bold text-slate-500">通知</p>
+          {notifPerm === "default" && (
+            <button
+              onClick={enableNotifications}
+              className="mx-2 mb-2 w-[calc(100%-16px)] rounded-xl bg-brand-50 px-3 py-2 text-xs font-bold text-brand-700"
+            >
+              🔔 スマホ/PCの通知をONにする
+            </button>
+          )}
           {items.length === 0 && <p className="px-3 pb-3 text-sm text-slate-400">通知はありません</p>}
           <div className="max-h-80 overflow-y-auto">
             {items.map((n) =>

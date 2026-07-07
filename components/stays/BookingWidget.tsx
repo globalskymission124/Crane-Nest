@@ -12,7 +12,8 @@ import { formatJPY } from "@/lib/stays/types";
 import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { createBooking } from "@/lib/stays/queries";
 import { calcQuote, couponError } from "@/lib/stays/pricing";
-import { addPoints, fetchAddons, fetchCouponByCode, fetchPlatformSettings, fetchPointsBalance, incrementCouponUse, notify, audit } from "@/lib/stays/v2";
+import { addPoints, fetchAddons, fetchBookingsByEmail, fetchCouponByCode, fetchPlatformSettings, fetchPointsBalance, incrementCouponUse, notify, audit } from "@/lib/stays/v2";
+import { getTier, LOYALTY_LABELS, type LoyaltyTier } from "@/lib/stays/loyalty";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
@@ -27,7 +28,7 @@ interface Props {
 export default function BookingWidget({ listing, blocks, bookings, onBooked }: Props) {
   const { session } = useStaysSession();
   const { fmt } = useCurrency();
-  const { t } = useStaysT();
+  const { t, lang } = useStaysT();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
@@ -44,6 +45,7 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
   const [selectedAddons, setSelectedAddons] = useState<Set<string>>(new Set());
   const [pointsBalance, setPointsBalance] = useState(0);
   const [usePoints, setUsePoints] = useState(false);
+  const [tier, setTier] = useState<LoyaltyTier | null>(null);
 
   // ログイン済みなら名前/メールを自動入力
   useEffect(() => {
@@ -59,9 +61,12 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
     fetchAddons(listing.id, listing.host_id).then(setAddons);
   }, [listing.id, listing.host_id]);
 
-  // ポイント残高
+  // ポイント残高 + 会員ランク
   useEffect(() => {
-    if (session) fetchPointsBalance(session.email).then(setPointsBalance);
+    if (session) {
+      fetchPointsBalance(session.email).then(setPointsBalance);
+      fetchBookingsByEmail(session.email).then((bs) => setTier(getTier(bs)));
+    }
   }, [session?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const blockedNights = useMemo(() => buildBlockedNights(blocks, bookings), [blocks, bookings]);
@@ -72,8 +77,8 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
     [addons, selectedAddons]
   );
   const quote = useMemo(
-    () => (checkIn && checkOut ? calcQuote(listing, checkIn, checkOut, coupon, settings, chosenAddons) : null),
-    [listing, checkIn, checkOut, coupon, settings, chosenAddons]
+    () => (checkIn && checkOut ? calcQuote(listing, checkIn, checkOut, coupon, settings, chosenAddons, tier?.discountPct || 0) : null),
+    [listing, checkIn, checkOut, coupon, settings, chosenAddons, tier]
   );
   const nights = quote?.nights || 0;
   const pointsUsed = usePoints && quote ? Math.min(pointsBalance, quote.total) : 0;
@@ -113,7 +118,7 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
         status: listing.instant_book ? "confirmed" : "pending",
         payment_status: "unpaid",
         coupon_code: coupon?.code || null,
-        discount_amount: (quote!.longStayDiscount || 0) + (quote!.couponDiscount || 0) + pointsUsed,
+        discount_amount: (quote!.longStayDiscount || 0) + (quote!.couponDiscount || 0) + (quote!.loyaltyDiscount || 0) + pointsUsed,
         guest_fee: quote!.guestFee,
         host_commission: quote!.hostCommission,
         addons: chosenAddons.map((a) => ({ name: a.name, price: a.price })),
@@ -332,6 +337,12 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
             <div className="flex justify-between text-emerald-600">
               <span>{t.couponDiscount}</span>
               <span>-{fmt(quote.couponDiscount)}</span>
+            </div>
+          )}
+          {quote.loyaltyDiscount > 0 && tier && (
+            <div className="flex justify-between text-emerald-600">
+              <span>{t.loyaltyDiscount} ({LOYALTY_LABELS[tier.key][lang]} -{tier.discountPct}%)</span>
+              <span>-{fmt(quote.loyaltyDiscount)}</span>
             </div>
           )}
           {quote.addonsTotal > 0 && (

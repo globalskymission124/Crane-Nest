@@ -25,6 +25,7 @@ import {
   averageRating,
 } from "@/lib/stays/queries";
 import { createReport, fetchWishlist, similarListings } from "@/lib/stays/v2";
+import { addDays, buildBlockedNights, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useStaysT } from "@/lib/stays/i18n";
 import type { Booking, CalendarBlock, Host, Listing, Review } from "@/lib/stays/types";
@@ -99,6 +100,14 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
     );
 
   const avg = averageRating(reviews);
+  // 実データに基づく人気シグナル（偽の演出はしない）
+  const recent7 = bookings.filter(
+    (b) => b.status !== "cancelled" && b.created_at && Date.now() - new Date(b.created_at).getTime() < 7 * 86400000
+  ).length;
+  const blockedSet = buildBlockedNights(blocks, bookings);
+  let occ30 = 0;
+  for (let i = 0; i < 30; i++) if (blockedSet.has(addDays(todayStr(), i))) occ30++;
+  const almostFull = occ30 / 30 >= 0.6;
 
   return (
     <div>
@@ -123,6 +132,17 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
               <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600">
                 <Zap className="h-3 w-3" /> {t.instantBook}
               </span>
+            )}
+            {avg >= 4.8 && reviews.length >= 3 && (
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-bold text-white">★ {t.guestFavorite}</span>
+            )}
+            {recent7 > 0 && (
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-600">
+                🔥 {recent7} {t.recentBooked7d}
+              </span>
+            )}
+            {almostFull && (
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-600">{t.almostFull}</span>
             )}
           </p>
         </div>

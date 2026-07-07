@@ -55,8 +55,18 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
                     {t.adminConsole}
                   </Link>
                 )}
-                <Link href="/stays/profile" className="inline-block max-w-[90px] truncate text-xs font-semibold text-slate-500 hover:text-brand-600 hover:underline">
-                  {session.name}
+                <Link href="/stays/profile" className="flex items-center gap-1.5" aria-label="Profile">
+                  {session.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={session.avatar_url} alt="" className="h-7 w-7 rounded-full border border-slate-200 object-cover" />
+                  ) : (
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
+                      {session.name.charAt(0)}
+                    </span>
+                  )}
+                  <span className="hidden max-w-[80px] truncate text-xs font-semibold text-slate-500 sm:inline">
+                    {session.name}
+                  </span>
                 </Link>
                 <button onClick={() => logout()} aria-label="ログアウト" className="rounded-full p-2 hover:bg-slate-100">
                   <LogOut className="h-4 w-4 text-slate-500" />

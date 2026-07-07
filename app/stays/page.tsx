@@ -12,8 +12,9 @@ import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
 import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
 import SmartSearchBar from "@/components/stays/SmartSearchBar";
 import WishlistButton from "@/components/stays/WishlistButton";
-import { fetchListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
+import { fetchListings, fetchAllReviews, averageRating, fetchBlocks, fetchBookings } from "@/lib/stays/queries";
 import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
+import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
@@ -28,6 +29,9 @@ export default function StaysHomePage() {
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [q, setQ] = useState("");
   const [guests, setGuests] = useState(1);
+  const [dateIn, setDateIn] = useState("");
+  const [dateOut, setDateOut] = useState("");
+  const [availableIds, setAvailableIds] = useState<Set<string> | null>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"split" | "list" | "map">("split");
@@ -55,6 +59,28 @@ export default function StaysHomePage() {
     fetchWishlist(session.email).then((wl) => setSaved(new Set(wl.map((w) => w.listing_id))));
   }, [session?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 日付を指定したら空室のある宿だけに絞り込む（Booking.com流）
+  useEffect(() => {
+    if (!dateIn || !dateOut || dateOut <= dateIn || listings.length === 0) {
+      setAvailableIds(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const results = await Promise.all(
+        listings.map(async (l) => {
+          const [bl, bk] = await Promise.all([fetchBlocks(l.id), fetchBookings(l.id)]);
+          const blocked = buildBlockedNights(bl, bk);
+          return isRangeAvailable(dateIn, dateOut, blocked) ? l.id : null;
+        })
+      );
+      if (alive) setAvailableIds(new Set(results.filter((x): x is string => !!x)));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [dateIn, dateOut, listings]);
+
   const reviewsByListing = useMemo(() => {
     const map = new Map<string, Review[]>();
     for (const r of reviews) {
@@ -67,6 +93,7 @@ export default function StaysHomePage() {
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
     const list = listings.filter((l) => {
+      if (availableIds && !availableIds.has(l.id)) return false;
       if (l.max_guests < guests) return false;
       if (filters.priceMin != null && l.price_per_night < filters.priceMin) return false;
       if (filters.priceMax != null && l.price_per_night > filters.priceMax) return false;
@@ -100,7 +127,7 @@ export default function StaysHomePage() {
             ((isFeatured(a) ? 100 : 0) + avg(a) + Math.min(1, (reviewsByListing.get(a.id)?.length || 0) * 0.1))
         );
     }
-  }, [listings, q, guests, filters, reviewsByListing]);
+  }, [listings, q, guests, filters, reviewsByListing, availableIds]);
 
   const markers: MapMarker[] = filtered
     .filter((l) => l.lat != null && l.lng != null)
@@ -132,6 +159,25 @@ export default function StaysHomePage() {
             onChange={(e) => setQ(e.target.value)}
             placeholder={t.searchPlaceholder}
             className="w-full bg-transparent py-2.5 text-sm outline-none"
+          />
+        </div>
+        <div className="flex items-center gap-1 rounded-xl bg-slate-50 px-2">
+          <input
+            type="date"
+            min={todayStr()}
+            value={dateIn}
+            onChange={(e) => setDateIn(e.target.value)}
+            className="bg-transparent py-2.5 text-xs outline-none"
+            aria-label={t.checkIn}
+          />
+          <span className="text-slate-300">→</span>
+          <input
+            type="date"
+            min={dateIn || todayStr()}
+            value={dateOut}
+            onChange={(e) => setDateOut(e.target.value)}
+            className="bg-transparent py-2.5 text-xs outline-none"
+            aria-label={t.checkOut}
           />
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3">
@@ -173,6 +219,11 @@ export default function StaysHomePage() {
         <SearchFilters filters={filters} onChange={setFilters} />
         <p className="text-xs text-slate-400">{filtered.length} {t.results}</p>
       </div>
+      {availableIds && (
+        <p className="mb-4 -mt-2 inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+          ✓ {t.availableForDates}
+        </p>
+      )}
 
       {error && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
@@ -235,6 +286,9 @@ export default function StaysHomePage() {
                         <h3 className="line-clamp-1 font-semibold text-slate-800">
                           {isFeatured(l) && (
                             <span className="mr-1 rounded bg-brand-600 px-1.5 py-0.5 align-middle text-[9px] font-bold text-white">PR</span>
+                          )}
+                          {avg >= 4.8 && rv.length >= 3 && (
+                            <span className="mr-1 rounded bg-amber-400 px-1.5 py-0.5 align-middle text-[9px] font-bold text-white">★ {t.guestFavorite}</span>
                           )}
                           {l.title}
                         </h3>

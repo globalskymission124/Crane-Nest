@@ -7,6 +7,7 @@ import { useState } from "react";
 import Stars from "./Stars";
 import type { Review } from "@/lib/stays/types";
 import { averageRating, createReview } from "@/lib/stays/queries";
+import { useStaysT } from "@/lib/stays/i18n";
 
 interface Props {
   listingId: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function ReviewsSection({ listingId, initialReviews }: Props) {
+  const { t } = useStaysT();
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
   const [rating, setRating] = useState(5);
   const [name, setName] = useState("");
@@ -61,7 +63,14 @@ export default function ReviewsSection({ listingId, initialReviews }: Props) {
         {reviews.map((r) => (
           <div key={r.id} className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-800">{r.guest_name}</span>
+              <span className="flex items-center gap-1.5 font-semibold text-slate-800">
+                {r.guest_name}
+                {r.booking_id && (
+                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600">
+                    ✓ {t.verifiedStay}
+                  </span>
+                )}
+              </span>
               <Stars value={r.rating} size={14} />
             </div>
             <p className="mt-2 text-sm text-slate-600">{r.comment}</p>

@@ -167,6 +167,42 @@ export async function sendMessage(
     .from("stays_conversations")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", conversationId);
+
+  // 相手側へアプリ内通知（ベル + ブラウザ通知）。失敗しても送信は成立させる。
+  try {
+    const { data: conv } = await supabase
+      .from("stays_conversations")
+      .select("guest_name,guest_email,host_id")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if (conv) {
+      const c = conv as any;
+      let target: string | null = null;
+      let title = "";
+      if (senderRole === "guest") {
+        const { data: hostUser } = await supabase
+          .from("stays_users")
+          .select("email")
+          .eq("host_id", c.host_id)
+          .maybeSingle();
+        target = (hostUser as any)?.email || null;
+        title = `新着メッセージ: ${c.guest_name}`;
+      } else {
+        target = c.guest_email;
+        title = "New message from your host";
+      }
+      if (target) {
+        await supabase.from("stays_notifications").insert({
+          user_email: target,
+          title,
+          body: body.slice(0, 80),
+          link: senderRole === "guest" ? "/host/messages" : "/stays",
+        });
+      }
+    }
+  } catch {
+    // 通知失敗は無視
+  }
   return data as Message;
 }
 

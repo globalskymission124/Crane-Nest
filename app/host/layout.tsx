@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Building2 } from "lucide-react";
 import HostNav from "@/components/stays/HostNav";
 import AuthGuard from "@/components/stays/AuthGuard";
+import NotificationsBell from "@/components/stays/NotificationsBell";
 
 // オーナー（貸主）向けバックエンドのレイアウト。ホスト/管理者ロールが必要。
 export default function HostLayout({ children }: { children: React.ReactNode }) {
@@ -13,9 +14,15 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
             <Building2 className="h-5 w-5 text-brand-600" />
             オーナー管理
           </Link>
-          <Link href="/stays" className="text-sm font-medium text-slate-500 hover:text-brand-600">
-            ゲスト画面を見る →
-          </Link>
+          <div className="flex items-center gap-2">
+            <NotificationsBell />
+            <Link href="/stays/profile" className="text-sm font-medium text-slate-500 hover:text-brand-600">
+              プロフィール
+            </Link>
+            <Link href="/stays" className="text-sm font-medium text-slate-500 hover:text-brand-600">
+              ゲスト画面 →
+            </Link>
+          </div>
         </div>
         <div className="mx-auto max-w-6xl px-4 pb-3">
           <HostNav />

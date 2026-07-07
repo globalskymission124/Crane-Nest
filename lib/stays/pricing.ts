@@ -12,6 +12,7 @@ export interface Quote {
   longStayDiscount: number;  // 週/月割引額
   longStayLabel: string | null;
   couponDiscount: number;
+  loyaltyDiscount: number;   // 会員ランク割引
   addonsTotal: number;       // アドオン（アップセル）合計
   guestFee: number;          // ゲストサービス料（プラットフォーム収益）
   hostCommission: number;    // オーナー成約手数料（プラットフォーム収益）
@@ -26,7 +27,8 @@ export function calcQuote(
   checkOut: string,
   coupon?: Coupon | null,
   settings?: PlatformSettings | null,
-  addons: Addon[] = []
+  addons: Addon[] = [],
+  loyaltyPct = 0
 ): Quote {
   const nights = nightsBetween(checkIn, checkOut);
   const subtotal = nights * listing.price_per_night;
@@ -51,7 +53,11 @@ export function calcQuote(
         : Math.min(coupon.value, base);
   }
 
-  const stayTotal = Math.max(0, base - couponDiscount);
+  const loyaltyDiscount =
+    loyaltyPct > 0 && nights > 0
+      ? Math.round(((subtotal - longStayDiscount) * loyaltyPct) / 100)
+      : 0;
+  const stayTotal = Math.max(0, base - couponDiscount - loyaltyDiscount);
   const addonsTotal = nights > 0 ? addons.reduce((s, a) => s + a.price, 0) : 0;
   const guestFee =
     settings?.enable_guest_fee && nights > 0
@@ -69,6 +75,7 @@ export function calcQuote(
     longStayDiscount,
     longStayLabel,
     couponDiscount,
+    loyaltyDiscount,
     addonsTotal,
     guestFee,
     hostCommission,

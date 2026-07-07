@@ -47,6 +47,9 @@ interface Dict {
   namePh: string; passportNoPh: string; passportNamePh: string; refCodePh: string;
   loginBtn: string; signupBtn: string; toSignup: string; toLogin: string; toPassport: string;
   demoAccounts: string; passportLoginHint: string; loggedInAs: string;
+  // 競合いいとこ取り機能
+  loyaltyDiscount: string; guestFavorite: string; recentBooked7d: string; almostFull: string;
+  verifiedStay: string; availableForDates: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
@@ -83,6 +86,8 @@ const en: Dict = {
   demoAccounts: "Demo accounts (password: demo123)",
   passportLoginHint: "If you registered your passport for a transfer, log in with your passport number and name.",
   loggedInAs: "Logged in as",
+  loyaltyDiscount: "Loyalty discount", guestFavorite: "Guest favorite", recentBooked7d: "bookings in the past 7 days",
+  almostFull: "In high demand — few dates left", verifiedStay: "Verified stay", availableForDates: "Showing stays available for your dates",
   amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", tv: "TV", elevator: "Elevator", bathtub: "Bathtub", pool: "Pool", workspace: "Workspace" },
   ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
@@ -118,6 +123,8 @@ const ja: Dict = {
   demoAccounts: "デモアカウント（パスワード: demo123）",
   passportLoginHint: "送迎予約でパスポート登録済みの方は、パスポート番号と氏名でログインできます。",
   loggedInAs: "ログイン中:",
+  loyaltyDiscount: "会員割引", guestFavorite: "ゲスト絶賛", recentBooked7d: "件の予約（直近7日）",
+  almostFull: "人気：空きわずか", verifiedStay: "宿泊確認済み", availableForDates: "選択日程で空きのある宿のみ表示中",
   amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", tv: "テレビ", elevator: "エレベーター", bathtub: "バスタブ", pool: "プール", workspace: "ワークスペース" },
   ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
@@ -153,6 +160,8 @@ const tw: Dict = {
   demoAccounts: "測試帳號（密碼: demo123）",
   passportLoginHint: "若已在接送預約登記護照，可用護照號碼與姓名登入。",
   loggedInAs: "登入中:",
+  loyaltyDiscount: "會員折扣", guestFavorite: "旅客好評", recentBooked7d: "筆預訂（過去7天）",
+  almostFull: "熱門：可訂日期不多", verifiedStay: "已驗證入住", availableForDates: "僅顯示所選日期有空房的住宿",
   amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", tv: "電視", elevator: "電梯", bathtub: "浴缸", pool: "泳池", workspace: "工作空間" },
   ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
@@ -189,6 +198,8 @@ const zh: Dict = {
   demoAccounts: "测试账号（密码: demo123）",
   passportLoginHint: "若已在接送预约登记护照，可用护照号码与姓名登录。",
   loggedInAs: "已登录:",
+  loyaltyDiscount: "会员折扣", guestFavorite: "旅客好评", recentBooked7d: "笔预订（过去7天）",
+  almostFull: "热门：可订日期不多", verifiedStay: "已验证入住", availableForDates: "仅显示所选日期有空房的住宿",
   amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", tv: "电视", elevator: "电梯", bathtub: "浴缸", pool: "泳池", workspace: "工作空间" },
   ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },

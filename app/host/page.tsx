@@ -4,7 +4,8 @@
 // オーナー：予約ダッシュボード
 // =========================================================
 import { useEffect, useMemo, useState } from "react";
-import { Check, X, Clock } from "lucide-react";
+import Link from "next/link";
+import { BarChart3, Check, X, Clock, QrCode, Rocket, Tag } from "lucide-react";
 import { fetchAllBookings, fetchAllListings } from "@/lib/stays/queries";
 import { updateBookingStatus } from "@/lib/stays/host";
 import { notify, audit } from "@/lib/stays/v2";
@@ -65,10 +66,46 @@ export default function HostBookingsPage() {
     setBookings((prev) => prev.map((x) => (x.id === b.id ? { ...x, status } : x)));
   }
 
+  // 今日やることが一目でわかるサマリー（行動を促す設計）
+  const today = new Date().toISOString().slice(0, 10);
+  const pendingCount = bookings.filter((b) => b.status === "pending").length;
+  const todayCheckins = bookings.filter((b) => b.status === "confirmed" && b.check_in === today);
+  const unpaidConfirmed = bookings.filter((b) => b.status === "confirmed" && b.payment_status === "unpaid").length;
+
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold">予約管理</h1>
-      <p className="mb-5 text-sm text-slate-500">当サイト経由の予約リクエストを承認・管理します。</p>
+      <h1 className="mb-1 text-2xl font-extrabold">おかえりなさい 👋</h1>
+      <p className="mb-4 text-sm text-slate-500">今日の状況とやることをまとめました。</p>
+
+      {/* 今日のサマリー */}
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <button onClick={() => setFilter("pending")} className={`rounded-2xl border p-4 text-left transition hover:shadow-md ${pendingCount > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+          <p className="text-2xl font-extrabold text-slate-900">{pendingCount}</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">承認待ち{pendingCount > 0 && " ←要対応"}</p>
+        </button>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-2xl font-extrabold text-slate-900">{todayCheckins.length}</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">本日チェックイン</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-2xl font-extrabold text-slate-900">{unpaidConfirmed}</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">確定・未払い</p>
+        </div>
+      </div>
+
+      {/* クイックアクション */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {([
+          ["/host/checkin", QrCode, "パスポートQR"],
+          ["/host/analytics", BarChart3, "売上を見る"],
+          ["/host/promotions", Tag, "クーポン発行"],
+          ["/host/listings", Rocket, "掲載ブースト"],
+        ] as const).map(([href, Icon, label]) => (
+          <Link key={href} href={href} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-700">
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </Link>
+        ))}
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {(["all", "pending", "confirmed", "completed", "cancelled"] as const).map((f) => (

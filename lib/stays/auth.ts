@@ -20,6 +20,7 @@ export interface StaysSession {
   host_id: string | null;
   passport_number?: string | null;
   password_set?: boolean;
+  avatar_url?: string | null;
 }
 
 export function getSession(): StaysSession | null {
@@ -47,6 +48,7 @@ function toSession(u: any): StaysSession {
     host_id: u.host_id,
     passport_number: u.passport_number ?? null,
     password_set: !!u.password,
+    avatar_url: u.avatar_url ?? null,
   };
 }
 
@@ -137,12 +139,25 @@ export async function autoSignInWithPassport(
 // プロフィール更新（名前 / メール / パスワード）。セッションも更新する。
 export async function updateProfile(
   userId: string,
-  patch: { name?: string; email?: string; password?: string }
+  patch: {
+    name?: string;
+    email?: string;
+    password?: string;
+    avatar_url?: string | null;
+    passport_number?: string | null;
+    nationality?: string | null;
+    passport_image_url?: string | null;
+  }
 ): Promise<StaysSession> {
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name.trim();
   if (patch.email !== undefined) payload.email = patch.email.trim().toLowerCase();
   if (patch.password !== undefined) payload.password = patch.password;
+  if (patch.avatar_url !== undefined) payload.avatar_url = patch.avatar_url;
+  if (patch.passport_number !== undefined)
+    payload.passport_number = patch.passport_number ? patch.passport_number.trim().toUpperCase() : null;
+  if (patch.nationality !== undefined) payload.nationality = patch.nationality;
+  if (patch.passport_image_url !== undefined) payload.passport_image_url = patch.passport_image_url;
   const { data, error } = await supabase
     .from("stays_users")
     .update(payload)
