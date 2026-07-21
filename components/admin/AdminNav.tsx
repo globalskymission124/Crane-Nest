@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, MapPin, Image as ImageIcon, Palette, BedDouble, FileDown, Star, BarChart3, Users, Flag, BadgeJapaneseYen, Globe, LayoutGrid, X } from "lucide-react";
+import { LayoutDashboard, MapPin, Image as ImageIcon, Palette, BedDouble, FileDown, Star, BarChart3, Users, Flag, BadgeJapaneseYen, Globe, LayoutGrid, Droplets, X } from "lucide-react";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
 import type { AdminLocale } from "@/lib/i18n/admin/types";
@@ -39,6 +39,12 @@ const WEBSITE_LABEL: Record<AdminLocale, string> = {
   zh: "网站编辑",
   en: "Website",
 };
+// 便槽モニタ（自社ゲストハウス専用・管理者のみ）
+const TANK_LABEL: Record<AdminLocale, string> = {
+  ja: "便槽モニタ",
+  zh: "粪池监测",
+  en: "Tank",
+};
 
 function buildNavItems(t: AdminDictionary, locale: AdminLocale) {
   // 先頭4件はモバイル下部ナビに常時表示される主要メニュー
@@ -54,6 +60,7 @@ function buildNavItems(t: AdminDictionary, locale: AdminLocale) {
     { href: "/admin/reviews", label: REVIEWS_LABEL[locale], icon: Star },
     { href: "/admin/users", label: USERS_LABEL[locale], icon: Users },
     { href: "/admin/reports", label: REPORTS_LABEL[locale], icon: Flag },
+    { href: "/admin/tank", label: TANK_LABEL[locale], icon: Droplets },
     { href: "/admin/settings", label: t.nav.settings, icon: Palette },
   ] as const;
 }
