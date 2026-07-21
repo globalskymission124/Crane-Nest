@@ -1,7 +1,9 @@
 -- =========================================================
 -- 便槽（し尿タンク）モニタリング
---   自社ゲストハウス専用。宿泊人数から累積水量を積算し、
---   80%（既定480L）超過で WeCom & Email へ通知する仕組みのデータ層。
+--   自社ゲストハウス専用。★予約(stays_bookings)から累積水量を自動計算する方式。
+--     - confirmed / completed の予約だけを対象（cancelled / pending は自動除外）
+--     - 各予約を「泊まった夜」に展開し、前回汲み取り日〜今日より前の“過ぎた夜”のみ加算
+--   80%（既定480L）超過で WeCom & Email へ通知する。
 --   ※ 環境変数未設定時はアプリ側のインメモリ・モックで動作するため、
 --     このマイグレーションは本番運用時に適用する。
 -- =========================================================
@@ -20,11 +22,13 @@ create table if not exists stays_tank_state (
 insert into stays_tank_state (id) values (1)
   on conflict (id) do nothing;
 
--- 2. 日次の宿泊ログ（date をユニークにして当日訂正は upsert で上書き）
+-- 2. 手動補正(override)テーブル
+--    通常は予約から自動計算するが、実人数がズレた日だけスタッフがこの値で上書きする。
+--    ここに行が無い日付は「予約からの自動値」を採用する。
 create table if not exists stays_tank_logs (
   date        date not null primary key,
-  guests      integer not null default 0,   -- その日の宿泊人数
-  liters      numeric not null default 0,    -- guests * liters_per_guest（保存時点）
+  guests      integer not null default 0,   -- 補正後の宿泊人数
+  liters      numeric not null default 0,    -- guests * liters_per_guest（参考値）
   created_at  timestamptz not null default now()
 );
 create index if not exists idx_stays_tank_logs_date on stays_tank_logs (date desc);

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
+    "googleapis": "^144.0.0",
     "jszip": "^3.10.1",
     "tesseract.js": "^4.1.4",
     "lucide-react": "^0.453.0",

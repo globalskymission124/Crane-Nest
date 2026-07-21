@@ -20,6 +20,7 @@ export interface DailyLog {
   date: string; // YYYY-MM-DD
   guests: number; // 宿泊人数
   liters: number; // guests * litersPerGuestPerDay（保存時点の値）
+  overridden?: boolean; // true: 予約自動値ではなくスタッフ手動補正が適用されている
 }
 
 // タンクの現在状態（GET /api/stays/tank のレスポンス本体）
@@ -31,6 +32,85 @@ export interface TankState {
   logs: DailyLog[]; // 前回汲み取り以降のログ（新しい順）
   alerted: boolean; // 警告通知を既に送ったか（多重通知の抑制）
   updatedAt: string; // ISO 8601
+}
+
+// ---- 予約（宿泊）→ 夜次の人数展開 ----
+//   「予約リストから自動計算」の中核。予約イベントごとに水量を足し込むのではなく、
+//   毎回この関数で「実際に泊まった夜の人数」を再計算するため、
+//   キャンセルは自動的に除外され、未来の予約は現在の水量を膨らませない。
+
+// 計算対象に含める予約ステータス（cancelled / pending は除外）
+export const COUNTED_STATUSES = ["confirmed", "completed"] as const;
+
+// tank計算に必要な最小限の予約情報（Booking の部分集合）
+export interface ReservationLite {
+  check_in: string; // YYYY-MM-DD（チェックイン＝最初の宿泊夜）
+  check_out: string; // YYYY-MM-DD（チェックアウト＝この夜は泊まらない）
+  guests: number; // 宿泊人数
+  status: string; // confirmed / completed / cancelled / pending ...
+}
+
+// 日付文字列(YYYY-MM-DD)に n 日加算
+export function addDaysStr(dateStr: string, n: number): string {
+  const dt = new Date(dateStr + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+// 予約が占有する「宿泊夜」の配列 [check_in, check_out)。
+// 例: 8/1 IN 〜 8/3 OUT → 泊まる夜は 8/1, 8/2（8/3は泊まらない）。
+export function eachNight(checkIn: string, checkOut: string): string[] {
+  const out: string[] = [];
+  let d = checkIn;
+  // 不正データ(逆転)や無限ループ防止に上限を設ける
+  let guard = 0;
+  while (d < checkOut && guard < 3660) {
+    out.push(d);
+    d = addDaysStr(d, 1);
+    guard++;
+  }
+  return out;
+}
+
+// 予約リストを日ごとの宿泊人数に集約する。
+//   - COUNTED_STATUSES 以外（キャンセル・保留）は無視
+//   - [fromInclusive, toExclusive) の範囲の夜だけを対象
+//     （tank現在値では from=前回汲み取り日 / to=今日 を渡し「過去の夜のみ」を数える）
+//   - 同じ夜に複数予約（複数部屋）があれば合算
+export function nightlyGuests(
+  reservations: ReservationLite[],
+  fromInclusive: string,
+  toExclusive: string
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const r of reservations) {
+    if (!(COUNTED_STATUSES as readonly string[]).includes(r.status)) continue;
+    for (const night of eachNight(r.check_in, r.check_out)) {
+      if (night >= fromInclusive && night < toExclusive) {
+        map[night] = (map[night] || 0) + Math.max(0, Math.floor(r.guests || 0));
+      }
+    }
+  }
+  return map;
+}
+
+// 自動集計(auto)に手動補正(override)を重ねて、確定版の日次ログを作る。
+//   override が指定された日付は、その値で auto を上書きする（スタッフの微調整）。
+//   override 値が入っていない日付は auto をそのまま採用。
+export function mergeNightly(
+  auto: Record<string, number>,
+  overrides: Record<string, number>,
+  perGuest: number = TANK_DEFAULTS.litersPerGuestPerDay
+): DailyLog[] {
+  const dates = new Set<string>([...Object.keys(auto), ...Object.keys(overrides)]);
+  const logs: DailyLog[] = [];
+  for (const date of dates) {
+    const overridden = date in overrides;
+    const guests = overridden ? overrides[date] : auto[date] || 0;
+    logs.push({ date, guests, liters: litersForGuests(guests, perGuest), overridden });
+  }
+  logs.sort((a, b) => (a.date < b.date ? 1 : -1)); // 新しい順
+  return logs;
 }
 
 // ---- 数値ユーティリティ ----

@@ -14,6 +14,7 @@ import {
   Droplets,
   Gauge,
   Loader2,
+  Mail,
   RefreshCw,
   Users,
 } from "lucide-react";
@@ -26,7 +27,7 @@ interface TankSummary {
   status: TankStatus;
   alertLine: number;
   remainingLiters: number;
-  avgGuestsPerDay: number;
+  upcomingGuestsPerDay: number;
   forecastDays: number | null;
 }
 interface TankResponse {
@@ -90,9 +91,6 @@ export default function GuesthouseTankDashboard() {
       const res = await fetch("/api/stays/tank", { cache: "no-store" });
       const json = (await res.json()) as TankResponse;
       setData(json);
-      // 入力欄に当日ログがあれば初期表示（微調整しやすく）
-      const todayLog = json.logs?.find((l) => l.date === todayStr());
-      if (todayLog) setGuests(String(todayLog.guests));
     } catch {
       setToast("データの取得に失敗しました");
     } finally {
@@ -104,43 +102,87 @@ export default function GuesthouseTankDashboard() {
     load();
   }, [load]);
 
+  // 選択中の日付に手動補正が入っていれば入力欄へ反映
+  useEffect(() => {
+    if (!data) return;
+    const log = data.logs.find((l) => l.date === date);
+    setGuests(log?.overridden ? String(log.guests) : "");
+  }, [date, data]);
+
   function flash(msg: string) {
     setToast(msg);
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 5000);
   }
 
-  async function submitGuests() {
-    const n = Number(guests);
-    if (!Number.isFinite(n) || n < 0) {
-      flash("宿泊人数は0以上の数値で入力してください");
-      return;
-    }
+  // POST 共通処理（再評価＋任意の補正）。通知結果もトーストで知らせる。
+  async function postTank(body: Record<string, unknown>, okMsg: string) {
     setSaving(true);
     try {
       const res = await fetch("/api/stays/tank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, guests: n }),
+        body: JSON.stringify(body),
       });
       const json = (await res.json()) as TankResponse;
       if (!res.ok) throw new Error((json as any)?.error || "更新失敗");
       setData(json);
-      // 通知が飛んだ場合はスタッフにも結果を知らせる
       if (json.alertDispatched) {
         const w = json.alertDispatched.wecom;
         const e = json.alertDispatched.email;
-        const parts: string[] = [];
-        parts.push(`WeCom: ${w.ok ? "送信✓" : w.skipped ? "未設定" : "失敗"}`);
-        parts.push(`Email: ${e.ok ? "送信✓" : e.skipped ? "未設定" : "失敗"}`);
-        flash(`⚠️ 80%超過を検知し通知しました（${parts.join(" / ")}）`);
+        flash(
+          `⚠️ 80%超過を検知し通知しました（WeCom: ${w.ok ? "送信✓" : w.skipped ? "未設定" : "失敗"} / Email: ${e.ok ? "送信✓" : e.skipped ? "未設定" : "失敗"}）`
+        );
       } else {
-        flash(`${date} を ${n}名で更新しました`);
+        flash(okMsg);
       }
     } catch (err: any) {
       flash(err?.message || "更新に失敗しました");
     } finally {
       setSaving(false);
     }
+  }
+
+  // 予約から再評価（補正なし）。通知の再判定も行う。
+  function refreshEvaluate() {
+    postTank({}, "予約データから再計算しました");
+  }
+
+  // Airbnbメールを同期（Gmail取得→解析→反映→再計算）
+  async function syncAirbnb() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/stays/tank/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "同期失敗");
+      setData(json as TankResponse);
+      const s = json.sync;
+      if (s?.gmail?.skipped) {
+        flash("Airbnb同期: Gmail連携が未設定です（GMAIL_* を設定してください）");
+      } else if (s) {
+        flash(`Airbnb同期完了: 取得${s.fetched} / 反映${s.parsed}（確定${s.confirmed} / キャンセル${s.cancelled}）`);
+      } else {
+        flash("Airbnbを同期しました");
+      }
+    } catch (err: any) {
+      flash(err?.message || "Airbnb同期に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // 手動補正を設定
+  function submitOverride() {
+    const n = Number(guests);
+    if (!Number.isFinite(n) || n < 0) {
+      flash("宿泊人数は0以上の数値で入力してください");
+      return;
+    }
+    postTank({ date, guests: n }, `${date} を ${n}名に手動補正しました`);
+  }
+
+  // 手動補正を解除して予約自動値へ戻す
+  function clearOverride() {
+    postTank({ date, guests: null }, `${date} の補正を解除し自動値に戻しました`);
   }
 
   async function doReset() {
@@ -185,12 +227,33 @@ export default function GuesthouseTankDashboard() {
   return (
     <div>
       {/* ===== ヘッダー・ステータス ===== */}
-      <div className="mb-2 flex items-center gap-2">
-        <Droplets className="h-6 w-6 text-brand-600" />
-        <h1 className="text-2xl font-extrabold text-slate-900">便槽モニタリング</h1>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Droplets className="h-6 w-6 text-brand-600" />
+          <h1 className="text-2xl font-extrabold text-slate-900">便槽モニタリング</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncAirbnb}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:border-rose-300 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Airbnb同期
+          </button>
+          <button
+            onClick={refreshEvaluate}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            再計算
+          </button>
+        </div>
       </div>
       <p className="mb-4 text-sm text-slate-500">
-        宿泊人数 × {data.litersPerGuestPerDay}L/人日 を毎日積算。80%（{data.summary.alertLine}L）で自動通知します。
+        自社予約＋Airbnb（メール取込）から自動計算。キャンセルは自動除外し、過ぎた宿泊夜だけを
+        {data.litersPerGuestPerDay}L/人で積算します。80%（{data.summary.alertLine}L）で自動通知。
       </p>
 
       <div className={`mb-5 flex flex-col gap-3 rounded-2xl border ${style.ring} ${style.soft} p-5 sm:flex-row sm:items-center sm:justify-between`}>
@@ -285,18 +348,21 @@ export default function GuesthouseTankDashboard() {
                   : `約 ${data.summary.forecastDays} 日`
               }
               sub={
-                data.summary.avgGuestsPerDay > 0
-                  ? `直近平均 ${data.summary.avgGuestsPerDay}名/日 換算`
-                  : "宿泊実績なし"
+                data.summary.upcomingGuestsPerDay > 0
+                  ? `今後の予約 平均 ${data.summary.upcomingGuestsPerDay}名/日 換算`
+                  : "今後の予約なし"
               }
             />
           </div>
 
-          {/* 本日の宿泊人数入力 */}
+          {/* 手動補正（override）: 通常は予約から自動計算。実人数がズレた日だけ上書き */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
-              <Users className="h-4 w-4 text-brand-600" /> 宿泊人数の入力・更新
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <Users className="h-4 w-4 text-brand-600" /> 手動補正（任意）
             </div>
+            <p className="mb-3 text-xs text-slate-400">
+              人数は予約データから自動反映されます。実際の宿泊人数がズレた日だけ、この補正で上書きできます。
+            </p>
             <div className="flex flex-wrap items-end gap-3">
               <label className="text-xs font-semibold text-slate-500">
                 対象日
@@ -308,7 +374,7 @@ export default function GuesthouseTankDashboard() {
                 />
               </label>
               <label className="text-xs font-semibold text-slate-500">
-                宿泊人数
+                補正人数
                 <input
                   type="number"
                   min={0}
@@ -320,17 +386,21 @@ export default function GuesthouseTankDashboard() {
                 />
               </label>
               <button
-                onClick={submitGuests}
+                onClick={submitOverride}
                 disabled={saving}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                追加 / 更新
+                補正を適用
+              </button>
+              <button
+                onClick={clearOverride}
+                disabled={saving}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 disabled:opacity-50"
+              >
+                自動に戻す
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
-              予約データからの自動反映値を、スタッフが当日実績で微調整できます。0名の日は加算されません。
-            </p>
           </div>
 
           {/* 汲み取り完了リセット */}
@@ -355,14 +425,21 @@ export default function GuesthouseTankDashboard() {
           {data.logs.length > 0 && (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <div className="bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
-                直近の宿泊ログ（前回汲み取り以降）
+                宿泊ログ（前回汲み取り以降・予約から自動算出）
               </div>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-100">
-                  {data.logs.slice(0, 8).map((l) => (
+                  {data.logs.slice(0, 10).map((l) => (
                     <tr key={l.date}>
                       <td className="px-4 py-2 text-slate-600">{l.date}</td>
-                      <td className="px-4 py-2 text-slate-800">{l.guests}名</td>
+                      <td className="px-4 py-2 text-slate-800">
+                        {l.guests}名
+                        {l.overridden && (
+                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                            手動補正
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-right font-semibold text-slate-700">
                         +{l.liters} L
                       </td>
