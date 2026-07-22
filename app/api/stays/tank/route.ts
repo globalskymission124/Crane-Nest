@@ -1,7 +1,7 @@
 // =========================================================
 // し尿タンク モニタリング API（自社予約＋Airbnbを統合して自動計算）
 //   GET  /api/stays/tank   … 再計算した現在状態＋サマリーを返す（副作用なし）
-//   POST /api/stays/tank   … 再評価し、80%超過を検知したら pushplus + Email 通知。
+//   POST /api/stays/tank   … 再評価し、80%超過を検知したら WxPusher + Email 通知。
 //                            body に { date, guests } で手動補正(override)を設定、
 //                            { date, guests: null } で補正を解除。
 //

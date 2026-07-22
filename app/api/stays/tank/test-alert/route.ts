@@ -1,6 +1,6 @@
 // =========================================================
 // POST /api/stays/tank/test-alert
-//   pushplus + Email の通知経路を手動テストする。
+//   WxPusher + Email の通知経路を手動テストする。
 //   実通知と同じ dispatchTankAlerts を使うが、alerted フラグは変更しない。
 // =========================================================
 import { NextResponse } from "next/server";

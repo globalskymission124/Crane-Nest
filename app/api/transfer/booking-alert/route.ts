@@ -1,6 +1,6 @@
 // =========================================================
 // POST /api/transfer/booking-alert
-//   送迎予約完了後のpushplus通知。
+//   送迎予約完了後のWxPusher通知。
 //   body: { transferRequestId: string }
 // =========================================================
 import { NextRequest, NextResponse } from "next/server";
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const alert = await dispatchTransferBookingAlert(transferRequestId);
-  if (alert.pushplus.ok) {
+  if (alert.wxpusher.ok) {
     g.__transferBookingAlertSentAt = { ...sentAt, [transferRequestId]: now };
   }
 

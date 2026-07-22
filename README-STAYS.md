@@ -67,13 +67,17 @@
    STRIPE_SECRET_KEY=sk_test_...
    STRIPE_WEBHOOK_SECRET=whsec_...   # 任意。本番Webhook用
 
-   # 便槽80%通知（pushplus: 家族の個人WeChat向け）
-   PUSHPLUS_TOKEN=your-pushplus-token
-   PUSHPLUS_TOPIC=family-tank-alerts
-   # PUSHPLUS_TO=friend-token-1,friend-token-2
-   # 任意: 送迎予約通知を別グループ/好友へ送る場合だけ指定
-   # TRANSFER_PUSHPLUS_TOPIC=transfer-booking-alerts
-   # TRANSFER_PUSHPLUS_TO=friend-token-1
+   # 便槽80%通知（WxPusher）
+   # 自分だけに送る最短設定（極簡推送SPT。appToken/UID不要）
+   WXPUSHER_SPT=SPT_xxxxxxxxxxxxxxxxx
+
+   # 家族複数人に送る場合（標準推送）
+   # WXPUSHER_APP_TOKEN=AT_xxxxxxxxxxxxxxxxx
+   # WXPUSHER_UIDS=UID_xxxxxxxxxxxxxxxxx,UID_yyyyyyyyyyyyyyyyy
+
+   # 任意: 送迎予約通知だけ別の宛先へ送る場合
+   # TRANSFER_WXPUSHER_SPT=SPT_xxxxxxxxxxxxxxxxx
+   # TRANSFER_WXPUSHER_UIDS=UID_xxxxxxxxxxxxxxxxx
    VACUUM_CONTACT=バキュームカー業者：〇〇環境サービス TEL 0000-00-0000
 
    # メールにも同時通知
@@ -91,26 +95,36 @@
    npm run dev
    ```
 
-### pushplusで家族の個人WeChatへ便槽通知する
+### WxPusherで自分の個人WeChatへ便槽通知する
 
-1. 代表者のWeChatで「pushplus 推送加」をフォローし、個人tokenを取得します。
-2. pushplusの「一対多消息」で家族用グループを作成し、群组编码を決めます。
-3. 家族にグループQRを読み取って参加してもらいます。
-4. VercelのEnvironment Variablesへ `PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を設定し、Redeployします。
-5. 便槽が80%に到達すると、pushplus経由で家族全員の個人WeChatに通知されます。
-6. 同時に `ADMIN_EMAIL` 宛にもメール通知されます。
-7. 動作確認は `/admin/tank` の「通知テスト」ボタンで実行できます。
+自分だけに送る場合は、標準推送アプリを作らなくても大丈夫です。
 
-特定の家族だけへ送る場合は、pushplusの好友機能で取得した好友トークンを `PUSHPLUS_TO`
-にカンマ区切りで設定できます。`PUSHPLUS_TOPIC` がある場合はグループ通知が優先されます。
+1. WxPusherの「方式二：极简推送」で自分の `SPT_xxx` を取得します。
+2. VercelのEnvironment Variablesへ `WXPUSHER_SPT` を設定し、Redeployします。
+3. 便槽が80%に到達すると、WxPusher経由で自分のWeChatに通知されます。
+4. 同時に `ADMIN_EMAIL` 宛にもメール通知されます。
+5. 動作確認は `/admin/tank` の「通知テスト」ボタンで実行できます。
 
-### 送迎予約の朝10時まで制限とpushplus通知
+### WxPusherで家族の個人WeChatへ便槽通知する
+
+1. WxPusher管理后台へWeChat扫码でログインし、標準推送アプリを作成します。
+2. アプリの `appToken` を取得します。
+3. 家族にアプリの关注リンク/QRを読み取ってもらいます。
+4. 家族それぞれの `UID_xxx` を取得します。
+5. VercelのEnvironment Variablesへ `WXPUSHER_APP_TOKEN` と `WXPUSHER_UIDS` を設定し、Redeployします。
+6. 便槽が80%に到達すると、WxPusher経由で家族全員の個人WeChatに通知されます。
+7. 同時に `ADMIN_EMAIL` 宛にもメール通知されます。
+8. 動作確認は `/admin/tank` の「通知テスト」ボタンで実行できます。
+
+家族UIDは `WXPUSHER_UIDS=UID_xxx,UID_yyy` のようにカンマ区切りで複数指定できます。
+
+### 送迎予約の朝10時まで制限とWxPusher通知
 
 - ゲストの「希望出発時刻」は必須です。選択肢は `00:00` から `10:00` までに制限しています。
 - 「出発便のフライト時刻」は従来通り任意です。
 - 管理画面の送迎ボードは、朝10:00までの送迎予約だけを表示します。
-- 新しい送迎予約が保存されると、pushplusへ予約内容を通知します。基本は `PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を再利用します。
-- 送迎予約だけ別のpushplusグループへ送る場合は `TRANSFER_PUSHPLUS_TOPIC` を設定してください。
+- 新しい送迎予約が保存されると、WxPusherへ予約内容を通知します。基本は `WXPUSHER_SPT`、または `WXPUSHER_APP_TOKEN` と `WXPUSHER_UIDS` を再利用します。
+- 送迎予約だけ別の宛先へ送る場合は `TRANSFER_WXPUSHER_SPT` または `TRANSFER_WXPUSHER_UIDS` を設定してください。
 
 DB側でも今後の不正登録を防ぐ場合は、Supabaseで `supabase/migrations/0028_transfer_morning_required.sql` を実行してください。
 

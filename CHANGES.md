@@ -1,23 +1,25 @@
-# 便槽・送迎通知 v11（pushplus通知 + 朝10時まで送迎）
+# 便槽・送迎通知 v13（WxPusher SPT対応 + 朝10時まで送迎）
 
 このフォルダの中身をリポジトリの同じ場所に上書きコピーしてGitHubへpush → Vercel自動デプロイ。
 ※ 事前に v6（日付解析修正）が反映済みであること。
 
 ## 変更ファイル
 - lib/stays/tankAlerts.ts
-    80%到達時の通知先にpushplusを追加。`PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC`
-    を設定すると、家族が参加したpushplusグループへMarkdown通知を送信します。
-    `PUSHPLUS_TO` で好友トークン宛にも送信可能です。
+    80%到達時の通知先をWxPusher標準推送へ変更。`WXPUSHER_APP_TOKEN` と `WXPUSHER_UIDS`
+    を設定すると、家族UID宛へテキスト通知を送信します。
+    自分だけに送る場合は、`WXPUSHER_SPT` だけでも極簡推送で通知できます。
     メール通知と同時に送る二重通知構成に整理しました。
+- lib/wxpusher.ts
+    WxPusher標準推送/極簡推送SPTの共通ヘルパーを追加。appToken、UID、SPTはサーバ環境変数からのみ読みます。
 - components/stays/GuesthouseTankDashboard.tsx
     多言語対応（zh/ja/en、管理画面の言語切替に追従・既定は中国語相当）＋
     アニメーション（水面のさざ波・シマー・ゲージ上昇・数値ポップ・警告時パルス）。
-    現在水位、汲み取りライン、pushplus通知状態をヘッダーで確認できます。
-    pushplus + Email の「通知テスト」ボタンを追加しました。
+    現在水位、汲み取りライン、WxPusher通知状態をヘッダーで確認できます。
+    WxPusher + Email の「通知テスト」ボタンを追加しました。
 - app/api/stays/tank/test-alert/route.ts
     通知設定確認用の手動テストAPI。実通知と同じ経路で送信し、alertedフラグは変更しません。
 - .env.local.example / README-STAYS.md
-    pushplus + Email 通知に必要な環境変数を追記。
+    WxPusher + Email 通知に必要な環境変数を追記。
 - app/api/stays/tank/sync/route.ts
     Vercel Cron 用に GET を追加（CRON_SECRET 設定時はヘッダ認証）。POST（手動）は従来通り。
 - components/guest/TransferDetailsStep.tsx / lib/transferTime.ts / lib/guestBooking.ts
@@ -26,8 +28,8 @@
 - components/admin/TransferKanbanBoard.tsx / lib/adminSchedule.ts
     管理画面の送迎ボードを朝10:00までの予約表示に絞り、早朝・朝の2レーン構成に変更しました。
 - app/api/transfer/booking-alert/route.ts / lib/transferBookingAlerts.ts
-    新しい送迎予約をpushplusへ通知するAPIを追加。`PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を再利用し、
-    任意で `TRANSFER_PUSHPLUS_TOPIC` / `TRANSFER_PUSHPLUS_TO` による送迎専用宛先も指定できます。
+    新しい送迎予約をWxPusherへ通知するAPIを追加。`WXPUSHER_APP_TOKEN` と `WXPUSHER_UIDS` を再利用し、
+    任意で `WXPUSHER_SPT` / `TRANSFER_WXPUSHER_SPT` / `TRANSFER_WXPUSHER_UIDS` による宛先指定もできます。
 - supabase/migrations/0028_transfer_morning_required.sql
     DB側でも今後の新規/更新レコードに対して、希望出発時刻必須・10:00までのチェック制約を追加します。
 - vercel.json（新規）

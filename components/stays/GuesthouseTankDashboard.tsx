@@ -48,7 +48,7 @@ interface TankResponse {
   updatedAt: string;
   summary: TankSummary;
   alertDispatched?: {
-    pushplus: { ok: boolean; skipped?: boolean; error?: string };
+    wxpusher: { ok: boolean; skipped?: boolean; error?: string };
     email: { ok: boolean; skipped?: boolean; error?: string };
   } | null;
 }
@@ -106,10 +106,10 @@ interface TankDict {
   sent: string;
   unset: string;
   failed: string;
-  pushplusTitle: string;
-  pushplusSent: string;
-  pushplusReady: string;
-  pushplusWatching: string;
+  wxpusherTitle: string;
+  wxpusherSent: string;
+  wxpusherReady: string;
+  wxpusherWatching: string;
   actionLine: string;
   liveMeter: string;
   pumpCallout: string;
@@ -167,16 +167,16 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "已作为抽取完成，将累计重置为 0 L",
     t_invalidGuests: "请输入0以上的数字",
     t_updateFail: "更新失败",
-    t_alert: (p, e) => `检测到超过80%并已通知（pushplus: ${p} / Email: ${e}）`,
-    t_testAlert: (p, e) => `测试通知已发送（pushplus: ${p} / Email: ${e}）`,
+    t_alert: (p, e) => `检测到超过80%并已通知（WxPusher: ${p} / Email: ${e}）`,
+    t_testAlert: (p, e) => `测试通知已发送（WxPusher: ${p} / Email: ${e}）`,
     t_testAlertFail: "通知测试失败",
     sent: "已发送✓",
     unset: "未配置",
     failed: "失败",
-    pushplusTitle: "pushplus通知",
-    pushplusSent: "已通知",
-    pushplusReady: "等待发送",
-    pushplusWatching: "监测中",
+    wxpusherTitle: "WxPusher通知",
+    wxpusherSent: "已通知",
+    wxpusherReady: "等待发送",
+    wxpusherWatching: "监测中",
     actionLine: "抽取线",
     liveMeter: "实时水位",
     pumpCallout: "已超过80%。请安排抽粪车，并在完成后重置。",
@@ -232,16 +232,16 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "汲み取り完了として累積を 0L にリセットしました",
     t_invalidGuests: "宿泊人数は0以上の数値で入力してください",
     t_updateFail: "更新に失敗しました",
-    t_alert: (p, e) => `80%超過を検知し通知しました（pushplus: ${p} / Email: ${e}）`,
-    t_testAlert: (p, e) => `テスト通知を送信しました（pushplus: ${p} / Email: ${e}）`,
+    t_alert: (p, e) => `80%超過を検知し通知しました（WxPusher: ${p} / Email: ${e}）`,
+    t_testAlert: (p, e) => `テスト通知を送信しました（WxPusher: ${p} / Email: ${e}）`,
     t_testAlertFail: "通知テストに失敗しました",
     sent: "送信✓",
     unset: "未設定",
     failed: "失敗",
-    pushplusTitle: "pushplus通知",
-    pushplusSent: "通知済み",
-    pushplusReady: "送信待機",
-    pushplusWatching: "監視中",
+    wxpusherTitle: "WxPusher通知",
+    wxpusherSent: "通知済み",
+    wxpusherReady: "送信待機",
+    wxpusherWatching: "監視中",
     actionLine: "汲み取りライン",
     liveMeter: "現在水位",
     pumpCallout: "80%を超えています。バキュームカーを手配し、完了後にリセットしてください。",
@@ -297,16 +297,16 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "Marked as pumped out; total reset to 0 L",
     t_invalidGuests: "Enter a number of 0 or more",
     t_updateFail: "Update failed",
-    t_alert: (p, e) => `Over 80% detected and notified (pushplus: ${p} / Email: ${e})`,
-    t_testAlert: (p, e) => `Test alert sent (pushplus: ${p} / Email: ${e})`,
+    t_alert: (p, e) => `Over 80% detected and notified (WxPusher: ${p} / Email: ${e})`,
+    t_testAlert: (p, e) => `Test alert sent (WxPusher: ${p} / Email: ${e})`,
     t_testAlertFail: "Test alert failed",
     sent: "sent✓",
     unset: "unset",
     failed: "failed",
-    pushplusTitle: "pushplus alert",
-    pushplusSent: "sent",
-    pushplusReady: "ready to send",
-    pushplusWatching: "watching",
+    wxpusherTitle: "WxPusher alert",
+    wxpusherSent: "sent",
+    wxpusherReady: "ready to send",
+    wxpusherWatching: "watching",
     actionLine: "Pump-out line",
     liveMeter: "Live level",
     pumpCallout: "Tank is over 80%. Arrange a pump-out, then reset after completion.",
@@ -447,20 +447,20 @@ export default function GuesthouseTankDashboard() {
   }
 
   function alertStatuses(json: TankResponse) {
-    const p = json.alertDispatched!.pushplus;
+    const p = json.alertDispatched!.wxpusher;
     const e = json.alertDispatched!.email;
     const s = (x: { ok: boolean; skipped?: boolean }) => (x.ok ? L.sent : x.skipped ? L.unset : L.failed);
-    return { pushplus: s(p), email: s(e) };
+    return { wxpusher: s(p), email: s(e) };
   }
 
   function alertParts(json: TankResponse) {
     const status = alertStatuses(json);
-    return L.t_alert(status.pushplus, status.email);
+    return L.t_alert(status.wxpusher, status.email);
   }
 
   function testAlertParts(json: TankResponse) {
     const status = alertStatuses(json);
-    return L.t_testAlert(status.pushplus, status.email);
+    return L.t_testAlert(status.wxpusher, status.email);
   }
 
   // POST 共通処理（再評価＋任意の補正）
@@ -575,8 +575,8 @@ export default function GuesthouseTankDashboard() {
 
   const isAlert = data.summary.status === "alert";
   const litersToAlert = Math.max(0, Math.round(data.summary.alertLine - data.currentLiters));
-  const pushplusState = data.alerted ? L.pushplusSent : isAlert ? L.pushplusReady : L.pushplusWatching;
-  const pushplusTone = data.alerted
+  const wxpusherState = data.alerted ? L.wxpusherSent : isAlert ? L.wxpusherReady : L.wxpusherWatching;
+  const wxpusherTone = data.alerted
     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
     : isAlert
       ? "border-amber-200 bg-amber-50 text-amber-700"
@@ -647,9 +647,9 @@ export default function GuesthouseTankDashboard() {
             />
             <SignalPill
               icon={<MessageCircle className="h-4 w-4" />}
-              label={L.pushplusTitle}
-              value={pushplusState}
-              className={pushplusTone}
+              label={L.wxpusherTitle}
+              value={wxpusherState}
+              className={wxpusherTone}
               pulse={isAlert && !data.alerted}
             />
           </div>
@@ -666,7 +666,7 @@ export default function GuesthouseTankDashboard() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${style.chip}`}>{st.label}</span>
-              <span className="text-xs font-semibold text-slate-400">{data.alerted ? L.pushplusSent : L.pushplusWatching}</span>
+              <span className="text-xs font-semibold text-slate-400">{data.alerted ? L.wxpusherSent : L.wxpusherWatching}</span>
             </div>
             <p className={`mt-1 text-lg font-extrabold ${style.text}`}>{st.message}</p>
           </div>

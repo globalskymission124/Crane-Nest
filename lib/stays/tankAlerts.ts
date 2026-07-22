@@ -1,12 +1,11 @@
 // =========================================================
-// し尿タンク — 警告通知（pushplus + Email の二重通知）※サーバ専用
+// し尿タンク — 警告通知（WxPusher + Email の二重通知）※サーバ専用
 //   累積水量が警告ライン（既定480L / 80%）を超えたときに、
-//   pushplus とメールへ「同時・非同期」に通知する。
+//   WxPusher とメールへ「同時・非同期」に通知する。
 //
 //   環境変数:
-//     PUSHPLUS_TOKEN      … pushplus のユーザーtokenまたはメッセージtoken
-//     PUSHPLUS_TOPIC      … 任意。一対多送信用の群組コード（家族全員へ送る場合に推奨）
-//     PUSHPLUS_TO         … 任意。好友トークン（複数はカンマ区切り）。TOPICがある場合はTOPIC優先
+//     WXPUSHER_APP_TOKEN … WxPusher 標準推送アプリの appToken
+//     WXPUSHER_UIDS      … 家族UID（複数はカンマ区切り）
 //     ADMIN_EMAIL         … 通知メールの宛先（カンマ区切りで複数可）
 //     SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / MAIL_FROM … SMTP設定
 //     VACUUM_CONTACT      … バキュームカー業者の連絡先（文面に埋め込む）
@@ -14,6 +13,7 @@
 //   ※ nodemailer は Node ランタイムでのみ動くため、この import を含むファイルは
 //     必ず route.ts 側で `export const runtime = "nodejs"` を指定して使う。
 // =========================================================
+import { sendWxPusher, type WxPusherSendResult } from "../wxpusher";
 import { TankStatus, roundL } from "./tank";
 
 export interface AlertPayload {
@@ -26,7 +26,7 @@ export interface AlertPayload {
 }
 
 export interface AlertResult {
-  pushplus: { ok: boolean; skipped?: boolean; error?: string };
+  wxpusher: WxPusherSendResult;
   email: { ok: boolean; skipped?: boolean; error?: string };
 }
 
@@ -46,7 +46,7 @@ function buildLines(p: AlertPayload): string[] {
       "これは便槽通知の動作確認です。実際の汲み取り手配ではありません。",
       `現在の水量：${roundL(p.currentLiters)} L / ${p.capacityLiters} L（${Math.round(p.pct)}%）`,
       `警告ライン：${p.alertLine} L`,
-      "pushplus とメールの通知設定が正しく届くか確認してください。",
+      "WxPusher とメールの通知設定が正しく届くか確認してください。",
       vacuumContact(),
     ];
   }
@@ -61,44 +61,13 @@ function buildLines(p: AlertPayload): string[] {
 }
 
 // ---------------------------------------------------------
-// 通知1: pushplus — 個人WeChat / 家族グループ向け
-//   topic を指定すると、pushplus側の一対多グループ参加者全員へ送る。
-//   topic がなく to があれば、好友トークン宛に送る。
+// 通知1: WxPusher — 家族UID向け
 // ---------------------------------------------------------
-async function sendPushplus(p: AlertPayload): Promise<AlertResult["pushplus"]> {
-  const token = process.env.PUSHPLUS_TOKEN;
-  if (!token) return { ok: false, skipped: true, error: "PUSHPLUS_TOKEN 未設定" };
-
-  const topic = process.env.PUSHPLUS_TOPIC;
-  const to = process.env.PUSHPLUS_TO;
-  const content = [
-    `# ${buildTitle(p)}`,
-    "",
-    ...buildLines(p).map((line) => `- ${line}`),
-  ].join("\n");
-
-  try {
-    const res = await fetch("https://www.pushplus.plus/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token,
-        title: buildTitle(p),
-        content,
-        template: "markdown",
-        ...(topic ? { topic } : {}),
-        ...(!topic && to ? { to } : {}),
-      }),
-    });
-    if (!res.ok) return { ok: false, error: `pushplus HTTP ${res.status}` };
-    const json = (await res.json().catch(() => ({}))) as { code?: number; msg?: string };
-    if (typeof json?.code === "number" && json.code !== 200) {
-      return { ok: false, error: `pushplus code ${json.code}: ${json.msg || "送信失敗"}` };
-    }
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "pushplus 送信失敗" };
-  }
+async function sendTankWxPusher(p: AlertPayload): Promise<AlertResult["wxpusher"]> {
+  return sendWxPusher({
+    title: buildTitle(p),
+    content: [buildTitle(p), "", ...buildLines(p)].join("\n"),
+  });
 }
 
 // ---------------------------------------------------------
@@ -130,7 +99,7 @@ async function sendEmail(p: AlertPayload): Promise<AlertResult["email"]> {
       </table>
       <p style="margin:0 0 8px">${
         p.test
-          ? "pushplus とメールの通知設定が正しく届くか確認してください。"
+          ? "WxPusher とメールの通知設定が正しく届くか確認してください。"
           : "至急バキュームカーの手配をお願いします。"
       }</p>
       <p style="margin:0;color:#475569">${vacuumContact()}</p>
@@ -162,16 +131,16 @@ async function sendEmail(p: AlertPayload): Promise<AlertResult["email"]> {
 }
 
 // ---------------------------------------------------------
-// 公開API：pushplus と Email を「同時・非同期」に実行
+// 公開API：WxPusher と Email を「同時・非同期」に実行
 //   どれかが失敗しても他方は送る（Promise.allSettled）。
 // ---------------------------------------------------------
 export async function dispatchTankAlerts(p: AlertPayload): Promise<AlertResult> {
-  const [pushplus, email] = await Promise.allSettled([sendPushplus(p), sendEmail(p)]);
+  const [wxpusher, email] = await Promise.allSettled([sendTankWxPusher(p), sendEmail(p)]);
   return {
-    pushplus:
-      pushplus.status === "fulfilled"
-        ? pushplus.value
-        : { ok: false, error: String(pushplus.reason) },
+    wxpusher:
+      wxpusher.status === "fulfilled"
+        ? wxpusher.value
+        : { ok: false, error: String(wxpusher.reason) },
     email:
       email.status === "fulfilled"
         ? email.value
