@@ -177,32 +177,43 @@ export function parseDate(input: string, today: Date = new Date()): string | nul
 }
 
 // チェックイン/アウトの抽出。
-//   ラベル付き（Check-in / チェックイン, Checkout / チェックアウト）を優先。
-//   無ければ本文から日付を最大2つ拾い、早い方をIN・遅い方をOUTとする。
+//   ラベル付き（Check-in / チェックイン, Checkout / チェックアウト）を第一候補にするが、
+//   実メールは表組みで「チェックイン チェックアウト（ラベル）→ 7月23日 7月30日（日付）」の
+//   ように "ラベルがまとまってから日付がまとまる" 並びになることがある。この場合
+//   「チェックアウト」ラベルの直後がチェックイン日になり、IN=OUT の0泊予約になってしまう。
+//   → ラベル抽出は OUT>IN を満たすときだけ採用し、そうでなければ本文中の日付を
+//     "出現順" に集め、最初をIN・その後でINより後の最初の日付をOUTとする。
 function extractDates(
   text: string,
   today: Date
 ): { checkIn: string | null; checkOut: string | null } {
-  // ラベル付き（ラベルの後ろ最大40文字以内の日付を拾う）
   const inLabel = text.match(/(?:check[\s-]?in|チェックイン|ご到着|到着日)[\s:：]*([^\n]{0,40})/i);
   const outLabel = text.match(/(?:check[\s-]?out|チェックアウト|ご出発|出発日)[\s:：]*([^\n]{0,40})/i);
-  let checkIn = inLabel ? parseDate(inLabel[1], today) : null;
-  let checkOut = outLabel ? parseDate(outLabel[1], today) : null;
+  const labelIn = inLabel ? parseDate(inLabel[1], today) : null;
+  const labelOut = outLabel ? parseDate(outLabel[1], today) : null;
 
-  if (checkIn && checkOut) return { checkIn, checkOut };
+  // ラベル抽出が妥当（OUT が IN より後）ならそれを採用
+  if (labelIn && labelOut && labelOut > labelIn) {
+    return { checkIn: labelIn, checkOut: labelOut };
+  }
 
-  // フォールバック: 本文中の日付を順に収集
+  // フォールバック: 本文中の日付を "出現順" に収集（重複も残す）
   const found: string[] = [];
   const re =
     /(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]{3,9}\.?\s+\d{1,2}(?:,?\s*\d{4})?|\d{1,2}\s+[A-Za-z]{3,9}\.?(?:\s+\d{4})?)/g;
   let mm: RegExpExecArray | null;
-  while ((mm = re.exec(text)) && found.length < 8) {
+  while ((mm = re.exec(text)) && found.length < 12) {
     const d = parseDate(mm[1], today);
-    if (d && !found.includes(d)) found.push(d);
+    if (d) found.push(d);
   }
-  found.sort();
-  if (!checkIn) checkIn = found[0] ?? null;
-  if (!checkOut) checkOut = found.find((d) => !checkIn || d > checkIn) ?? null;
+
+  // IN: ラベルのIN、無ければ最初に出た日付
+  const checkIn = labelIn || found[0] || null;
+  // OUT: INより後に出る最初の日付（出現順）。ラベルのOUTがINより後ならそれを優先。
+  let checkOut: string | null = null;
+  if (checkIn) checkOut = found.find((d) => d > checkIn) ?? null;
+  if (labelOut && checkIn && labelOut > checkIn) checkOut = labelOut;
+
   return { checkIn, checkOut };
 }
 

@@ -90,27 +90,46 @@ export async function fetchAirbnbEmails(): Promise<GmailFetchResult> {
     oauth2.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
     const gmail = google.gmail({ version: "v1", auth: oauth2 });
 
+    // 既定: 過去1年の「予約(確定/キャンセル)」メールに絞る。
+    //   - newer_than:1y … 今泊まっているゲストが数週間前に予約したケースも拾う
+    //   - subject:予約/reservation 等 … リマインダーは拾うが、メッセージ返信や入金通知は除外
+    //     （リマインダーは解析側で無視する）
     const q =
       process.env.AIRBNB_MAIL_QUERY ||
-      "from:(airbnb.com) newer_than:14d";
+      "from:(airbnb.com) newer_than:1y (subject:予約 OR subject:reservation OR subject:キャンセル OR subject:cancelled OR subject:confirmed)";
+    const maxMessages = Number(process.env.GMAIL_MAX_MESSAGES) || 200;
 
-    const list = await gmail.users.messages.list({ userId: "me", q, maxResults: 50 });
-    const messages = list.data.messages || [];
-
-    const emails: RawEmail[] = [];
-    for (const m of messages) {
-      if (!m.id) continue;
-      const msg = await gmail.users.messages.get({ userId: "me", id: m.id, format: "full" });
-      const headers = msg.data.payload?.headers || [];
-      const subject =
-        headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value || "";
-      const body = extractBody(msg.data.payload);
-      emails.push({
-        id: m.id,
-        subject,
-        body,
-        internalDate: Number(msg.data.internalDate || 0),
+    // 50件で打ち切らず、ページ送りでメッセージIDを収集
+    const ids: string[] = [];
+    let pageToken: string | undefined = undefined;
+    do {
+      const list: any = await gmail.users.messages.list({
+        userId: "me",
+        q,
+        maxResults: 100,
+        pageToken,
       });
+      for (const m of list.data.messages || []) if (m.id) ids.push(m.id);
+      pageToken = list.data.nextPageToken || undefined;
+    } while (pageToken && ids.length < maxMessages);
+
+    const targetIds = ids.slice(0, maxMessages);
+
+    // 本文取得は10件ずつ並列（サーバレスのタイムアウト回避のため直列は避ける）
+    const emails: RawEmail[] = [];
+    for (let i = 0; i < targetIds.length; i += 10) {
+      const batch = targetIds.slice(i, i + 10);
+      const got = await Promise.all(
+        batch.map(async (id) => {
+          const msg = await gmail.users.messages.get({ userId: "me", id, format: "full" });
+          const headers = msg.data.payload?.headers || [];
+          const subject =
+            headers.find((h) => (h.name || "").toLowerCase() === "subject")?.value || "";
+          const body = extractBody(msg.data.payload);
+          return { id, subject, body, internalDate: Number(msg.data.internalDate || 0) };
+        })
+      );
+      emails.push(...got);
     }
     return { ok: true, emails };
   } catch (e: any) {

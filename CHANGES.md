@@ -1,60 +1,28 @@
-# 便槽モニタリング — 自社予約＋Airbnb（メールスキャン）ハイブリッド版
+# 便槽モニタリング バグ修正 v6（0L問題の解消）
 
-このフォルダの中身を Crane-Nest リポジトリのルートに上書きコピーしてください。
+このフォルダの3ファイルを、リポジトリの同じ場所に上書きコピーしてGitHubへpush →
+Vercelが自動デプロイ → 反映されます。
 
-## 計算方式
-2つの予約ソースを統合し、毎回再計算する。
-- 自社予約: stays_bookings（人数・キャンセルを正確に保持）
-- Airbnb予約: stays_ext_reservations（Airbnbの予約メールをGmailで取得・解析して反映）
-共通ルール:
-- confirmed のみ対象（cancelled / pending は自動除外）
-- 各予約を「泊まった夜」に展開し、前回汲み取り日〜今日より前の“過ぎた夜”だけ加算
-- キャンセルは予約番号(code)で突き合わせて status=cancelled にし、再計算で自動除外
-- Airbnbメールで人数が取れない予約は AIRBNB_DEFAULT_GUESTS（既定2名）で充当
-- スタッフの手動補正(override)は stays_tank_logs に保存し、その日だけ自動値を上書き
+## 修正内容
+1. lib/stays/airbnbEmail.ts … 【重要】日付解析バグ修正
+   実メールは表組みで「チェックイン チェックアウト（ラベル）→ 7月23日 7月30日（日付）」の
+   順に並ぶため、チェックアウトにチェックイン日が入り check_in==check_out（0泊）になっていた。
+   → ラベル抽出は OUT>IN のときだけ採用し、そうでなければ本文の日付を出現順に拾って
+     IN・OUTを正しく決定するよう修正。
+2. lib/stays/gmail.ts … 取得範囲を拡大
+   14日→1年、確定/キャンセルメールに絞り、50件で打ち切らずページ送りで取得（並列取得）。
+   今泊まっているゲストが数週間前に予約したケースも拾えるようになる。
+3. lib/stays/tankStore.ts … 「今日/過ぎた夜」を日本時間(JST)基準に（UTCによる1日ずれ防止）。
 
-## 新規ファイル
-- lib/stays/airbnbEmail.ts     Airbnb予約メール解析（番号/人数/日付/確定・キャンセル、日英対応）
-- lib/stays/gmail.ts           Gmail API取得（googleapis, リフレッシュトークン）
-- lib/stays/tankEvaluate.ts    再評価＋通知＋レスポンス整形（多重通知抑制）
-- lib/stays/tankAlerts.ts      WeCom & Email ダブル通知
-- app/api/stays/tank/sync/route.ts    Gmail同期→解析→反映→再計算→通知
-- app/api/stays/tank/ingest/route.ts  生メール投入(Webhook/手動/テスト)
-- app/api/stays/tank/reset/route.ts   汲み取りリセット
-- app/admin/tank/page.tsx             管理者専用ページ(AuthGuard admin)
-- supabase/migrations/0026_tank_monitor.sql          状態＋override
-- supabase/migrations/0027_tank_ext_reservations.sql 外部予約(Airbnb)
+## デプロイ後の手順
+1. Vercelで自動デプロイ完了を待つ（Deploymentsが緑になる）。
+2. 便槽ページで「Airbnb同期」を押す
+   → 既存の誤った日付の行も、同じ予約番号で正しい日付に上書きされます。
+3. 「前回汲み取り日」を実際の最後の汲み取り日に設定（下のSQL）。
+   これをしないと、その日より前の宿泊夜は計算対象外のままです。
 
-## 変更ファイル
-- lib/stays/tank.ts, lib/stays/tankStore.ts, app/api/stays/tank/route.ts
-- components/stays/GuesthouseTankDashboard.tsx（Airbnb同期ボタン追加）
-- components/admin/AdminNav.tsx（管理ナビに「便槽モニタ」）
-- .env.local.example（GMAIL_* / AIRBNB_* 追加）, package.json（googleapis 追加）
-
-HostNav.tsx はオリジナルと完全一致のため含めていません。
-
-## セットアップ
-1. npm install   （googleapis, nodemailer を導入）
-2. supabase マイグレーション 0026, 0027 を適用
-3. .env.local に GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET / GMAIL_REFRESH_TOKEN を設定
-   （Google CloudでOAuthクライアント作成→gmail.readonlyで一度同意→refresh token取得）
-4. 日次スケジュール等から POST /api/stays/tank/sync を実行 → Airbnbが自動反映
-   Gmailを使わない場合は POST /api/stays/tank/ingest に転送メールを投げてもよい
-
-## 注意
-Airbnbのメール書式は変更されることがあるため、実メールに合わせて
-lib/stays/airbnbEmail.ts の正規表現を調整してください（実メール数通を頂ければ調整可能）。
-
-## v4 更新: パーサ堅牢化（実際の受信箱パターンに対応）
-- 判定を「件名優先」に変更。予約確定/キャンセルは件名で確実に判定。
-- リマインダー / 保留中 / RE:（メッセージ返信）/ 入金・領収・レビュー 通知は自動で無視。
-- 確定メール本文の「キャンセルポリシー」を誤ってキャンセル判定しない（本文は“実行済み”表現のみ採用）。
-- 人数は "3 guests" / "Guests: 3" / "大人2名 子供1名" / "宿泊者 4名" の数字先・ラベル先の両順に対応。
-
-## v5 更新: 実際のAirbnbメールで検証・調整
-実メール（予約確定/キャンセル）で確認した挙動:
-- 確認コードは確定・キャンセル両方に入り、同一予約は同一コード → これをキーに突き合わせ。
-- キャンセルは本文の「ご予約（HMxxxx）」括弧内コードも抽出（ラベル無しでも拾う）。
-- 「大人1人」を1名と取得。「子ども/乳幼児」定型文では誤加算しない（数字隣接時のみ加算）。
-- 「7月23日(木)」曜日付き・年なし表記も正しく日付化。
-- 確定本文の「キャンセルポリシー」でキャンセル誤判定しない（件名優先）。
+## 前回汲み取り日の設定（Supabase SQL Editorで実行）
+実際に最後にバキュームカーで汲み取った日付に置き換えてください。
+例: 7月1日に汲み取った場合
+    update stays_tank_state set last_emptied_date = '2026-07-01' where id = 1;
+まだ一度も汲み取っていない/満タンから始めるなら、運用開始日を入れてください。

@@ -28,13 +28,14 @@ import type { ParsedReservation } from "./airbnbEmail";
 
 const TANK_ID = 1; // シングルトン（自社ゲストハウス1棟）
 
+// 便槽の「今日」「過ぎた夜」は日本時間(JST=UTC+9)基準で判定する。
+// （サーバはUTCで動くため、そのままだと日本の夜遅くに日付が1日ずれる）
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
 }
 function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return new Date(Date.now() + JST_OFFSET_MS - n * 86400000).toISOString().slice(0, 10);
 }
 
 function supabaseConfigured(): boolean {
