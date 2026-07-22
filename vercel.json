@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/stays/tank/sync",
+      "schedule": "0 21 * * *"
+    }
+  ]
+}

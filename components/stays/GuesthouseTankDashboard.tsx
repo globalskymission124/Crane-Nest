@@ -2,8 +2,9 @@
 
 // =========================================================
 // 自社ゲストハウス専用：し尿タンク（便槽）モニタリング・ダッシュボード
-//   稼働率（宿泊人数）に応じて累積水量を動的計算し、
-//   80%（480L）超過時にバックエンドが WeCom & Email へダブル通知する。
+//   ・稼働率（宿泊人数）に応じて累積水量を動的計算し、80%超過で通知（サーバ側）
+//   ・多言語対応（既定=中国語 zh、管理画面の言語切替に追従：zh / ja / en）
+//   ・アニメーション付き（水面のさざ波・ゲージ上昇・数値ポップ・警告パルス）
 //   このコンポーネントは /api/stays/tank を叩くだけ（計算・通知はサーバ側）。
 // =========================================================
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import type { DailyLog, TankStatus } from "@/lib/stays/tank";
 import { STATUS_META } from "@/lib/stays/tank";
+import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
+import type { AdminLocale } from "@/lib/i18n/admin/types";
 
 // APIレスポンスの型
 interface TankSummary {
@@ -43,6 +46,228 @@ interface TankResponse {
     email: { ok: boolean; skipped?: boolean; error?: string };
   } | null;
 }
+
+// ---------------- 多言語辞書（zh / ja / en） ----------------
+interface TankDict {
+  title: string;
+  subtitle: (perGuest: number, alertLine: number) => string;
+  sync: string;
+  recalc: string;
+  updated: string;
+  meterTitle: string;
+  warn: string; // 「80% 警告」
+  status: Record<TankStatus, { label: string; message: string }>;
+  lastEmptied: string;
+  today: string;
+  remaining: string;
+  toAlertLine: (l: number) => string;
+  forecast: string;
+  aboutDays: (n: number) => string;
+  upcomingAvg: (n: number) => string;
+  noUpcoming: string;
+  overrideTitle: string;
+  overrideHint: string;
+  targetDate: string;
+  overrideGuests: string;
+  applyOverride: string;
+  backToAuto: string;
+  pumpTitle: string;
+  pumpHint: string;
+  pumpButton: string;
+  logTitle: string;
+  overrideBadge: string;
+  guestsUnit: (n: number) => string;
+  confirmTitle: string;
+  confirmBody: (date: string) => string;
+  cancel: string;
+  doReset: string;
+  loading: string;
+  loadError: string;
+  noData: string;
+  t_recalcDone: string;
+  t_syncNoGmail: string;
+  t_syncDone: (f: number, p: number, c: number, x: number) => string;
+  t_syncFail: string;
+  t_overrideDone: (date: string, n: number) => string;
+  t_overrideCleared: (date: string) => string;
+  t_resetDone: string;
+  t_invalidGuests: string;
+  t_updateFail: string;
+  t_alert: (w: string, e: string) => string;
+  sent: string;
+  unset: string;
+  failed: string;
+}
+
+const TANK_I18N: Record<AdminLocale, TankDict> = {
+  zh: {
+    title: "粪池监测",
+    subtitle: (p, a) =>
+      `自有预订＋Airbnb（邮件导入）自动计算。已取消自动排除，仅按已过住宿夜 ${p}L/人 累加。达到80%（${a}L）自动通知。`,
+    sync: "Airbnb同步",
+    recalc: "重新计算",
+    updated: "更新",
+    meterTitle: "水箱余量表",
+    warn: "80% 警告",
+    status: {
+      safe: { label: "安全", message: "仍有余量" },
+      caution: { label: "注意", message: "请开始安排抽取" },
+      alert: { label: "警告", message: "【紧急】请立即安排抽粪车" },
+    },
+    lastEmptied: "上次抽取日",
+    today: "今天",
+    remaining: "距离满箱",
+    toAlertLine: (l) => `距警告线还有 ${l} L`,
+    forecast: "预计剩余天数",
+    aboutDays: (n) => `约 ${n} 天`,
+    upcomingAvg: (n) => `按今后预订 平均 ${n}人/天 估算`,
+    noUpcoming: "暂无后续预订",
+    overrideTitle: "手动修正（可选）",
+    overrideHint: "人数会从预订数据自动同步。仅当实际住宿人数有偏差的那天，用此修正覆盖。",
+    targetDate: "目标日期",
+    overrideGuests: "修正人数",
+    applyOverride: "应用修正",
+    backToAuto: "恢复自动",
+    pumpTitle: "抽取完成后",
+    pumpHint: "把累计水量归零，并把上次抽取日更新为今天。",
+    pumpButton: "抽取完成（重置）",
+    logTitle: "住宿记录（自上次抽取以来 · 由预订自动计算）",
+    overrideBadge: "手动修正",
+    guestsUnit: (n) => `${n}人`,
+    confirmTitle: "确认抽取完成",
+    confirmBody: (d) => `将把累计水量重置为 0 L，并把上次抽取日更新为 ${d}。此操作不可撤销，确定吗？`,
+    cancel: "取消",
+    doReset: "确认重置",
+    loading: "加载中…",
+    loadError: "获取数据失败",
+    noData: "无法显示数据。",
+    t_recalcDone: "已根据预订数据重新计算",
+    t_syncNoGmail: "Airbnb同步：未配置 Gmail（请设置 GMAIL_*）",
+    t_syncDone: (f, p, c, x) => `Airbnb同步完成：获取${f} / 导入${p}（确认${c} / 取消${x}）`,
+    t_syncFail: "Airbnb同步失败",
+    t_overrideDone: (d, n) => `已把 ${d} 手动修正为 ${n}人`,
+    t_overrideCleared: (d) => `已取消 ${d} 的修正，恢复自动值`,
+    t_resetDone: "已作为抽取完成，将累计重置为 0 L",
+    t_invalidGuests: "请输入0以上的数字",
+    t_updateFail: "更新失败",
+    t_alert: (w, e) => `⚠️ 检测到超过80%并已通知（WeCom: ${w} / Email: ${e}）`,
+    sent: "已发送✓",
+    unset: "未配置",
+    failed: "失败",
+  },
+  ja: {
+    title: "便槽モニタリング",
+    subtitle: (p, a) =>
+      `自社予約＋Airbnb（メール取込）から自動計算。キャンセルは自動除外し、過ぎた宿泊夜だけを ${p}L/人 で積算。80%（${a}L）で自動通知。`,
+    sync: "Airbnb同期",
+    recalc: "再計算",
+    updated: "更新",
+    meterTitle: "タンク残量メーター",
+    warn: "80% 警告",
+    status: {
+      safe: { label: "安全", message: "まだ余裕があります" },
+      caution: { label: "注意", message: "そろそろ汲み取りの準備をしてください" },
+      alert: { label: "警告", message: "【至急】バキュームカーを手配してください" },
+    },
+    lastEmptied: "前回の汲み取り日",
+    today: "本日",
+    remaining: "満杯までの残り",
+    toAlertLine: (l) => `警告ラインまで ${l} L`,
+    forecast: "残り予測日数",
+    aboutDays: (n) => `約 ${n} 日`,
+    upcomingAvg: (n) => `今後の予約 平均 ${n}名/日 換算`,
+    noUpcoming: "今後の予約なし",
+    overrideTitle: "手動補正（任意）",
+    overrideHint: "人数は予約データから自動反映されます。実際の宿泊人数がズレた日だけ、この補正で上書きできます。",
+    targetDate: "対象日",
+    overrideGuests: "補正人数",
+    applyOverride: "補正を適用",
+    backToAuto: "自動に戻す",
+    pumpTitle: "汲み取りが完了したら",
+    pumpHint: "累積水量を 0L に戻し、前回汲み取り日を本日に更新します。",
+    pumpButton: "汲み取り完了（リセット）",
+    logTitle: "宿泊ログ（前回汲み取り以降・予約から自動算出）",
+    overrideBadge: "手動補正",
+    guestsUnit: (n) => `${n}名`,
+    confirmTitle: "汲み取り完了の確認",
+    confirmBody: (d) => `累積水量を 0 L にリセットし、前回汲み取り日を ${d} に更新します。この操作は取り消せません。よろしいですか？`,
+    cancel: "キャンセル",
+    doReset: "リセットする",
+    loading: "読み込み中…",
+    loadError: "データの取得に失敗しました",
+    noData: "データを表示できませんでした。",
+    t_recalcDone: "予約データから再計算しました",
+    t_syncNoGmail: "Airbnb同期: Gmail連携が未設定です（GMAIL_* を設定してください）",
+    t_syncDone: (f, p, c, x) => `Airbnb同期完了: 取得${f} / 反映${p}（確定${c} / キャンセル${x}）`,
+    t_syncFail: "Airbnb同期に失敗しました",
+    t_overrideDone: (d, n) => `${d} を ${n}名に手動補正しました`,
+    t_overrideCleared: (d) => `${d} の補正を解除し自動値に戻しました`,
+    t_resetDone: "汲み取り完了として累積を 0L にリセットしました",
+    t_invalidGuests: "宿泊人数は0以上の数値で入力してください",
+    t_updateFail: "更新に失敗しました",
+    t_alert: (w, e) => `⚠️ 80%超過を検知し通知しました（WeCom: ${w} / Email: ${e}）`,
+    sent: "送信✓",
+    unset: "未設定",
+    failed: "失敗",
+  },
+  en: {
+    title: "Tank Monitor",
+    subtitle: (p, a) =>
+      `Auto-calculated from your bookings + Airbnb (email import). Cancellations excluded; only past nights counted at ${p}L/guest. Alerts at 80% (${a}L).`,
+    sync: "Sync Airbnb",
+    recalc: "Recalculate",
+    updated: "Updated",
+    meterTitle: "Tank level",
+    warn: "80% alert",
+    status: {
+      safe: { label: "Safe", message: "Plenty of room left" },
+      caution: { label: "Caution", message: "Start arranging a pump-out soon" },
+      alert: { label: "Alert", message: "[Urgent] Call the pump truck now" },
+    },
+    lastEmptied: "Last emptied",
+    today: "Today",
+    remaining: "Until full",
+    toAlertLine: (l) => `${l} L to alert line`,
+    forecast: "Days remaining",
+    aboutDays: (n) => `~${n} days`,
+    upcomingAvg: (n) => `Based on upcoming avg ${n} guests/day`,
+    noUpcoming: "No upcoming bookings",
+    overrideTitle: "Manual override (optional)",
+    overrideHint: "Guest counts sync automatically from bookings. Override a specific day only when the real headcount differs.",
+    targetDate: "Date",
+    overrideGuests: "Override guests",
+    applyOverride: "Apply override",
+    backToAuto: "Back to auto",
+    pumpTitle: "After a pump-out",
+    pumpHint: "Reset the total to 0 L and set the last-emptied date to today.",
+    pumpButton: "Pump-out done (reset)",
+    logTitle: "Stay log (since last pump-out · auto from bookings)",
+    overrideBadge: "override",
+    guestsUnit: (n) => `${n} guests`,
+    confirmTitle: "Confirm pump-out",
+    confirmBody: (d) => `This resets the total to 0 L and sets the last-emptied date to ${d}. This cannot be undone. Continue?`,
+    cancel: "Cancel",
+    doReset: "Reset",
+    loading: "Loading…",
+    loadError: "Failed to load data",
+    noData: "Could not display data.",
+    t_recalcDone: "Recalculated from booking data",
+    t_syncNoGmail: "Sync: Gmail not configured (set GMAIL_*)",
+    t_syncDone: (f, p, c, x) => `Sync done: fetched ${f} / imported ${p} (confirmed ${c} / cancelled ${x})`,
+    t_syncFail: "Airbnb sync failed",
+    t_overrideDone: (d, n) => `Overrode ${d} to ${n} guests`,
+    t_overrideCleared: (d) => `Cleared override for ${d}, back to auto`,
+    t_resetDone: "Marked as pumped out; total reset to 0 L",
+    t_invalidGuests: "Enter a number of 0 or more",
+    t_updateFail: "Update failed",
+    t_alert: (w, e) => `⚠️ Over 80% detected and notified (WeCom: ${w} / Email: ${e})`,
+    sent: "sent✓",
+    unset: "unset",
+    failed: "failed",
+  },
+};
+
+const LOCALE_TAG: Record<AdminLocale, string> = { zh: "zh-CN", ja: "ja-JP", en: "en-US" };
 
 // 状態ごとの配色（Tailwindのクラスは静的文字列で持つ＝purgeされないように）
 const STATUS_STYLE: Record<
@@ -72,11 +297,45 @@ const STATUS_STYLE: Record<
   },
 };
 
+// アニメーション用CSS（コンポーネント内に1回だけ注入）
+const TANK_CSS = `
+@keyframes tankWave { from { background-position-x: 0; } to { background-position-x: 72px; } }
+@keyframes tankBob { 0%,100% { transform: translateY(-50%); } 50% { transform: translateY(-58%); } }
+@keyframes tankShimmer { 0% { background-position: -150% 0; } 100% { background-position: 250% 0; } }
+@keyframes tankAlertPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); } 70% { box-shadow: 0 0 0 12px rgba(239,68,68,0); } }
+@keyframes tankFloatUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes tankPop { 0% { transform: scale(.82); opacity: .35; } 100% { transform: scale(1); opacity: 1; } }
+.tank-fill { transition: height 1100ms cubic-bezier(.22,1,.36,1); }
+.tank-wave {
+  position: absolute; top: 0; left: 0; right: 0; height: 12px;
+  transform: translateY(-50%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='12' viewBox='0 0 72 12'%3E%3Cpath d='M0 6 Q18 -1 36 6 T72 6 V12 H0 Z' fill='%23ffffff' fill-opacity='0.45'/%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-size: 72px 12px;
+  animation: tankWave 1.8s linear infinite, tankBob 3.2s ease-in-out infinite;
+}
+.tank-shimmer {
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.28) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: tankShimmer 3.4s ease-in-out infinite;
+}
+.tank-alert-pulse { animation: tankAlertPulse 1.8s ease-out infinite; }
+.tank-floatup { animation: tankFloatUp .5s ease-out both; }
+.tank-pop { animation: tankPop .45s cubic-bezier(.22,1,.36,1); display: inline-block; }
+@media (prefers-reduced-motion: reduce) {
+  .tank-wave, .tank-shimmer, .tank-alert-pulse, .tank-floatup, .tank-pop { animation: none !important; }
+}
+`;
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function GuesthouseTankDashboard() {
+  // 管理画面の言語に追従（既定=中国語 zh）
+  const { locale } = useAdminTranslation();
+  const L = TANK_I18N[locale] || TANK_I18N.zh;
+
   const [data, setData] = useState<TankResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -92,10 +351,11 @@ export default function GuesthouseTankDashboard() {
       const json = (await res.json()) as TankResponse;
       setData(json);
     } catch {
-      setToast("データの取得に失敗しました");
+      setToast(L.loadError);
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -114,7 +374,14 @@ export default function GuesthouseTankDashboard() {
     setTimeout(() => setToast(null), 5000);
   }
 
-  // POST 共通処理（再評価＋任意の補正）。通知結果もトーストで知らせる。
+  function alertParts(json: TankResponse) {
+    const w = json.alertDispatched!.wecom;
+    const e = json.alertDispatched!.email;
+    const s = (x: { ok: boolean; skipped?: boolean }) => (x.ok ? L.sent : x.skipped ? L.unset : L.failed);
+    return L.t_alert(s(w), s(e));
+  }
+
+  // POST 共通処理（再評価＋任意の補正）
   async function postTank(body: Record<string, unknown>, okMsg: string) {
     setSaving(true);
     try {
@@ -124,65 +391,50 @@ export default function GuesthouseTankDashboard() {
         body: JSON.stringify(body),
       });
       const json = (await res.json()) as TankResponse;
-      if (!res.ok) throw new Error((json as any)?.error || "更新失敗");
+      if (!res.ok) throw new Error((json as any)?.error || L.t_updateFail);
       setData(json);
-      if (json.alertDispatched) {
-        const w = json.alertDispatched.wecom;
-        const e = json.alertDispatched.email;
-        flash(
-          `⚠️ 80%超過を検知し通知しました（WeCom: ${w.ok ? "送信✓" : w.skipped ? "未設定" : "失敗"} / Email: ${e.ok ? "送信✓" : e.skipped ? "未設定" : "失敗"}）`
-        );
-      } else {
-        flash(okMsg);
-      }
+      flash(json.alertDispatched ? alertParts(json) : okMsg);
     } catch (err: any) {
-      flash(err?.message || "更新に失敗しました");
+      flash(err?.message || L.t_updateFail);
     } finally {
       setSaving(false);
     }
   }
 
-  // 予約から再評価（補正なし）。通知の再判定も行う。
   function refreshEvaluate() {
-    postTank({}, "予約データから再計算しました");
+    postTank({}, L.t_recalcDone);
   }
 
-  // Airbnbメールを同期（Gmail取得→解析→反映→再計算）
   async function syncAirbnb() {
     setSaving(true);
     try {
       const res = await fetch("/api/stays/tank/sync", { method: "POST" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "同期失敗");
+      if (!res.ok) throw new Error(json?.error || L.t_syncFail);
       setData(json as TankResponse);
       const s = json.sync;
-      if (s?.gmail?.skipped) {
-        flash("Airbnb同期: Gmail連携が未設定です（GMAIL_* を設定してください）");
-      } else if (s) {
-        flash(`Airbnb同期完了: 取得${s.fetched} / 反映${s.parsed}（確定${s.confirmed} / キャンセル${s.cancelled}）`);
-      } else {
-        flash("Airbnbを同期しました");
-      }
+      if (s?.gmail?.skipped) flash(L.t_syncNoGmail);
+      else if (s) flash(L.t_syncDone(s.fetched, s.parsed, s.confirmed, s.cancelled));
+      else if (json.alertDispatched) flash(alertParts(json as TankResponse));
+      else flash(L.t_recalcDone);
     } catch (err: any) {
-      flash(err?.message || "Airbnb同期に失敗しました");
+      flash(err?.message || L.t_syncFail);
     } finally {
       setSaving(false);
     }
   }
 
-  // 手動補正を設定
   function submitOverride() {
     const n = Number(guests);
     if (!Number.isFinite(n) || n < 0) {
-      flash("宿泊人数は0以上の数値で入力してください");
+      flash(L.t_invalidGuests);
       return;
     }
-    postTank({ date, guests: n }, `${date} を ${n}名に手動補正しました`);
+    postTank({ date, guests: n }, L.t_overrideDone(date, n));
   }
 
-  // 手動補正を解除して予約自動値へ戻す
   function clearOverride() {
-    postTank({ date, guests: null }, `${date} の補正を解除し自動値に戻しました`);
+    postTank({ date, guests: null }, L.t_overrideCleared(date));
   }
 
   async function doReset() {
@@ -190,22 +442,22 @@ export default function GuesthouseTankDashboard() {
     try {
       const res = await fetch("/api/stays/tank/reset", { method: "POST" });
       const json = (await res.json()) as TankResponse;
-      if (!res.ok) throw new Error((json as any)?.error || "リセット失敗");
+      if (!res.ok) throw new Error((json as any)?.error || L.t_updateFail);
       setData(json);
       setGuests("");
       setConfirmReset(false);
-      flash("汲み取り完了として累積を 0L にリセットしました");
+      flash(L.t_resetDone);
     } catch (err: any) {
-      flash(err?.message || "リセットに失敗しました");
+      flash(err?.message || L.t_updateFail);
     } finally {
       setResetting(false);
     }
   }
 
-  const meta = data ? STATUS_META[data.summary.status] : STATUS_META.safe;
+  const emoji = data ? STATUS_META[data.summary.status].emoji : STATUS_META.safe.emoji;
   const style = data ? STATUS_STYLE[data.summary.status] : STATUS_STYLE.safe;
+  const st = data ? L.status[data.summary.status] : L.status.safe;
 
-  // 警告ラインの縦位置（%）
   const alertLinePct = useMemo(() => {
     if (!data) return 80;
     return Math.min(100, (data.summary.alertLine / data.capacityLiters) * 100);
@@ -216,90 +468,89 @@ export default function GuesthouseTankDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-400">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> 読み込み中…
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> {L.loading}
       </div>
     );
   }
   if (!data) {
-    return <p className="py-24 text-center text-slate-400">データを表示できませんでした。</p>;
+    return <p className="py-24 text-center text-slate-400">{L.noData}</p>;
   }
+
+  const isAlert = data.summary.status === "alert";
 
   return (
     <div>
-      {/* ===== ヘッダー・ステータス ===== */}
+      <style>{TANK_CSS}</style>
+
+      {/* ===== ヘッダー ===== */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Droplets className="h-6 w-6 text-brand-600" />
-          <h1 className="text-2xl font-extrabold text-slate-900">便槽モニタリング</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">{L.title}</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={syncAirbnb}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:border-rose-300 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-sm disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-            Airbnb同期
+            {L.sync}
           </button>
           <button
             onClick={refreshEvaluate}
             disabled={saving}
-            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            再計算
+            {L.recalc}
           </button>
         </div>
       </div>
       <p className="mb-4 text-sm text-slate-500">
-        自社予約＋Airbnb（メール取込）から自動計算。キャンセルは自動除外し、過ぎた宿泊夜だけを
-        {data.litersPerGuestPerDay}L/人で積算します。80%（{data.summary.alertLine}L）で自動通知。
+        {L.subtitle(data.litersPerGuestPerDay, data.summary.alertLine)}
       </p>
 
-      <div className={`mb-5 flex flex-col gap-3 rounded-2xl border ${style.ring} ${style.soft} p-5 sm:flex-row sm:items-center sm:justify-between`}>
+      {/* ===== ステータスカード ===== */}
+      <div
+        className={`tank-floatup mb-5 flex flex-col gap-3 rounded-2xl border ${style.ring} ${style.soft} p-5 sm:flex-row sm:items-center sm:justify-between ${isAlert ? "tank-alert-pulse" : ""}`}
+      >
         <div className="flex items-center gap-3">
-          <span className="text-3xl" aria-hidden>
-            {meta.emoji}
-          </span>
+          <span className="text-3xl" aria-hidden>{emoji}</span>
           <div>
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${style.chip}`}>
-                {meta.label}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${style.chip}`}>{st.label}</span>
               <span className="text-xs text-slate-400">
-                更新: {new Date(data.updatedAt).toLocaleString("ja-JP")}
+                {L.updated}: {new Date(data.updatedAt).toLocaleString(LOCALE_TAG[locale] || "zh-CN")}
               </span>
             </div>
-            <p className={`mt-1 text-lg font-extrabold ${style.text}`}>{meta.message}</p>
+            <p className={`mt-1 text-lg font-extrabold ${style.text}`}>{st.message}</p>
           </div>
         </div>
         <div className="text-right">
           <p className="text-3xl font-extrabold text-slate-900">
-            {Math.round(data.currentLiters)}
-            <span className="ml-1 text-base font-semibold text-slate-400">
-              / {data.capacityLiters} L
-            </span>
+            <span key={Math.round(data.currentLiters)} className="tank-pop">{Math.round(data.currentLiters)}</span>
+            <span className="ml-1 text-base font-semibold text-slate-400">/ {data.capacityLiters} L</span>
           </p>
           <p className={`text-sm font-bold ${style.text}`}>{data.summary.pct}%</p>
         </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-        {/* ===== 縦型タンクメーター ===== */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+        {/* ===== 縦型タンクメーター（アニメーション） ===== */}
+        <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <Gauge className="h-4 w-4 text-brand-600" /> タンク残量メーター
+            <Gauge className="h-4 w-4 text-brand-600" /> {L.meterTitle}
           </div>
           <div className="flex items-end justify-center gap-4">
-            {/* タンク本体 */}
-            <div className="relative h-64 w-28 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-50">
-              {/* 水量 */}
+            <div className="relative h-64 w-28 overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100">
+              {/* 水量（さざ波・シマー付き） */}
               <div
-                className={`absolute bottom-0 left-0 w-full bg-gradient-to-t ${style.bar} transition-all duration-700`}
+                className={`tank-fill absolute bottom-0 left-0 w-full bg-gradient-to-t ${style.bar}`}
                 style={{ height: `${fillPct}%` }}
               >
-                {/* 水面のハイライト */}
-                <div className="h-1.5 w-full bg-white/40" />
+                {fillPct > 1 && <div className="tank-wave" />}
+                <div className="tank-shimmer" />
               </div>
               {/* 警告ライン（赤い破線） */}
               <div
@@ -307,12 +558,12 @@ export default function GuesthouseTankDashboard() {
                 style={{ bottom: `${alertLinePct}%` }}
               >
                 <span className="absolute -top-4 right-1 rounded bg-red-500 px-1 text-[10px] font-bold text-white">
-                  80% 警告
+                  {L.warn}
                 </span>
               </div>
               {/* 中央のパーセント表示 */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="rounded-lg bg-white/70 px-2 py-0.5 text-sm font-extrabold text-slate-800 backdrop-blur">
+                <span key={data.summary.pct} className="tank-pop rounded-lg bg-white/70 px-2 py-0.5 text-sm font-extrabold text-slate-800 backdrop-blur">
                   {data.summary.pct}%
                 </span>
               </div>
@@ -323,49 +574,38 @@ export default function GuesthouseTankDashboard() {
           </p>
         </div>
 
-        {/* ===== 右カラム：メトリクス + コントロール ===== */}
+        {/* ===== 右カラム ===== */}
         <div className="space-y-5">
-          {/* データサマリー */}
           <div className="grid gap-4 sm:grid-cols-3">
             <Metric
               icon={<CalendarDays className="h-4 w-4" />}
-              label="前回の汲み取り日"
+              label={L.lastEmptied}
               value={data.lastEmptiedDate}
-              sub={`本日 ${todayStr()}`}
+              sub={`${L.today} ${todayStr()}`}
             />
             <Metric
               icon={<Droplets className="h-4 w-4" />}
-              label="満杯までの残り"
+              label={L.remaining}
               value={`${data.summary.remainingLiters} L`}
-              sub={`警告ラインまで ${Math.max(0, Math.round(data.summary.alertLine - data.currentLiters))} L`}
+              sub={L.toAlertLine(Math.max(0, Math.round(data.summary.alertLine - data.currentLiters)))}
             />
             <Metric
               icon={<AlertTriangle className="h-4 w-4" />}
-              label="残り予測日数"
-              value={
-                data.summary.forecastDays === null
-                  ? "—"
-                  : `約 ${data.summary.forecastDays} 日`
-              }
-              sub={
-                data.summary.upcomingGuestsPerDay > 0
-                  ? `今後の予約 平均 ${data.summary.upcomingGuestsPerDay}名/日 換算`
-                  : "今後の予約なし"
-              }
+              label={L.forecast}
+              value={data.summary.forecastDays === null ? "—" : L.aboutDays(data.summary.forecastDays)}
+              sub={data.summary.upcomingGuestsPerDay > 0 ? L.upcomingAvg(data.summary.upcomingGuestsPerDay) : L.noUpcoming}
             />
           </div>
 
-          {/* 手動補正（override）: 通常は予約から自動計算。実人数がズレた日だけ上書き */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          {/* 手動補正 */}
+          <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
             <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-600">
-              <Users className="h-4 w-4 text-brand-600" /> 手動補正（任意）
+              <Users className="h-4 w-4 text-brand-600" /> {L.overrideTitle}
             </div>
-            <p className="mb-3 text-xs text-slate-400">
-              人数は予約データから自動反映されます。実際の宿泊人数がズレた日だけ、この補正で上書きできます。
-            </p>
+            <p className="mb-3 text-xs text-slate-400">{L.overrideHint}</p>
             <div className="flex flex-wrap items-end gap-3">
               <label className="text-xs font-semibold text-slate-500">
-                対象日
+                {L.targetDate}
                 <input
                   type="date"
                   value={date}
@@ -374,12 +614,12 @@ export default function GuesthouseTankDashboard() {
                 />
               </label>
               <label className="text-xs font-semibold text-slate-500">
-                補正人数
+                {L.overrideGuests}
                 <input
                   type="number"
                   min={0}
                   inputMode="numeric"
-                  placeholder="例: 4"
+                  placeholder="4"
                   value={guests}
                   onChange={(e) => setGuests(e.target.value)}
                   className="mt-1 block w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
@@ -388,61 +628,55 @@ export default function GuesthouseTankDashboard() {
               <button
                 onClick={submitOverride}
                 disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                補正を適用
+                {L.applyOverride}
               </button>
               <button
                 onClick={clearOverride}
                 disabled={saving}
                 className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 disabled:opacity-50"
               >
-                自動に戻す
+                {L.backToAuto}
               </button>
             </div>
           </div>
 
           {/* 汲み取り完了リセット */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-700">汲み取りが完了したら</p>
-                <p className="text-xs text-slate-400">
-                  累積水量を 0L に戻し、前回汲み取り日を本日に更新します。
-                </p>
+                <p className="text-sm font-semibold text-slate-700">{L.pumpTitle}</p>
+                <p className="text-xs text-slate-400">{L.pumpHint}</p>
               </div>
               <button
                 onClick={() => setConfirmReset(true)}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-brand-300 hover:text-brand-700"
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm"
               >
-                <RefreshCw className="h-4 w-4" /> 汲み取り完了（リセット）
+                <RefreshCw className="h-4 w-4" /> {L.pumpButton}
               </button>
             </div>
           </div>
 
-          {/* 直近ログ */}
+          {/* 宿泊ログ */}
           {data.logs.length > 0 && (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
-                宿泊ログ（前回汲み取り以降・予約から自動算出）
-              </div>
+            <div className="tank-floatup overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">{L.logTitle}</div>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-100">
                   {data.logs.slice(0, 10).map((l) => (
-                    <tr key={l.date}>
+                    <tr key={l.date} className="transition hover:bg-slate-50">
                       <td className="px-4 py-2 text-slate-600">{l.date}</td>
                       <td className="px-4 py-2 text-slate-800">
-                        {l.guests}名
+                        {L.guestsUnit(l.guests)}
                         {l.overridden && (
                           <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                            手動補正
+                            {L.overrideBadge}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-right font-semibold text-slate-700">
-                        +{l.liters} L
-                      </td>
+                      <td className="px-4 py-2 text-right font-semibold text-slate-700">+{l.liters} L</td>
                     </tr>
                   ))}
                 </tbody>
@@ -452,23 +686,21 @@ export default function GuesthouseTankDashboard() {
         </div>
       </div>
 
-      {/* ===== 確認ダイアログ（誤操作防止） ===== */}
+      {/* ===== 確認ダイアログ ===== */}
       {confirmReset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+          <div className="tank-pop w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
             <div className="mb-2 flex items-center gap-2 text-red-600">
               <RefreshCw className="h-5 w-5" />
-              <h3 className="text-lg font-extrabold text-slate-900">汲み取り完了の確認</h3>
+              <h3 className="text-lg font-extrabold text-slate-900">{L.confirmTitle}</h3>
             </div>
-            <p className="mb-5 text-sm text-slate-500">
-              累積水量を <strong>0 L</strong> にリセットし、前回汲み取り日を <strong>{todayStr()}</strong> に更新します。この操作は取り消せません。よろしいですか？
-            </p>
+            <p className="mb-5 text-sm text-slate-500">{L.confirmBody(todayStr())}</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmReset(false)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
               >
-                キャンセル
+                {L.cancel}
               </button>
               <button
                 onClick={doReset}
@@ -476,7 +708,7 @@ export default function GuesthouseTankDashboard() {
                 className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                リセットする
+                {L.doReset}
               </button>
             </div>
           </div>
@@ -485,7 +717,7 @@ export default function GuesthouseTankDashboard() {
 
       {/* ===== トースト ===== */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
+        <div className="tank-pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
           {toast}
         </div>
       )}
@@ -506,7 +738,7 @@ function Metric({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-sm">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
         <span className="text-brand-600">{icon}</span>
         {label}
