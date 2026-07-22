@@ -35,7 +35,8 @@ const ja: Dictionary = {
     suggestion: (time) =>
       `関西国際空港へは余裕を持って、${time} 発をおすすめします（フライト時刻の2.5時間前）。`,
     preferredDepartureTimeLabel: "ご希望の出発時刻",
-    preferredDepartureTimeNote: "送迎をご希望される時刻があれば選択してください（任意）。",
+    preferredDepartureTimeRequiredBadge: "必須",
+    preferredDepartureTimeNote: "送迎は朝10:00まで対応しています。ご希望の出発時刻を必ず選択してください。",
     preferredDepartureTimePlaceholder: "時刻を選択してください",
     checkoutNote: "チェックアウトは朝10時までとなっております。",
     luggageSectionLabel: "人数・お荷物",

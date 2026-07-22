@@ -35,7 +35,8 @@ const zh: Dictionary = {
     suggestion: (time) =>
       `为确保从容抵达关西国际机场，建议您在 ${time} 出发（即航班起飞前2.5小时）。`,
     preferredDepartureTimeLabel: "希望的出发时间",
-    preferredDepartureTimeNote: "如果您有希望的接送时间，请选择（选填）。",
+    preferredDepartureTimeRequiredBadge: "必填",
+    preferredDepartureTimeNote: "接送服务截至早上10:00。请务必选择希望的出发时间。",
     preferredDepartureTimePlaceholder: "请选择时间",
     checkoutNote: "退房时间为早上10点之前。",
     luggageSectionLabel: "人数与行李",

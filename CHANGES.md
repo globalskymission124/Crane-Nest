@@ -1,4 +1,4 @@
-# 便槽モニタリング v10（pushplus + メール二重通知）
+# 便槽・送迎通知 v11（pushplus通知 + 朝10時まで送迎）
 
 このフォルダの中身をリポジトリの同じ場所に上書きコピーしてGitHubへpush → Vercel自動デプロイ。
 ※ 事前に v6（日付解析修正）が反映済みであること。
@@ -20,6 +20,16 @@
     pushplus + Email 通知に必要な環境変数を追記。
 - app/api/stays/tank/sync/route.ts
     Vercel Cron 用に GET を追加（CRON_SECRET 設定時はヘッダ認証）。POST（手動）は従来通り。
+- components/guest/TransferDetailsStep.tsx / lib/transferTime.ts / lib/guestBooking.ts
+    送迎の希望出発時刻を必須化。選択肢は00:00〜10:00に制限し、保存前にも同じ条件を検証します。
+    出発便のフライト時刻は引き続き任意です。
+- components/admin/TransferKanbanBoard.tsx / lib/adminSchedule.ts
+    管理画面の送迎ボードを朝10:00までの予約表示に絞り、早朝・朝の2レーン構成に変更しました。
+- app/api/transfer/booking-alert/route.ts / lib/transferBookingAlerts.ts
+    新しい送迎予約をpushplusへ通知するAPIを追加。`PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を再利用し、
+    任意で `TRANSFER_PUSHPLUS_TOPIC` / `TRANSFER_PUSHPLUS_TO` による送迎専用宛先も指定できます。
+- supabase/migrations/0028_transfer_morning_required.sql
+    DB側でも今後の新規/更新レコードに対して、希望出発時刻必須・10:00までのチェック制約を追加します。
 - vercel.json（新規）
     毎日 21:00 UTC（＝日本時間 6:00）に /api/stays/tank/sync を自動実行するCron。
 

@@ -71,6 +71,9 @@
    PUSHPLUS_TOKEN=your-pushplus-token
    PUSHPLUS_TOPIC=family-tank-alerts
    # PUSHPLUS_TO=friend-token-1,friend-token-2
+   # 任意: 送迎予約通知を別グループ/好友へ送る場合だけ指定
+   # TRANSFER_PUSHPLUS_TOPIC=transfer-booking-alerts
+   # TRANSFER_PUSHPLUS_TO=friend-token-1
    VACUUM_CONTACT=バキュームカー業者：〇〇環境サービス TEL 0000-00-0000
 
    # メールにも同時通知
@@ -100,6 +103,16 @@
 
 特定の家族だけへ送る場合は、pushplusの好友機能で取得した好友トークンを `PUSHPLUS_TO`
 にカンマ区切りで設定できます。`PUSHPLUS_TOPIC` がある場合はグループ通知が優先されます。
+
+### 送迎予約の朝10時まで制限とpushplus通知
+
+- ゲストの「希望出発時刻」は必須です。選択肢は `00:00` から `10:00` までに制限しています。
+- 「出発便のフライト時刻」は従来通り任意です。
+- 管理画面の送迎ボードは、朝10:00までの送迎予約だけを表示します。
+- 新しい送迎予約が保存されると、pushplusへ予約内容を通知します。基本は `PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を再利用します。
+- 送迎予約だけ別のpushplusグループへ送る場合は `TRANSFER_PUSHPLUS_TOPIC` を設定してください。
+
+DB側でも今後の不正登録を防ぐ場合は、Supabaseで `supabase/migrations/0028_transfer_morning_required.sql` を実行してください。
 
 ## デモアカウント（0019シード・パスワードはすべて `demo123`）
 

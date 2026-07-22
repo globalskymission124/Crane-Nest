@@ -22,7 +22,7 @@ const ja: AdminDictionary = {
     board: {
       title: "送迎ボード",
       description:
-        "翌日の送迎予約を時間帯ごとに確認できます。荷物の多い予約は赤色でハイライトされ、車両手配の判断に役立ちます。",
+        "朝10時までの送迎予約を時間帯ごとに確認できます。荷物の多い予約は赤色でハイライトされ、車両手配の判断に役立ちます。",
     },
     rooms: {
       title: "部屋管理",
@@ -126,7 +126,7 @@ const ja: AdminDictionary = {
   },
 
   board: {
-    summary: (date, count) => `${date}の送迎予定 ・ 計${count}件`,
+    summary: (date, count) => `${date}の朝10時までの送迎予定 ・ 計${count}件`,
     heavyHint: (n) => `荷物が多い予約（合計${n}個以上）は赤色で表示`,
     laneCount: (n) => `${n}件`,
     laneEmpty: "送迎予定なし",

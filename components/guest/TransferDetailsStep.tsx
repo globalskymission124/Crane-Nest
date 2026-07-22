@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { Lightbulb, Info, Calendar } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Destination, Room, TransferFormData } from "@/lib/types";
-import { calculateSuggestedDepartureTime, isKansaiAirport } from "@/lib/transferTime";
+import {
+  TRANSFER_DEPARTURE_TIME_OPTIONS,
+  calculateSuggestedDepartureTime,
+  isKansaiAirport,
+  isWithinTransferServiceHours,
+} from "@/lib/transferTime";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import Counter from "./Counter";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -18,12 +23,6 @@ function localDateString(offsetDays: number): string {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
-// 送迎（希望出発）時刻の選択肢を1時間ごとに生成する（"00:00" 〜 "23:00"）
-const DEPARTURE_TIME_OPTIONS: string[] = Array.from(
-  { length: 24 },
-  (_, h) => `${String(h).padStart(2, "0")}:00`
-);
 
 // roomsテーブル取得失敗時のフォールバック（オフライン/未設定時のデモ用）
 const FALLBACK_ROOMS: Room[] = Array.from({ length: 9 }, (_, i) => ({
@@ -132,13 +131,18 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   const selectedRoom = rooms.find((r) => r.id === roomId) ?? null;
   const selectedDestination = destinations.find((d) => d.id === destinationId) ?? null;
 
-  const suggestedDepartureTime =
+  const calculatedSuggestedDepartureTime =
     selectedDestination && isKansaiAirport(selectedDestination.name) && flightTime
       ? calculateSuggestedDepartureTime(flightTime)
       : null;
+  const suggestedDepartureTime =
+    calculatedSuggestedDepartureTime && isWithinTransferServiceHours(calculatedSuggestedDepartureTime)
+      ? calculatedSuggestedDepartureTime
+      : null;
 
-  // フライト時刻は任意項目になったため、必須なのは「お部屋」と「目的地」の選択のみ
-  const canProceed = roomId !== null && destinationId !== null;
+  const validPreferredDepartureTime = isWithinTransferServiceHours(preferredDepartureTime);
+  // フライト時刻は任意。希望出発時刻は送迎手配に必須で、朝10時までのみ対応。
+  const canProceed = roomId !== null && destinationId !== null && validPreferredDepartureTime;
 
   const handleSubmit = () => {
     if (!canProceed || !selectedDestination || !selectedRoom) return;
@@ -148,7 +152,7 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
         roomNumber: selectedRoom.name,
         destinationId,
         flightTime,
-        preferredDepartureTime: preferredDepartureTime || null,
+        preferredDepartureTime,
         suggestedDepartureTime,
         passengerCount,
         luggageLarge,
@@ -314,14 +318,21 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
 
         {/* 希望出発（送迎）時刻 */}
         <section>
-          <h2 className="mb-2 text-sm font-semibold text-slate-700">{t.transfer.preferredDepartureTimeLabel}</h2>
+          <div className="mb-2 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-700">{t.transfer.preferredDepartureTimeLabel}</h2>
+            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">
+              {t.transfer.preferredDepartureTimeRequiredBadge}
+            </span>
+          </div>
           <select
             value={preferredDepartureTime}
             onChange={(e) => setPreferredDepartureTime(e.target.value)}
+            required
+            aria-invalid={preferredDepartureTime !== "" && !validPreferredDepartureTime}
             className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
           >
             <option value="">{t.transfer.preferredDepartureTimePlaceholder}</option>
-            {DEPARTURE_TIME_OPTIONS.map((time) => (
+            {TRANSFER_DEPARTURE_TIME_OPTIONS.map((time) => (
               <option key={time} value={time}>
                 {time}
               </option>

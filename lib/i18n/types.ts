@@ -50,6 +50,7 @@ export interface Dictionary {
     flightTimeOptionalNote: string;
     suggestion: (time: string) => string;
     preferredDepartureTimeLabel: string;
+    preferredDepartureTimeRequiredBadge: string;
     preferredDepartureTimeNote: string;
     preferredDepartureTimePlaceholder: string;
     checkoutNote: string;

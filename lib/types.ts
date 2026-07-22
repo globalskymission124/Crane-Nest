@@ -51,7 +51,7 @@ export interface TransferRequest {
   room_number: string;
   destination_id: string;
   flight_time: string | null; // ISO文字列（任意項目）
-  preferred_departure_time: string | null; // "HH:mm" 形式（ゲスト希望の出発時刻、任意）
+  preferred_departure_time: string | null; // "HH:mm" 形式（ゲスト希望の出発時刻。古い予約はNULLの可能性あり）
   suggested_departure_time: string | null; // ISO文字列
   passenger_count: number;
   luggage_large: number;
@@ -75,7 +75,7 @@ export interface TransferFormData {
   roomNumber: string;
   destinationId: string | null;
   flightTime: string; // "HH:mm" 形式（空文字列の場合は未入力＝任意項目）
-  preferredDepartureTime: string | null; // "HH:mm" 形式（ゲストが希望する送迎時刻、任意）
+  preferredDepartureTime: string; // "HH:mm" 形式（ゲストが希望する送迎時刻、必須・朝10時まで）
   suggestedDepartureTime: string | null; // 算出済みの提案時刻（表示用ラベル文字列）
   passengerCount: number;
   luggageLarge: number;

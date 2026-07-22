@@ -1,4 +1,5 @@
 import type { TransferStatus } from "./types";
+import { TRANSFER_SERVICE_END_TIME, timeToMinutes } from "./transferTime";
 
 // =========================================================
 // 管理画面 送迎カンバンボード用のヘルパー
@@ -8,15 +9,13 @@ import type { TransferStatus } from "./types";
 export interface TimeLane {
   id: string;
   label: string;
-  startHour: number; // 含む
-  endHour: number; // 含まない
+  startMinute: number; // 含む
+  endMinute: number; // 含まない
 }
 
 export const TIME_LANES: TimeLane[] = [
-  { id: "early", label: "早朝（00:00〜06:00）", startHour: 0, endHour: 6 },
-  { id: "morning", label: "午前（06:00〜12:00）", startHour: 6, endHour: 12 },
-  { id: "afternoon", label: "午後（12:00〜18:00）", startHour: 12, endHour: 18 },
-  { id: "night", label: "夜間（18:00〜24:00）", startHour: 18, endHour: 24 },
+  { id: "early", label: "早朝（00:00〜05:59）", startMinute: 0, endMinute: 6 * 60 },
+  { id: "morning", label: `朝（06:00〜${TRANSFER_SERVICE_END_TIME}）`, startMinute: 6 * 60, endMinute: 10 * 60 + 1 },
 ];
 
 // Supabaseの結合結果を画面表示用に整形したカードデータ
@@ -28,7 +27,7 @@ export interface KanbanCard {
   passportImageUrl: string | null;
   destinationName: string;
   destinationImageUrl: string | null;
-  flightTime: string; // ISO文字列
+  flightTime: string | null; // ISO文字列
   departureTime: string | null; // ISO文字列（suggested_departure_time）
   preferredDepartureTime: string | null; // "HH:mm" 形式（ゲスト入力値）
   passengerCount: number;
@@ -83,25 +82,36 @@ export function toDateString(date: Date): string {
 
 // 出発予定時刻をもとにレーンを判定
 // 優先順位: preferred_departure_time（ゲスト希望）→ suggested_departure_time（算出値）→ flight_time
-export function assignLane(card: KanbanCard): TimeLane {
-  let hour: number;
-
+export function departureMinutes(card: KanbanCard): number | null {
   if (card.preferredDepartureTime) {
     // ゲストが指定した希望出発時刻（"HH:mm" 形式）を最優先
-    const h = parseInt(card.preferredDepartureTime.split(":")[0] ?? "0", 10);
-    hour = Number.isNaN(h) ? 0 : h;
-  } else if (card.departureTime) {
-    // システム算出の提案時刻（ISO文字列）
-    hour = new Date(card.departureTime).getHours();
-  } else if (card.flightTime) {
-    // フライト時刻にフォールバック
-    hour = new Date(card.flightTime).getHours();
-  } else {
-    hour = 0;
+    return timeToMinutes(card.preferredDepartureTime);
   }
 
+  if (card.departureTime) {
+    // システム算出の提案時刻（ISO文字列）
+    const d = new Date(card.departureTime);
+    return Number.isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
+  }
+
+  if (card.flightTime) {
+    // フライト時刻にフォールバック
+    const d = new Date(card.flightTime);
+    return Number.isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
+  }
+
+  return null;
+}
+
+export function isWithinMorningTransferBoard(card: KanbanCard): boolean {
+  const minutes = departureMinutes(card);
+  return minutes !== null && minutes <= 10 * 60;
+}
+
+export function assignLane(card: KanbanCard): TimeLane {
+  const minutes = departureMinutes(card) ?? 0;
   return (
-    TIME_LANES.find((lane) => hour >= lane.startHour && hour < lane.endHour) ??
+    TIME_LANES.find((lane) => minutes >= lane.startMinute && minutes < lane.endMinute) ??
     TIME_LANES[TIME_LANES.length - 1]
   );
 }
@@ -113,8 +123,11 @@ export function getDisplayDepartureLabel(card: KanbanCard): string | null {
   return null;
 }
 
-export function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("ja-JP", {
+export function formatTime(iso: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

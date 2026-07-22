@@ -22,7 +22,7 @@ const en: AdminDictionary = {
     board: {
       title: "Transfer Board",
       description:
-        "Review tomorrow's transfer bookings by time slot. Bookings with heavy luggage are highlighted in red to help with vehicle planning.",
+        "Review transfer bookings up to 10:00 AM by time slot. Bookings with heavy luggage are highlighted in red to help with vehicle planning.",
     },
     rooms: {
       title: "Rooms",
@@ -126,7 +126,7 @@ const en: AdminDictionary = {
   },
 
   board: {
-    summary: (date, count) => `${date} transfers · ${count} total`,
+    summary: (date, count) => `${date} transfers until 10:00 AM · ${count} total`,
     heavyHint: (n) => `Bookings with ${n}+ pieces of luggage are shown in red`,
     laneCount: (n) => `${n}`,
     laneEmpty: "No transfers scheduled",

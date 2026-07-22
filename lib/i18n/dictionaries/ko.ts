@@ -34,7 +34,8 @@ const ko: Dictionary = {
     suggestion: (time) =>
       `간사이 국제공항까지 여유롭게 도착하시려면 ${time} 출발을 권장드립니다 (항공편 시간 2.5시간 전).`,
     preferredDepartureTimeLabel: "희망 출발 시간",
-    preferredDepartureTimeNote: "원하시는 픽업 시간이 있다면 선택해 주세요 (선택 사항).",
+    preferredDepartureTimeRequiredBadge: "필수",
+    preferredDepartureTimeNote: "픽업 서비스는 오전 10:00까지 가능합니다. 희망 출발 시간을 반드시 선택해 주세요.",
     preferredDepartureTimePlaceholder: "시간을 선택하세요",
     checkoutNote: "체크아웃은 오전 10시까지입니다.",
     luggageSectionLabel: "인원 및 수하물",

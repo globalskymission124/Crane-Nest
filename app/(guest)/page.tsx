@@ -17,6 +17,16 @@ function generateFallbackBookingReference() {
   return `TRF-${random}`;
 }
 
+function notifyTransferBooking(transferRequestId: string) {
+  fetch("/api/transfer/booking-alert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transferRequestId }),
+  }).catch(() => {
+    // 通知失敗でゲストの予約完了体験を止めない。
+  });
+}
+
 export default function GuestFlowPage() {
   const [step, setStep] = useState<GuestStep>("passport");
   const [passport, setPassport] = useState<PassportFormData | null>(null);
@@ -46,6 +56,7 @@ export default function GuestFlowPage() {
     const result = passport ? await submitBooking(passport, data) : null;
     setBookingReference(result?.bookingReference ?? generateFallbackBookingReference());
     setStep("complete");
+    if (result?.transferRequestId) notifyTransferBooking(result.transferRequestId);
   };
 
   switch (step) {

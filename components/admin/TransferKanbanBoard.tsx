@@ -11,6 +11,7 @@ import {
   getDateRange,
   toDateString,
   parseDateString,
+  isWithinMorningTransferBoard,
   type KanbanCard,
 } from "@/lib/adminSchedule";
 import TransferCard from "./TransferCard";
@@ -27,7 +28,7 @@ interface RoomInfo {
 interface RawTransferRow {
   id: string;
   room_number: string;
-  flight_time: string;
+  flight_time: string | null;
   suggested_departure_time: string | null;
   preferred_departure_time: string | null;
   passenger_count: number;
@@ -154,7 +155,7 @@ export default function TransferKanbanBoard() {
         ...((newData ?? []) as unknown as RawTransferRow[]),
         ...((legacyData ?? []) as unknown as RawTransferRow[]),
       ];
-      setCards(combined.map((row) => toCard(row, t, rooms)));
+      setCards(combined.map((row) => toCard(row, t, rooms)).filter(isWithinMorningTransferBoard));
       setState("ready");
     }
 
@@ -233,7 +234,7 @@ export default function TransferKanbanBoard() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {TIME_LANES.map((lane) => {
               const laneCards = cards.filter((card) => assignLane(card).id === lane.id);
               return (

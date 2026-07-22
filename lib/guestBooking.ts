@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { isWithinTransferServiceHours } from "./transferTime";
 import type { PassportFormData, TransferFormData } from "./types";
 
 // =========================================================
@@ -82,6 +83,8 @@ export async function submitBooking(
   transfer: TransferFormData
 ): Promise<SubmitBookingResult | null> {
   try {
+    if (!isWithinTransferServiceHours(transfer.preferredDepartureTime)) return null;
+
     // パスポート写真をStorageへアップロード（失敗してもURLなしで続行する）
     const uploadedImageUrl = passport.passportImageUrl
       ? await uploadPassportPhoto(passport.passportImageUrl)

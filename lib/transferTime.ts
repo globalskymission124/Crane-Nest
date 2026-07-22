@@ -5,6 +5,13 @@
 
 const KIX_LEAD_TIME_MINUTES = 2.5 * 60; // 2.5時間 = 150分
 const KIX_NAME_KEYWORDS = ["関西国際空港", "関空", "kix", "kansai"];
+export const TRANSFER_SERVICE_END_TIME = "10:00";
+const TRANSFER_SERVICE_END_MINUTES = 10 * 60;
+
+export const TRANSFER_DEPARTURE_TIME_OPTIONS: string[] = Array.from(
+  { length: 11 },
+  (_, h) => `${String(h).padStart(2, "0")}:00`
+);
 
 export function isKansaiAirport(destinationName: string): boolean {
   const normalized = destinationName.toLowerCase();
@@ -30,4 +37,22 @@ export function calculateSuggestedDepartureTime(flightTime: string): string | nu
   const suggestedMinutes = normalized % 60;
 
   return `${String(suggestedHours).padStart(2, "0")}:${String(suggestedMinutes).padStart(2, "0")}`;
+}
+
+export function timeToMinutes(time: string | null | undefined): number | null {
+  if (!time) return null;
+  const match = /^(\d{2}):(\d{2})$/.exec(time.trim());
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  return hours * 60 + minutes;
+}
+
+export function isWithinTransferServiceHours(time: string | null | undefined): time is string {
+  const minutes = timeToMinutes(time);
+  return minutes !== null && minutes <= TRANSFER_SERVICE_END_MINUTES;
 }

@@ -35,7 +35,8 @@ const es: Dictionary = {
     suggestion: (time) =>
       `Para llegar con tranquilidad al Aeropuerto Internacional de Kansai, te recomendamos salir alrededor de las ${time} (2.5 horas antes de tu vuelo).`,
     preferredDepartureTimeLabel: "Hora de salida preferida",
-    preferredDepartureTimeNote: "Si tienes una hora de recogida preferida, selecciónala (opcional).",
+    preferredDepartureTimeRequiredBadge: "Obligatorio",
+    preferredDepartureTimeNote: "Los traslados están disponibles hasta las 10:00 a. m. Selecciona tu hora de salida preferida.",
     preferredDepartureTimePlaceholder: "Selecciona una hora",
     checkoutNote: "El check-out es antes de las 10:00 a. m.",
     luggageSectionLabel: "Pasajeros y equipaje",

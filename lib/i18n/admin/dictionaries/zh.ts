@@ -22,7 +22,7 @@ const zh: AdminDictionary = {
     board: {
       title: "接送看板",
       description:
-        "可按时间段查看次日的接送预约。行李较多的预约会以红色标出，便于安排车辆。",
+        "可按时间段查看早上10:00前的接送预约。行李较多的预约会以红色标出，便于安排车辆。",
     },
     rooms: {
       title: "房间管理",
@@ -126,7 +126,7 @@ const zh: AdminDictionary = {
   },
 
   board: {
-    summary: (date, count) => `${date}的接送安排・共${count}件`,
+    summary: (date, count) => `${date}早上10:00前的接送安排・共${count}件`,
     heavyHint: (n) => `行李较多的预约（合计${n}件以上）以红色显示`,
     laneCount: (n) => `${n}件`,
     laneEmpty: "暂无接送安排",
