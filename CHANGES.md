@@ -1,12 +1,23 @@
-# 便槽モニタリング v7（多言語・アニメーション・毎日自動同期）
+# 便槽モニタリング v10（pushplus + メール二重通知）
 
 このフォルダの中身をリポジトリの同じ場所に上書きコピーしてGitHubへpush → Vercel自動デプロイ。
 ※ 事前に v6（日付解析修正）が反映済みであること。
 
 ## 変更ファイル
+- lib/stays/tankAlerts.ts
+    80%到達時の通知先にpushplusを追加。`PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC`
+    を設定すると、家族が参加したpushplusグループへMarkdown通知を送信します。
+    `PUSHPLUS_TO` で好友トークン宛にも送信可能です。
+    メール通知と同時に送る二重通知構成に整理しました。
 - components/stays/GuesthouseTankDashboard.tsx
     多言語対応（zh/ja/en、管理画面の言語切替に追従・既定は中国語相当）＋
     アニメーション（水面のさざ波・シマー・ゲージ上昇・数値ポップ・警告時パルス）。
+    現在水位、汲み取りライン、pushplus通知状態をヘッダーで確認できます。
+    pushplus + Email の「通知テスト」ボタンを追加しました。
+- app/api/stays/tank/test-alert/route.ts
+    通知設定確認用の手動テストAPI。実通知と同じ経路で送信し、alertedフラグは変更しません。
+- .env.local.example / README-STAYS.md
+    pushplus + Email 通知に必要な環境変数を追記。
 - app/api/stays/tank/sync/route.ts
     Vercel Cron 用に GET を追加（CRON_SECRET 設定時はヘッダ認証）。POST（手動）は従来通り。
 - vercel.json（新規）

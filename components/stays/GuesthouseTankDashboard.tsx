@@ -9,15 +9,20 @@
 // =========================================================
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
+  BellRing,
   CalendarDays,
   CheckCircle2,
   Droplets,
   Gauge,
   Loader2,
   Mail,
+  MessageCircle,
   RefreshCw,
+  Truck,
   Users,
+  Waves,
 } from "lucide-react";
 import type { DailyLog, TankStatus } from "@/lib/stays/tank";
 import { STATUS_META } from "@/lib/stays/tank";
@@ -39,10 +44,11 @@ interface TankResponse {
   currentLiters: number;
   lastEmptiedDate: string;
   logs: DailyLog[];
+  alerted: boolean;
   updatedAt: string;
   summary: TankSummary;
   alertDispatched?: {
-    wecom: { ok: boolean; skipped?: boolean; error?: string };
+    pushplus: { ok: boolean; skipped?: boolean; error?: string };
     email: { ok: boolean; skipped?: boolean; error?: string };
   } | null;
 }
@@ -53,6 +59,7 @@ interface TankDict {
   subtitle: (perGuest: number, alertLine: number) => string;
   sync: string;
   recalc: string;
+  testAlert: string;
   updated: string;
   meterTitle: string;
   warn: string; // 「80% 警告」
@@ -93,10 +100,19 @@ interface TankDict {
   t_resetDone: string;
   t_invalidGuests: string;
   t_updateFail: string;
-  t_alert: (w: string, e: string) => string;
+  t_alert: (p: string, e: string) => string;
+  t_testAlert: (p: string, e: string) => string;
+  t_testAlertFail: string;
   sent: string;
   unset: string;
   failed: string;
+  pushplusTitle: string;
+  pushplusSent: string;
+  pushplusReady: string;
+  pushplusWatching: string;
+  actionLine: string;
+  liveMeter: string;
+  pumpCallout: string;
 }
 
 const TANK_I18N: Record<AdminLocale, TankDict> = {
@@ -106,6 +122,7 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
       `自有预订＋Airbnb（邮件导入）自动计算。已取消自动排除，仅按已过住宿夜 ${p}L/人 累加。达到80%（${a}L）自动通知。`,
     sync: "Airbnb同步",
     recalc: "重新计算",
+    testAlert: "通知测试",
     updated: "更新",
     meterTitle: "水箱余量表",
     warn: "80% 警告",
@@ -150,10 +167,19 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "已作为抽取完成，将累计重置为 0 L",
     t_invalidGuests: "请输入0以上的数字",
     t_updateFail: "更新失败",
-    t_alert: (w, e) => `⚠️ 检测到超过80%并已通知（WeCom: ${w} / Email: ${e}）`,
+    t_alert: (p, e) => `检测到超过80%并已通知（pushplus: ${p} / Email: ${e}）`,
+    t_testAlert: (p, e) => `测试通知已发送（pushplus: ${p} / Email: ${e}）`,
+    t_testAlertFail: "通知测试失败",
     sent: "已发送✓",
     unset: "未配置",
     failed: "失败",
+    pushplusTitle: "pushplus通知",
+    pushplusSent: "已通知",
+    pushplusReady: "等待发送",
+    pushplusWatching: "监测中",
+    actionLine: "抽取线",
+    liveMeter: "实时水位",
+    pumpCallout: "已超过80%。请安排抽粪车，并在完成后重置。",
   },
   ja: {
     title: "便槽モニタリング",
@@ -161,6 +187,7 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
       `自社予約＋Airbnb（メール取込）から自動計算。キャンセルは自動除外し、過ぎた宿泊夜だけを ${p}L/人 で積算。80%（${a}L）で自動通知。`,
     sync: "Airbnb同期",
     recalc: "再計算",
+    testAlert: "通知テスト",
     updated: "更新",
     meterTitle: "タンク残量メーター",
     warn: "80% 警告",
@@ -205,10 +232,19 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "汲み取り完了として累積を 0L にリセットしました",
     t_invalidGuests: "宿泊人数は0以上の数値で入力してください",
     t_updateFail: "更新に失敗しました",
-    t_alert: (w, e) => `⚠️ 80%超過を検知し通知しました（WeCom: ${w} / Email: ${e}）`,
+    t_alert: (p, e) => `80%超過を検知し通知しました（pushplus: ${p} / Email: ${e}）`,
+    t_testAlert: (p, e) => `テスト通知を送信しました（pushplus: ${p} / Email: ${e}）`,
+    t_testAlertFail: "通知テストに失敗しました",
     sent: "送信✓",
     unset: "未設定",
     failed: "失敗",
+    pushplusTitle: "pushplus通知",
+    pushplusSent: "通知済み",
+    pushplusReady: "送信待機",
+    pushplusWatching: "監視中",
+    actionLine: "汲み取りライン",
+    liveMeter: "現在水位",
+    pumpCallout: "80%を超えています。バキュームカーを手配し、完了後にリセットしてください。",
   },
   en: {
     title: "Tank Monitor",
@@ -216,6 +252,7 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
       `Auto-calculated from your bookings + Airbnb (email import). Cancellations excluded; only past nights counted at ${p}L/guest. Alerts at 80% (${a}L).`,
     sync: "Sync Airbnb",
     recalc: "Recalculate",
+    testAlert: "Test alert",
     updated: "Updated",
     meterTitle: "Tank level",
     warn: "80% alert",
@@ -260,10 +297,19 @@ const TANK_I18N: Record<AdminLocale, TankDict> = {
     t_resetDone: "Marked as pumped out; total reset to 0 L",
     t_invalidGuests: "Enter a number of 0 or more",
     t_updateFail: "Update failed",
-    t_alert: (w, e) => `⚠️ Over 80% detected and notified (WeCom: ${w} / Email: ${e})`,
+    t_alert: (p, e) => `Over 80% detected and notified (pushplus: ${p} / Email: ${e})`,
+    t_testAlert: (p, e) => `Test alert sent (pushplus: ${p} / Email: ${e})`,
+    t_testAlertFail: "Test alert failed",
     sent: "sent✓",
     unset: "unset",
     failed: "failed",
+    pushplusTitle: "pushplus alert",
+    pushplusSent: "sent",
+    pushplusReady: "ready to send",
+    pushplusWatching: "watching",
+    actionLine: "Pump-out line",
+    liveMeter: "Live level",
+    pumpCallout: "Tank is over 80%. Arrange a pump-out, then reset after completion.",
   },
 };
 
@@ -305,7 +351,32 @@ const TANK_CSS = `
 @keyframes tankAlertPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); } 70% { box-shadow: 0 0 0 12px rgba(239,68,68,0); } }
 @keyframes tankFloatUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes tankPop { 0% { transform: scale(.82); opacity: .35; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes tankSweep { 0% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes tankScan { 0% { transform: translateY(-100%); opacity: 0; } 18%,78% { opacity: .55; } 100% { transform: translateY(100%); opacity: 0; } }
+@keyframes tankSignal { 0%,100% { transform: scale(1); opacity: .75; } 50% { transform: scale(1.35); opacity: 1; } }
 .tank-fill { transition: height 1100ms cubic-bezier(.22,1,.36,1); }
+.tank-console {
+  background:
+    linear-gradient(135deg, rgba(240,253,250,.92), rgba(255,255,255,.98) 38%, rgba(255,247,237,.82)),
+    repeating-linear-gradient(90deg, rgba(15,23,42,.035) 0 1px, transparent 1px 26px);
+}
+.tank-console::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 8%, rgba(255,255,255,.7) 24%, transparent 42%);
+  animation: tankSweep 7s ease-in-out infinite;
+}
+.tank-scanline {
+  position: absolute; inset: -20% 0;
+  background: linear-gradient(180deg, transparent, rgba(14,165,233,.22), transparent);
+  animation: tankScan 4.8s ease-in-out infinite;
+}
+.tank-signal-dot {
+  display: inline-block; height: .5rem; width: .5rem; border-radius: 9999px;
+  animation: tankSignal 1.8s ease-in-out infinite;
+}
 .tank-wave {
   position: absolute; top: 0; left: 0; right: 0; height: 12px;
   transform: translateY(-50%);
@@ -323,7 +394,7 @@ const TANK_CSS = `
 .tank-floatup { animation: tankFloatUp .5s ease-out both; }
 .tank-pop { animation: tankPop .45s cubic-bezier(.22,1,.36,1); display: inline-block; }
 @media (prefers-reduced-motion: reduce) {
-  .tank-wave, .tank-shimmer, .tank-alert-pulse, .tank-floatup, .tank-pop { animation: none !important; }
+  .tank-console::before, .tank-scanline, .tank-signal-dot, .tank-wave, .tank-shimmer, .tank-alert-pulse, .tank-floatup, .tank-pop { animation: none !important; }
 }
 `;
 
@@ -339,6 +410,7 @@ export default function GuesthouseTankDashboard() {
   const [data, setData] = useState<TankResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testingAlert, setTestingAlert] = useState(false);
   const [date, setDate] = useState(todayStr());
   const [guests, setGuests] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
@@ -374,11 +446,21 @@ export default function GuesthouseTankDashboard() {
     setTimeout(() => setToast(null), 5000);
   }
 
-  function alertParts(json: TankResponse) {
-    const w = json.alertDispatched!.wecom;
+  function alertStatuses(json: TankResponse) {
+    const p = json.alertDispatched!.pushplus;
     const e = json.alertDispatched!.email;
     const s = (x: { ok: boolean; skipped?: boolean }) => (x.ok ? L.sent : x.skipped ? L.unset : L.failed);
-    return L.t_alert(s(w), s(e));
+    return { pushplus: s(p), email: s(e) };
+  }
+
+  function alertParts(json: TankResponse) {
+    const status = alertStatuses(json);
+    return L.t_alert(status.pushplus, status.email);
+  }
+
+  function testAlertParts(json: TankResponse) {
+    const status = alertStatuses(json);
+    return L.t_testAlert(status.pushplus, status.email);
   }
 
   // POST 共通処理（再評価＋任意の補正）
@@ -403,6 +485,21 @@ export default function GuesthouseTankDashboard() {
 
   function refreshEvaluate() {
     postTank({}, L.t_recalcDone);
+  }
+
+  async function sendTestAlert() {
+    setTestingAlert(true);
+    try {
+      const res = await fetch("/api/stays/tank/test-alert", { method: "POST" });
+      const json = (await res.json()) as TankResponse & { error?: string };
+      if (!res.ok) throw new Error(json?.error || L.t_testAlertFail);
+      setData(json);
+      flash(json.alertDispatched ? testAlertParts(json) : L.t_testAlertFail);
+    } catch (err: any) {
+      flash(err?.message || L.t_testAlertFail);
+    } finally {
+      setTestingAlert(false);
+    }
   }
 
   async function syncAirbnb() {
@@ -477,52 +574,99 @@ export default function GuesthouseTankDashboard() {
   }
 
   const isAlert = data.summary.status === "alert";
+  const litersToAlert = Math.max(0, Math.round(data.summary.alertLine - data.currentLiters));
+  const pushplusState = data.alerted ? L.pushplusSent : isAlert ? L.pushplusReady : L.pushplusWatching;
+  const pushplusTone = data.alerted
+    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+    : isAlert
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : "border-cyan-200 bg-cyan-50 text-cyan-700";
 
   return (
-    <div>
+    <div className="tank-console relative overflow-hidden rounded-2xl border border-teal-100/80 p-3 shadow-inner shadow-white sm:p-5">
       <style>{TANK_CSS}</style>
 
       {/* ===== ヘッダー ===== */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Droplets className="h-6 w-6 text-brand-600" />
-          <h1 className="text-2xl font-extrabold text-slate-900">{L.title}</h1>
+      <div className="relative z-10 mb-5 flex flex-col gap-4 border-b border-slate-200/70 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-3">
+            <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border bg-white shadow-sm ${isAlert ? "border-red-200 text-red-600" : "border-teal-200 text-teal-600"}`}>
+              <Droplets className="h-6 w-6" />
+            </span>
+            <div>
+              <h1 className="text-2xl font-extrabold tracking-normal text-slate-950">{L.title}</h1>
+              <p className="text-xs font-semibold text-slate-400">
+                {L.updated}: {new Date(data.updatedAt).toLocaleString(LOCALE_TAG[locale] || "zh-CN")}
+              </p>
+            </div>
+          </div>
+          <p className="max-w-2xl text-sm leading-6 text-slate-500">
+            {L.subtitle(data.litersPerGuestPerDay, data.summary.alertLine)}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={syncAirbnb}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-sm disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
-            {L.sync}
-          </button>
-          <button
-            onClick={refreshEvaluate}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            {L.recalc}
-          </button>
+
+        <div className="flex flex-col gap-3 lg:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={sendTestAlert}
+              disabled={saving || testingAlert}
+              className="flex items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-sm disabled:opacity-50"
+            >
+              {testingAlert ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BellRing className="h-3.5 w-3.5" />}
+              {L.testAlert}
+            </button>
+            <button
+              onClick={syncAirbnb}
+              disabled={saving || testingAlert}
+              className="flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-sm disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+              {L.sync}
+            </button>
+            <button
+              onClick={refreshEvaluate}
+              disabled={saving || testingAlert}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {L.recalc}
+            </button>
+          </div>
+          <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-[510px]">
+            <SignalPill
+              icon={<Waves className="h-4 w-4" />}
+              label={L.liveMeter}
+              value={`${data.summary.pct}%`}
+              className="border-sky-200 bg-sky-50 text-sky-700"
+            />
+            <SignalPill
+              icon={<Activity className="h-4 w-4" />}
+              label={L.actionLine}
+              value={`${litersToAlert} L`}
+              className={isAlert ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-700"}
+            />
+            <SignalPill
+              icon={<MessageCircle className="h-4 w-4" />}
+              label={L.pushplusTitle}
+              value={pushplusState}
+              className={pushplusTone}
+              pulse={isAlert && !data.alerted}
+            />
+          </div>
         </div>
       </div>
-      <p className="mb-4 text-sm text-slate-500">
-        {L.subtitle(data.litersPerGuestPerDay, data.summary.alertLine)}
-      </p>
 
       {/* ===== ステータスカード ===== */}
       <div
-        className={`tank-floatup mb-5 flex flex-col gap-3 rounded-2xl border ${style.ring} ${style.soft} p-5 sm:flex-row sm:items-center sm:justify-between ${isAlert ? "tank-alert-pulse" : ""}`}
+        className={`tank-floatup relative z-10 mb-5 flex flex-col gap-3 overflow-hidden rounded-xl border ${style.ring} ${style.soft} p-5 sm:flex-row sm:items-center sm:justify-between ${isAlert ? "tank-alert-pulse" : ""}`}
       >
+        <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${style.bar}`} />
         <div className="flex items-center gap-3">
           <span className="text-3xl" aria-hidden>{emoji}</span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${style.chip}`}>{st.label}</span>
-              <span className="text-xs text-slate-400">
-                {L.updated}: {new Date(data.updatedAt).toLocaleString(LOCALE_TAG[locale] || "zh-CN")}
-              </span>
+              <span className="text-xs font-semibold text-slate-400">{data.alerted ? L.pushplusSent : L.pushplusWatching}</span>
             </div>
             <p className={`mt-1 text-lg font-extrabold ${style.text}`}>{st.message}</p>
           </div>
@@ -536,14 +680,23 @@ export default function GuesthouseTankDashboard() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+      {isAlert && (
+        <div className="tank-floatup relative z-10 mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <BellRing className="h-5 w-5 shrink-0" />
+          <span>{L.pumpCallout}</span>
+        </div>
+      )}
+
+      <div className="relative z-10 grid gap-5 lg:grid-cols-[280px_1fr]">
         {/* ===== 縦型タンクメーター（アニメーション） ===== */}
-        <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
+        <div className="tank-floatup rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-900/5">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
             <Gauge className="h-4 w-4 text-brand-600" /> {L.meterTitle}
           </div>
           <div className="flex items-end justify-center gap-4">
-            <div className="relative h-64 w-28 overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100">
+            <div className="relative h-72 w-32 overflow-hidden rounded-[1.4rem] border-2 border-slate-200 bg-gradient-to-b from-slate-50 to-slate-100 shadow-inner">
+              <div className="absolute left-1/2 top-2 z-20 h-1.5 w-14 -translate-x-1/2 rounded-full bg-slate-300/70" />
+              <div className="tank-scanline z-10" />
               {/* 水量（さざ波・シマー付き） */}
               <div
                 className={`tank-fill absolute bottom-0 left-0 w-full bg-gradient-to-t ${style.bar}`}
@@ -563,7 +716,7 @@ export default function GuesthouseTankDashboard() {
               </div>
               {/* 中央のパーセント表示 */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <span key={data.summary.pct} className="tank-pop rounded-lg bg-white/70 px-2 py-0.5 text-sm font-extrabold text-slate-800 backdrop-blur">
+                <span key={data.summary.pct} className="tank-pop rounded-lg border border-white/80 bg-white/75 px-2.5 py-1 text-sm font-extrabold text-slate-800 shadow-sm backdrop-blur">
                   {data.summary.pct}%
                 </span>
               </div>
@@ -598,7 +751,7 @@ export default function GuesthouseTankDashboard() {
           </div>
 
           {/* 手動補正 */}
-          <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="tank-floatup rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-900/5">
             <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-600">
               <Users className="h-4 w-4 text-brand-600" /> {L.overrideTitle}
             </div>
@@ -610,7 +763,7 @@ export default function GuesthouseTankDashboard() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="mt-1 block rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
+                  className="mt-1 block rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
                 />
               </label>
               <label className="text-xs font-semibold text-slate-500">
@@ -622,21 +775,21 @@ export default function GuesthouseTankDashboard() {
                   placeholder="4"
                   value={guests}
                   onChange={(e) => setGuests(e.target.value)}
-                  className="mt-1 block w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
+                  className="mt-1 block w-28 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-brand-400 focus:outline-none"
                 />
               </label>
               <button
                 onClick={submitOverride}
-                disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+                disabled={saving || testingAlert}
+                className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 {L.applyOverride}
               </button>
               <button
                 onClick={clearOverride}
-                disabled={saving}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 disabled:opacity-50"
+                disabled={saving || testingAlert}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:border-slate-300 disabled:opacity-50"
               >
                 {L.backToAuto}
               </button>
@@ -644,7 +797,7 @@ export default function GuesthouseTankDashboard() {
           </div>
 
           {/* 汲み取り完了リセット */}
-          <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="tank-floatup rounded-xl border border-slate-200 bg-white/90 p-5 shadow-sm shadow-slate-900/5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-700">{L.pumpTitle}</p>
@@ -652,16 +805,16 @@ export default function GuesthouseTankDashboard() {
               </div>
               <button
                 onClick={() => setConfirmReset(true)}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-700 hover:shadow-sm"
               >
-                <RefreshCw className="h-4 w-4" /> {L.pumpButton}
+                <Truck className="h-4 w-4" /> {L.pumpButton}
               </button>
             </div>
           </div>
 
           {/* 宿泊ログ */}
           {data.logs.length > 0 && (
-            <div className="tank-floatup overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="tank-floatup overflow-hidden rounded-xl border border-slate-200 bg-white/90 shadow-sm shadow-slate-900/5">
               <div className="bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">{L.logTitle}</div>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-100">
@@ -689,25 +842,25 @@ export default function GuesthouseTankDashboard() {
       {/* ===== 確認ダイアログ ===== */}
       {confirmReset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="tank-pop w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+          <div className="tank-pop w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
             <div className="mb-2 flex items-center gap-2 text-red-600">
-              <RefreshCw className="h-5 w-5" />
+              <Truck className="h-5 w-5" />
               <h3 className="text-lg font-extrabold text-slate-900">{L.confirmTitle}</h3>
             </div>
             <p className="mb-5 text-sm text-slate-500">{L.confirmBody(todayStr())}</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setConfirmReset(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
               >
                 {L.cancel}
               </button>
               <button
                 onClick={doReset}
                 disabled={resetting}
-                className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
-                {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
                 {L.doReset}
               </button>
             </div>
@@ -717,10 +870,36 @@ export default function GuesthouseTankDashboard() {
 
       {/* ===== トースト ===== */}
       {toast && (
-        <div className="tank-pop fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
+        <div className="tank-pop fixed bottom-6 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg">
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- 小さなステータスピル ----
+function SignalPill({
+  icon,
+  label,
+  value,
+  className,
+  pulse,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  className: string;
+  pulse?: boolean;
+}) {
+  return (
+    <div className={`min-h-[68px] rounded-xl border px-3 py-2 shadow-sm shadow-white/80 ${className}`}>
+      <div className="flex items-center gap-2 text-[11px] font-bold uppercase">
+        <span className={`${pulse ? "tank-signal-dot" : ""} inline-block h-2 w-2 rounded-full bg-current opacity-80`} />
+        {icon}
+        <span className="truncate">{label}</span>
+      </div>
+      <p className="mt-1 truncate text-sm font-extrabold">{value}</p>
     </div>
   );
 }
@@ -738,7 +917,7 @@ function Metric({
   sub?: string;
 }) {
   return (
-    <div className="tank-floatup rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-sm">
+    <div className="tank-floatup min-h-[112px] rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-900/5 transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
         <span className="text-brand-600">{icon}</span>
         {label}

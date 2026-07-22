@@ -66,6 +66,20 @@
    # Stripe（未設定でもモック決済で動作）
    STRIPE_SECRET_KEY=sk_test_...
    STRIPE_WEBHOOK_SECRET=whsec_...   # 任意。本番Webhook用
+
+   # 便槽80%通知（pushplus: 家族の個人WeChat向け）
+   PUSHPLUS_TOKEN=your-pushplus-token
+   PUSHPLUS_TOPIC=family-tank-alerts
+   # PUSHPLUS_TO=friend-token-1,friend-token-2
+   VACUUM_CONTACT=バキュームカー業者：〇〇環境サービス TEL 0000-00-0000
+
+   # メールにも同時通知
+   ADMIN_EMAIL=owner@example.com
+   SMTP_HOST=smtp.example.com
+   SMTP_PORT=587
+   SMTP_USER=owner@example.com
+   SMTP_PASS=your-smtp-password
+   MAIL_FROM=Crane Nest <owner@example.com>
    ```
 
 3. 起動
@@ -73,6 +87,19 @@
    npm install
    npm run dev
    ```
+
+### pushplusで家族の個人WeChatへ便槽通知する
+
+1. 代表者のWeChatで「pushplus 推送加」をフォローし、個人tokenを取得します。
+2. pushplusの「一対多消息」で家族用グループを作成し、群组编码を決めます。
+3. 家族にグループQRを読み取って参加してもらいます。
+4. VercelのEnvironment Variablesへ `PUSHPLUS_TOKEN` と `PUSHPLUS_TOPIC` を設定し、Redeployします。
+5. 便槽が80%に到達すると、pushplus経由で家族全員の個人WeChatに通知されます。
+6. 同時に `ADMIN_EMAIL` 宛にもメール通知されます。
+7. 動作確認は `/admin/tank` の「通知テスト」ボタンで実行できます。
+
+特定の家族だけへ送る場合は、pushplusの好友機能で取得した好友トークンを `PUSHPLUS_TO`
+にカンマ区切りで設定できます。`PUSHPLUS_TOPIC` がある場合はグループ通知が優先されます。
 
 ## デモアカウント（0019シード・パスワードはすべて `demo123`）
 

@@ -2,7 +2,7 @@
 // /api/stays/tank/sync
 //   Gmail から Airbnb の予約確定/キャンセルメールを取得・解析し、
 //   stays_ext_reservations に反映（confirmed→cancelled も追跡）。
-//   その後タンクを再計算し、80%超過を検知したら WeCom & Email 通知する。
+//   その後タンクを再計算し、80%超過を検知したら pushplus + Email 通知する。
 //
 //   POST … 画面の「Airbnb同期」ボタンから手動実行
 //   GET  … Vercel Cron からの自動実行用（Vercel Cron は GET で叩く）。
