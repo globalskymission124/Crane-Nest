@@ -2,7 +2,7 @@
 // Stays データアクセス（クライアント/サーバー共用）
 // 既存の @/lib/supabase（anonクライアント）を利用する。
 // =========================================================
-import { supabase } from "@/lib/supabase";
+import { usingPlaceholderSupabase, supabase } from "@/lib/supabase";
 import type {
   Booking,
   CalendarBlock,
@@ -12,6 +12,7 @@ import type {
   Message,
   Review,
 } from "./types";
+import { DEMO_HOST, DEMO_LISTINGS, DEMO_REVIEWS } from "./demoData";
 
 export async function fetchListings(): Promise<Listing[]> {
   const { data, error } = await supabase
@@ -19,7 +20,8 @@ export async function fetchListings(): Promise<Listing[]> {
     .select("*")
     .eq("is_published", true)
     .order("created_at", { ascending: false });
-  if (error) throw error;
+  if (error) return DEMO_LISTINGS.filter((l) => l.is_published);
+  if (usingPlaceholderSupabase && (!data || data.length === 0)) return DEMO_LISTINGS.filter((l) => l.is_published);
   return (data as Listing[]) || [];
 }
 
@@ -28,32 +30,43 @@ export async function fetchAllListings(): Promise<Listing[]> {
     .from("stays_listings")
     .select("*")
     .order("created_at", { ascending: false });
-  if (error) throw error;
+  if (error) return DEMO_LISTINGS;
+  if (usingPlaceholderSupabase && (!data || data.length === 0)) return DEMO_LISTINGS;
   return (data as Listing[]) || [];
 }
 
 export async function fetchListing(id: string): Promise<Listing | null> {
-  const { data } = await supabase.from("stays_listings").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("stays_listings").select("*").eq("id", id).maybeSingle();
+  if (error) return DEMO_LISTINGS.find((l) => l.id === id) || null;
+  if (usingPlaceholderSupabase && !data) return DEMO_LISTINGS.find((l) => l.id === id) || null;
   return (data as Listing) || null;
 }
 
 export async function fetchHost(id: string): Promise<Host | null> {
-  const { data } = await supabase.from("stays_hosts").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("stays_hosts").select("*").eq("id", id).maybeSingle();
+  if (error) return id === DEMO_HOST.id ? DEMO_HOST : null;
+  if (usingPlaceholderSupabase && !data) return id === DEMO_HOST.id ? DEMO_HOST : null;
   return (data as Host) || null;
 }
 
 export async function fetchReviews(listingId: string, includeHidden = false): Promise<Review[]> {
   let q = supabase.from("stays_reviews").select("*").eq("listing_id", listingId);
   if (!includeHidden) q = q.eq("is_hidden", false);
-  const { data } = await q.order("created_at", { ascending: false });
+  const { data, error } = await q.order("created_at", { ascending: false });
+  if (error) return DEMO_REVIEWS.filter((r) => r.listing_id === listingId && (includeHidden || !r.is_hidden));
+  if (usingPlaceholderSupabase && (!data || data.length === 0)) {
+    return DEMO_REVIEWS.filter((r) => r.listing_id === listingId && (includeHidden || !r.is_hidden));
+  }
   return (data as Review[]) || [];
 }
 
 export async function fetchAllReviews(): Promise<Review[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("stays_reviews")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) return DEMO_REVIEWS;
+  if (usingPlaceholderSupabase && (!data || data.length === 0)) return DEMO_REVIEWS;
   return (data as Review[]) || [];
 }
 
@@ -75,10 +88,11 @@ export async function fetchBookings(listingId: string): Promise<Booking[]> {
 }
 
 export async function fetchAllBookings(): Promise<Booking[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("stays_bookings")
     .select("*")
     .order("created_at", { ascending: false });
+  if (error) return [];
   return (data as Booking[]) || [];
 }
 
@@ -139,6 +153,16 @@ export async function fetchConversations(hostId?: string): Promise<Conversation[
   let q = supabase.from("stays_conversations").select("*");
   if (hostId) q = q.eq("host_id", hostId);
   const { data } = await q.order("updated_at", { ascending: false });
+  return (data as Conversation[]) || [];
+}
+
+export async function fetchGuestConversations(guestEmail: string): Promise<Conversation[]> {
+  const { data, error } = await supabase
+    .from("stays_conversations")
+    .select("*")
+    .eq("guest_email", guestEmail)
+    .order("updated_at", { ascending: false });
+  if (error) return [];
   return (data as Conversation[]) || [];
 }
 

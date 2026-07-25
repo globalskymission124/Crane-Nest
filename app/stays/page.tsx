@@ -1,24 +1,267 @@
 "use client";
 
-// =========================================================
-// ゲスト：宿一覧 + 地図検索 v2
-// キーワード/人数 + 高度フィルター（価格帯・タイプ・アメニティ・評価・即時予約）
-// 並び替え・お気に入り・多通貨表示
-// =========================================================
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, MapPin, Users, Star, Map as MapIcon, List, Zap } from "lucide-react";
-import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
-import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
+import {
+  ArrowRight,
+  CalendarDays,
+  Home,
+  MapPin,
+  Search,
+  Settings2,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import SmartSearchBar from "@/components/stays/SmartSearchBar";
+import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
+import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
 import WishlistButton from "@/components/stays/WishlistButton";
-import { fetchListings, fetchAllReviews, averageRating, fetchBlocks, fetchBookings } from "@/lib/stays/queries";
-import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
-import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
+import { addDays, buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
+import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
+import { averageRating, fetchAllReviews, fetchBlocks, fetchBookings, fetchListings } from "@/lib/stays/queries";
+import { DEMO_LISTINGS, DEMO_REVIEWS } from "@/lib/stays/demoData";
 import type { Listing, Review } from "@/lib/stays/types";
+
+type SearchSheetProps = {
+  open: boolean;
+  onClose: () => void;
+  q: string;
+  setQ: (value: string) => void;
+  dateIn: string;
+  setDateIn: (value: string) => void;
+  dateOut: string;
+  setDateOut: (value: string) => void;
+  guests: number;
+  setGuests: (value: number) => void;
+  onClear: () => void;
+};
+
+function SearchSheet({
+  open,
+  onClose,
+  q,
+  setQ,
+  dateIn,
+  setDateIn,
+  dateOut,
+  setDateOut,
+  guests,
+  setGuests,
+  onClear,
+}: SearchSheetProps) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-stone-900/35 backdrop-blur-sm sm:hidden" onClick={onClose}>
+      <div
+        className="absolute inset-x-0 bottom-0 max-h-[92vh] overflow-y-auto rounded-t-[2rem] bg-[#f7f6f2] px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-5 flex items-center justify-between">
+          <div className="grid flex-1 grid-cols-3 text-center text-sm font-bold text-slate-500">
+            {[
+              { label: "房源", Icon: Home, active: true },
+              { label: "体验", Icon: Sparkles, active: false },
+              { label: "服务", Icon: Settings2, active: false },
+            ].map(({ label, Icon, active }) => (
+              <button key={label} className={`relative flex flex-col items-center gap-1 ${active ? "text-slate-950" : ""}`}>
+                {!active && <span className="absolute right-4 top-0 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-white">全新</span>}
+                <Icon className="h-7 w-7" />
+                {label}
+                {active && <span className="mt-0.5 block h-1 w-8 rounded-full bg-slate-950" />}
+              </button>
+            ))}
+          </div>
+          <button onClick={onClose} aria-label="閉じる" className="ml-3 rounded-full bg-white p-3 shadow-sm">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <section className="rounded-[1.6rem] bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-2xl font-black text-slate-950">地点</h2>
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-300 px-4 py-3">
+            <Search className="h-5 w-5 text-slate-800" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="搜索目的地"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-slate-400"
+            />
+          </label>
+          <div className="mt-4 space-y-3">
+            {[
+              { title: "附近", sub: "查找周边", Icon: MapPin },
+              { title: "大阪市, 大阪府", sub: "机场、动漫、美食", Icon: Home },
+              { title: "白滨町, 和歌山县", sub: "魅力海滨", Icon: Sparkles },
+              { title: "京都市, 京都府", sub: "町家与古都体验", Icon: CalendarDays },
+            ].map(({ title, sub, Icon }) => (
+              <button
+                key={title}
+                onClick={() => setQ(title === "附近" ? "" : title)}
+                className="flex w-full items-center gap-3 rounded-2xl px-1 py-2 text-left transition hover:bg-slate-50"
+              >
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-lg font-black text-sky-500">
+                  <Icon className="h-6 w-6" />
+                </span>
+                <span>
+                  <span className="block font-bold text-slate-950">{title}</span>
+                  <span className="text-sm text-slate-500">{sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-3 rounded-[1.4rem] bg-white px-5 py-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold text-slate-500">时间</span>
+            <div className="flex flex-1 items-center justify-end gap-2 text-sm font-bold">
+              <input
+                type="date"
+                min={todayStr()}
+                value={dateIn}
+                onChange={(e) => setDateIn(e.target.value)}
+                className="min-w-0 rounded-xl bg-slate-50 px-2 py-2 outline-none"
+              />
+              <span className="text-slate-300">→</span>
+              <input
+                type="date"
+                min={dateIn || todayStr()}
+                value={dateOut}
+                onChange={(e) => setDateOut(e.target.value)}
+                className="min-w-0 rounded-xl bg-slate-50 px-2 py-2 outline-none"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-3 rounded-[1.4rem] bg-white px-5 py-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block font-bold text-slate-500">人员</span>
+              <span className="text-sm text-slate-400">添加客人</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setGuests(Math.max(1, guests - 1))}
+                className="h-9 w-9 rounded-full border border-slate-300 text-xl font-bold text-slate-500"
+                aria-label="人数を減らす"
+              >
+                -
+              </button>
+              <span className="w-6 text-center font-black">{guests}</span>
+              <button
+                onClick={() => setGuests(Math.min(8, guests + 1))}
+                className="h-9 w-9 rounded-full bg-slate-950 text-xl font-bold text-white"
+                aria-label="人数を増やす"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div className="mt-6 flex items-center justify-between">
+          <button onClick={onClear} className="text-lg font-black text-slate-950 underline underline-offset-4">
+            清除全部
+          </button>
+          <button onClick={onClose} className="flex items-center gap-2 rounded-2xl bg-rose-600 px-8 py-4 text-lg font-black text-white shadow-lg shadow-rose-600/20">
+            <Search className="h-5 w-5" /> 搜索
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ title, href }: { title: string; href?: string }) {
+  return (
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-2xl font-black text-slate-950 sm:text-xl">{title}</h2>
+      {href && (
+        <Link href={href} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-950">
+          <ArrowRight className="h-5 w-5" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function RatingBadge({ avg }: { avg: number }) {
+  if (avg <= 0) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-sm font-bold text-slate-700">
+      <Star className="h-4 w-4 fill-slate-900 text-slate-900" />
+      {avg.toFixed(2)}
+    </span>
+  );
+}
+
+function shortDateRange(start: string, end: string) {
+  const s = new Date(`${start}T00:00:00`);
+  const e = new Date(`${end}T00:00:00`);
+  return `${s.getMonth() + 1}/${s.getDate()} → ${e.getMonth() + 1}/${e.getDate()}`;
+}
+
+function ListingCard({
+  listing,
+  avg,
+  reviewCount,
+  saved,
+  onSaved,
+  compact = false,
+  price,
+}: {
+  listing: Listing;
+  avg: number;
+  reviewCount: number;
+  saved: boolean;
+  onSaved: (saved: boolean) => void;
+  compact?: boolean;
+  price: string;
+}) {
+  const subtitle = `${listing.city} · ${listing.max_guests}人 · ${listing.bedrooms}寝室`;
+  return (
+    <article className={`group relative shrink-0 ${compact ? "w-[78vw] max-w-[21rem] sm:w-auto" : ""}`}>
+      <Link href={`/stays/${listing.id}`} className="block">
+        <div className="relative overflow-hidden rounded-[1.4rem] bg-slate-100">
+          <div className={compact ? "aspect-[1.08]" : "aspect-[1.12]"}>
+            {listing.photos[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={listing.photos[0]} alt={listing.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-300">No Image</div>
+            )}
+          </div>
+          <span className="absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
+            房客推荐
+          </span>
+        </div>
+        <div className="pt-3">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="line-clamp-1 text-lg font-black text-slate-950 sm:text-base">{listing.title}</h3>
+            <RatingBadge avg={avg} />
+          </div>
+          <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-500">{subtitle}</p>
+          <p className="mt-1 text-base font-black text-slate-950">
+            {price}
+            <span className="font-semibold text-slate-500"> / 晚</span>
+          </p>
+          {reviewCount > 0 && <p className="mt-0.5 text-xs font-semibold text-slate-400">{reviewCount} 条评价</p>}
+        </div>
+      </Link>
+      <div className="absolute right-3 top-3 z-10">
+        <WishlistButton listingId={listing.id} saved={saved} onChange={onSaved} />
+      </div>
+    </article>
+  );
+}
 
 export default function StaysHomePage() {
   const { session } = useStaysSession();
@@ -34,20 +277,21 @@ export default function StaysHomePage() {
   const [availableIds, setAvailableIds] = useState<Set<string> | null>(null);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"split" | "list" | "map">("split");
-  const [error, setError] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
-      try {
-        const [ls, rv] = await Promise.all([fetchListings(), fetchAllReviews()]);
-        setListings(ls);
-        setReviews(rv);
-      } catch (e: any) {
-        setError("!"); // 表示は t.dataError を使用
-      } finally {
+      const isLocalPreview = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+      if (isLocalPreview) {
+        setListings(DEMO_LISTINGS);
+        setReviews(DEMO_REVIEWS);
         setLoading(false);
       }
+      const [ls, rv] = await Promise.all([fetchListings(), fetchAllReviews()]);
+      const hasLiveSupabase = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      if (ls.length > 0 || (!isLocalPreview && hasLiveSupabase)) setListings(ls);
+      if (rv.length > 0 || (!isLocalPreview && hasLiveSupabase)) setReviews(rv);
+      setLoading(false);
     })();
   }, []);
 
@@ -59,7 +303,6 @@ export default function StaysHomePage() {
     fetchWishlist(session.email).then((wl) => setSaved(new Set(wl.map((w) => w.listing_id))));
   }, [session?.email]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 日付を指定したら空室のある宿だけに絞り込む（Booking.com流）
   useEffect(() => {
     if (!dateIn || !dateOut || dateOut <= dateIn || listings.length === 0) {
       setAvailableIds(null);
@@ -108,7 +351,8 @@ export default function StaysHomePage() {
       return (
         l.title.toLowerCase().includes(kw) ||
         l.city.toLowerCase().includes(kw) ||
-        l.address.toLowerCase().includes(kw)
+        l.address.toLowerCase().includes(kw) ||
+        l.description.toLowerCase().includes(kw)
       );
     });
     const avg = (l: Listing) => averageRating(reviewsByListing.get(l.id) || []);
@@ -120,7 +364,6 @@ export default function StaysHomePage() {
       case "rating":
         return [...list].sort((a, b) => avg(b) - avg(a));
       default:
-        // おすすめ順: ブースト掲載を最優先し、評価 × レビュー数を加味
         return [...list].sort(
           (a, b) =>
             (isFeatured(b) ? 100 : 0) + avg(b) + Math.min(1, (reviewsByListing.get(b.id)?.length || 0) * 0.1) -
@@ -129,200 +372,226 @@ export default function StaysHomePage() {
     }
   }, [listings, q, guests, filters, reviewsByListing, availableIds]);
 
+  const featured = useMemo(() => filtered.filter((l) => isFeatured(l) || averageRating(reviewsByListing.get(l.id) || []) >= 4.8), [filtered, reviewsByListing]);
+  const osaka = filtered.filter((l) => /大阪|泉佐野|難波|Osaka|Izumisano/i.test(`${l.city} ${l.title} ${l.address}`));
+  const kyoto = filtered.filter((l) => /京都|Kyoto/i.test(`${l.city} ${l.title} ${l.address}`));
+  const nextWeekend = shortDateRange(addDays(todayStr(), 5), addDays(todayStr(), 7));
+  const stats: { Icon: LucideIcon; label: string; value: string | number }[] = [
+    { Icon: Home, label: "房源", value: filtered.length },
+    { Icon: CalendarDays, label: "周末", value: nextWeekend },
+    { Icon: Users, label: "人数", value: `${guests}人` },
+    { Icon: MapPin, label: "区域", value: q || "全部" },
+    { Icon: Sparkles, label: "AI", value: "可用" },
+    { Icon: Settings2, label: "筛选", value: `${filters.propertyTypes.length + filters.amenities.length}` },
+  ];
   const markers: MapMarker[] = filtered
     .filter((l) => l.lat != null && l.lng != null)
-    .map((l) => ({
-      id: l.id,
-      lat: l.lat!,
-      lng: l.lng!,
-      title: l.title,
-      price: l.price_per_night,
-      href: `/stays/${l.id}`,
-    }));
+    .map((l) => ({ id: l.id, lat: l.lat!, lng: l.lng!, title: l.title, price: l.price_per_night, href: `/stays/${l.id}` }));
+
+  function updateSaved(listingId: string, isSaved: boolean) {
+    setSaved((prev) => {
+      const next = new Set(prev);
+      isSaved ? next.add(listingId) : next.delete(listingId);
+      return next;
+    });
+  }
+
+  function resetSearch() {
+    setQ("");
+    setGuests(1);
+    setDateIn("");
+    setDateOut("");
+    setAvailableIds(null);
+    setFilters(DEFAULT_FILTERS);
+  }
 
   return (
-    <div>
-      {/* AI自然文検索 */}
-      <SmartSearchBar
-        onParsed={(p) => {
-          if (p.q) setQ(p.q);
-          if (p.guests) setGuests(Math.min(8, p.guests));
-          setFilters(p.filters);
-        }}
+    <div className="-mx-4 -mt-6 bg-white sm:mx-0 sm:mt-0">
+      <SearchSheet
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        q={q}
+        setQ={setQ}
+        dateIn={dateIn}
+        setDateIn={setDateIn}
+        dateOut={dateOut}
+        setDateOut={setDateOut}
+        guests={guests}
+        setGuests={setGuests}
+        onClear={resetSearch}
       />
-      {/* 検索バー */}
-      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center">
-        <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-50 px-3">
-          <Search className="h-4 w-4 text-slate-400" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={t.searchPlaceholder}
-            className="w-full bg-transparent py-2.5 text-sm outline-none"
-          />
-        </div>
-        <div className="flex items-center gap-1 rounded-xl bg-slate-50 px-2">
-          <input
-            type="date"
-            min={todayStr()}
-            value={dateIn}
-            onChange={(e) => setDateIn(e.target.value)}
-            className="bg-transparent py-2.5 text-xs outline-none"
-            aria-label={t.checkIn}
-          />
-          <span className="text-slate-300">→</span>
-          <input
-            type="date"
-            min={dateIn || todayStr()}
-            value={dateOut}
-            onChange={(e) => setDateOut(e.target.value)}
-            className="bg-transparent py-2.5 text-xs outline-none"
-            aria-label={t.checkOut}
-          />
-        </div>
-        <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3">
-          <Users className="h-4 w-4 text-slate-400" />
-          <select
-            value={guests}
-            onChange={(e) => setGuests(Number(e.target.value))}
-            className="bg-transparent py-2.5 text-sm outline-none"
+
+      <section className="bg-[#f7f6f2] px-4 pb-4 pt-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] sm:rounded-3xl sm:px-6">
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="mx-auto flex h-16 w-full max-w-3xl items-center justify-center gap-3 rounded-full bg-white text-lg font-black text-slate-950 shadow-sm sm:hidden"
+        >
+          <Search className="h-5 w-5" /> 开始搜索
+        </button>
+
+        <div className="hidden items-center gap-4 sm:flex">
+          <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
+            <Search className="h-5 w-5 text-slate-400" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            />
+          </div>
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
           >
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <option key={n} value={n}>
-                {n} {t.guestsN}
-              </option>
-            ))}
-          </select>
+            <SlidersHorizontal className="h-4 w-4" /> Mobile search
+          </button>
         </div>
-        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 text-xs">
-          {([
-            ["split", t.viewSplit],
-            ["list", t.viewList],
-            ["map", t.viewMap],
-          ] as const).map(([v, label]) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`rounded-lg px-3 py-1.5 font-semibold ${
-                view === v ? "bg-white text-brand-600 shadow-sm" : "text-slate-500"
-              }`}
-            >
-              {v === "list" ? <List className="mr-1 inline h-3.5 w-3.5" /> : v === "map" ? <MapIcon className="mr-1 inline h-3.5 w-3.5" /> : null}
+
+        <div className="mt-5 grid grid-cols-3 text-center text-sm font-bold text-slate-500 sm:hidden">
+          {[
+            { label: "房源", Icon: Home, active: true },
+            { label: "体验", Icon: Sparkles, active: false },
+            { label: "服务", Icon: Settings2, active: false },
+          ].map(({ label, Icon, active }) => (
+            <button key={label} className={`relative flex flex-col items-center gap-1 ${active ? "text-slate-950" : ""}`}>
+              {!active && <span className="absolute right-5 top-0 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-white">全新</span>}
+              <Icon className="h-7 w-7" />
               {label}
+              {active && <span className="mt-1 block h-1 w-10 rounded-full bg-slate-950" />}
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* フィルター・並び替え */}
-      <div className="mb-5 flex items-center justify-between">
-        <SearchFilters filters={filters} onChange={setFilters} />
-        <p className="text-xs text-slate-400">{filtered.length} {t.results}</p>
-      </div>
-      {availableIds && (
-        <p className="mb-4 -mt-2 inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-          ✓ {t.availableForDates}
-        </p>
-      )}
-
-      {error && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {t.dataError}
+      <div className="px-4 pt-6 sm:px-0">
+        <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+          <SmartSearchBar
+            onParsed={(p) => {
+              if (p.q) setQ(p.q);
+              if (p.guests) setGuests(Math.min(8, p.guests));
+              setFilters(p.filters);
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <SearchFilters filters={filters} onChange={setFilters} />
+            <button onClick={resetSearch} className="hidden rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 sm:block">
+              Reset
+            </button>
+          </div>
         </div>
-      )}
-      {loading ? (
-        <p className="py-20 text-center text-slate-400">{t.loading}</p>
-      ) : (
-        <div
-          className={`grid gap-6 ${
-            view === "split" ? "lg:grid-cols-2" : "grid-cols-1"
-          }`}
-        >
-          {view !== "map" && (
-            <div className="grid gap-5 sm:grid-cols-2">
-              {filtered.length === 0 && (
-                <p className="col-span-full py-10 text-center text-slate-400">
-                  {t.noResults}
-                </p>
-              )}
-              {filtered.map((l) => {
-                const rv = reviewsByListing.get(l.id) || [];
-                const avg = averageRating(rv);
-                return (
-                  <Link
-                    key={l.id}
-                    href={`/stays/${l.id}`}
-                    className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:shadow-lg"
-                  >
-                    <div className="absolute right-2 top-2 z-10">
-                      <WishlistButton
-                        listingId={l.id}
+
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {stats.map(({ Icon, label, value }) => (
+            <div key={label} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+              <Icon className="mb-2 h-4 w-4 text-rose-600" />
+              <p className="text-[11px] font-bold text-slate-400">{label}</p>
+              <p className="mt-0.5 truncate text-sm font-black text-slate-950">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {availableIds && (
+          <p className="mb-5 inline-flex rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
+            {t.availableForDates}
+          </p>
+        )}
+
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-72 animate-pulse rounded-[1.4rem] bg-slate-100" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-[1.4rem] border border-slate-100 bg-white py-16 text-center shadow-sm">
+            <p className="text-lg font-black text-slate-800">{t.noResults}</p>
+            <button onClick={resetSearch} className="mt-3 rounded-full bg-slate-950 px-5 py-2 text-sm font-bold text-white">
+              条件をリセット
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-10">
+            {featured.length > 0 && (
+              <section>
+                <SectionHeader title="大阪市的热门房源" href="/stays" />
+                <div className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
+                  {featured.slice(0, 4).map((l) => {
+                    const rv = reviewsByListing.get(l.id) || [];
+                    return (
+                      <ListingCard
+                        key={l.id}
+                        listing={l}
+                        avg={averageRating(rv)}
+                        reviewCount={rv.length}
                         saved={saved.has(l.id)}
-                        onChange={(s) =>
-                          setSaved((prev) => {
-                            const next = new Set(prev);
-                            s ? next.add(l.id) : next.delete(l.id);
-                            return next;
-                          })
-                        }
+                        onSaved={(s) => updateSaved(l.id, s)}
+                        compact
+                        price={fmt(l.price_per_night)}
                       />
-                    </div>
-                    <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                      {l.photos[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={l.photos[0]}
-                          alt={l.title}
-                          className="h-full w-full object-cover transition group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-slate-300">
-                          No Image
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 font-semibold text-slate-800">
-                          {isFeatured(l) && (
-                            <span className="mr-1 rounded bg-brand-600 px-1.5 py-0.5 align-middle text-[9px] font-bold text-white">PR</span>
-                          )}
-                          {avg >= 4.8 && rv.length >= 3 && (
-                            <span className="mr-1 rounded bg-amber-400 px-1.5 py-0.5 align-middle text-[9px] font-bold text-white">★ {t.guestFavorite}</span>
-                          )}
-                          {l.title}
-                        </h3>
-                        {avg > 0 && (
-                          <span className="flex shrink-0 items-center gap-1 text-sm">
-                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                            {avg.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                        <MapPin className="h-3 w-3" /> {l.city}・{t.ptype[l.property_type]}・{t.maxN} {l.max_guests} {t.guestsN}
-                        {l.instant_book && <Zap className="h-3 w-3 text-amber-500" />}
-                      </p>
-                      <p className="mt-2 text-sm">
-                        <span className="font-bold text-slate-900">{fmt(l.price_per_night)}</span>
-                        <span className="text-slate-500"> {t.perNight}</span>
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-          {view !== "list" && (
-            <div className={view === "map" ? "" : "lg:sticky lg:top-24 lg:self-start"}>
-              <StaysMap
-                markers={markers}
-                className="h-[320px] w-full overflow-hidden rounded-2xl border border-slate-200 lg:h-[70vh]"
-              />
-            </div>
-          )}
-        </div>
-      )}
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {osaka.length > 0 && (
+              <section>
+                <SectionHeader title="关西机场与大阪周边" href="/stays" />
+                <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+                  {osaka.slice(0, 6).map((l) => {
+                    const rv = reviewsByListing.get(l.id) || [];
+                    return (
+                      <ListingCard
+                        key={l.id}
+                        listing={l}
+                        avg={averageRating(rv)}
+                        reviewCount={rv.length}
+                        saved={saved.has(l.id)}
+                        onSaved={(s) => updateSaved(l.id, s)}
+                        price={fmt(l.price_per_night)}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {kyoto.length > 0 && (
+              <section>
+                <SectionHeader title="京都市的房源" href="/stays" />
+                <div className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
+                  {kyoto.slice(0, 4).map((l) => {
+                    const rv = reviewsByListing.get(l.id) || [];
+                    return (
+                      <ListingCard
+                        key={l.id}
+                        listing={l}
+                        avg={averageRating(rv)}
+                        reviewCount={rv.length}
+                        saved={saved.has(l.id)}
+                        onSaved={(s) => updateSaved(l.id, s)}
+                        compact
+                        price={fmt(l.price_per_night)}
+                      />
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            <section className="hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-sm lg:block">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-black text-slate-950">地图与价格位置</h2>
+                  <p className="text-sm font-semibold text-slate-500">搜索结果会同步到地图，便于比较机场、难波、京都的距离。</p>
+                </div>
+                <p className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-500">{filtered.length} {t.results}</p>
+              </div>
+              <StaysMap markers={markers} className="h-[420px] overflow-hidden rounded-2xl border border-slate-100" />
+            </section>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

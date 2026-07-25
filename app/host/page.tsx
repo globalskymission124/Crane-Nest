@@ -74,8 +74,8 @@ export default function HostBookingsPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold">おかえりなさい 👋</h1>
-      <p className="mb-4 text-sm text-slate-500">今日の状況とやることをまとめました。</p>
+      <h1 className="mb-1 text-4xl font-black text-slate-950 sm:text-2xl">你有 {filtered.length} 笔订单</h1>
+      <p className="mb-4 text-sm font-semibold text-slate-500">今日必看：承認待ち、チェックイン、未払いをすぐ確認できます。</p>
 
       {/* 今日のサマリー */}
       <div className="mb-4 grid grid-cols-3 gap-3">
@@ -126,7 +126,45 @@ export default function HostBookingsPage() {
       ) : filtered.length === 0 ? (
         <p className="py-16 text-center text-slate-400">予約はありません。</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <>
+        <div className="grid gap-3 sm:hidden">
+          {filtered.map((b) => {
+            const listing = listingMap.get(b.listing_id);
+            return (
+              <article key={b.id} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-400">{b.check_in} → {b.check_out}</p>
+                    <h2 className="mt-1 line-clamp-2 text-2xl font-black text-slate-950">{b.guest_name}的 {b.guests_count} 人団体退房</h2>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${STATUS_STYLE[b.status]}`}>
+                    {STATUS_LABEL[b.status]}
+                  </span>
+                </div>
+                <p className="line-clamp-2 text-sm font-semibold text-slate-500">{listing?.title || "—"}</p>
+                <p className="mt-2 text-lg font-black text-slate-950">{formatJPY(b.total_price)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {b.status === "pending" && (
+                    <button onClick={() => setStatus(b, "confirmed")} className="flex items-center gap-1 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white">
+                      <Check className="h-3.5 w-3.5" /> 承認
+                    </button>
+                  )}
+                  {b.status === "confirmed" && (
+                    <button onClick={() => setStatus(b, "completed")} className="flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white">
+                      <Clock className="h-3.5 w-3.5" /> 完了
+                    </button>
+                  )}
+                  {b.status !== "cancelled" && b.status !== "completed" && (
+                    <button onClick={() => setStatus(b, "cancelled")} className="flex items-center gap-1 rounded-xl bg-slate-100 px-4 py-2 text-xs font-black text-slate-600">
+                      <X className="h-3.5 w-3.5" /> 取消
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white sm:block">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
               <tr>
@@ -194,6 +232,7 @@ export default function HostBookingsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

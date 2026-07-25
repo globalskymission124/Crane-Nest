@@ -6,7 +6,13 @@ import { createClient } from "@supabase/supabase-js";
 // 環境変数が未設定の場合でも createClient() 自体が例外を投げないよう、
 // ビルド時・開発時用にダミー値へフォールバックする（実際の通信は失敗するが、
 // 各画面側でエラーハンドリング/フォールバック表示を用意しているため問題ない）。
+export const hasSupabaseConfig = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+export const usingPlaceholderSupabase =
+  supabaseUrl.includes("placeholder.supabase.co") || supabaseAnonKey === "placeholder-anon-key";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

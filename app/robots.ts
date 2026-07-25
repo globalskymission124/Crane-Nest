@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "ClaudeBot", allow: "/", disallow },
       { userAgent: "PerplexityBot", allow: "/", disallow },
       { userAgent: "Google-Extended", allow: "/", disallow },
+      { userAgent: "Bytespider", allow: "/", disallow },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
   };

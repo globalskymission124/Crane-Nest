@@ -6,6 +6,7 @@ import NotificationsBell from "@/components/stays/NotificationsBell";
 import CurrencySwitcher from "@/components/stays/CurrencySwitcher";
 import InstallBanner from "@/components/stays/InstallBanner";
 import StaysLangSwitcher from "@/components/stays/StaysLangSwitcher";
+import AppBottomNav from "@/components/stays/AppBottomNav";
 import { logout, useStaysSession } from "@/lib/stays/auth";
 import { useStaysT } from "@/lib/stays/i18n";
 
@@ -15,7 +16,7 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
   const { t } = useStaysT();
   return (
     <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <header className="sticky top-0 z-20 hidden border-b border-slate-200 bg-white/90 backdrop-blur sm:block">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3">
           <Link href="/stays" className="flex shrink-0 items-center gap-2 text-lg font-extrabold text-brand-600">
             <Home className="h-5 w-5" />
@@ -83,11 +84,12 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-      <footer className="border-t border-slate-100 py-8 text-center text-xs text-slate-400">
+      <main className="mx-auto max-w-6xl px-4 pb-24 pt-6 sm:pb-6">{children}</main>
+      <footer className="hidden border-t border-slate-100 py-8 text-center text-xs text-slate-400 sm:block">
         {t.footer}
       </footer>
       <InstallBanner />
+      <AppBottomNav />
     </div>
   );
 }

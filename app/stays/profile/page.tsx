@@ -6,7 +6,8 @@
 // アカウントは初回ここでパスワードを設定する）
 // =========================================================
 import { useEffect, useState } from "react";
-import { BadgeCheck, Camera, Coins, Gift, KeyRound, ScanLine, ShieldAlert, UserCircle2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpDown, BadgeCheck, Camera, Coins, Gift, KeyRound, ScanLine, ShieldAlert, UserCircle2 } from "lucide-react";
 import { useRef } from "react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { updateProfile, useStaysSession } from "@/lib/stays/auth";
@@ -189,6 +190,14 @@ function ProfileBody() {
           </p>
         </div>
       </div>
+
+      <Link
+        href={session.role === "admin" ? "/admin/stays" : session.role === "host" ? "/host" : "/host"}
+        className="mb-4 flex items-center justify-between rounded-[1.4rem] bg-slate-950 px-5 py-4 text-sm font-black text-white shadow-lg shadow-slate-950/15"
+      >
+        <span>{session.role === "admin" ? "切换至平台管理" : session.role === "host" ? "切换至经营模式" : "成为房东"}</span>
+        <ArrowUpDown className="h-5 w-5" />
+      </Link>
 
       {!session.password_set && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">

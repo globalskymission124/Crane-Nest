@@ -90,6 +90,12 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
             >
               {c.hero.ctaSearch} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
+            <Link
+              href="/ai"
+              className="ml-1 hidden rounded-full border border-white/20 px-4 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/10 md:inline-flex"
+            >
+              AI guide
+            </Link>
           </nav>
         </div>
       </header>
@@ -133,6 +139,12 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
               className="rounded-2xl border border-white/20 bg-white/5 px-8 py-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/10"
             >
               {c.hero.ctaTransfer}
+            </Link>
+            <Link
+              href="/ai"
+              className="rounded-2xl border border-white/20 bg-white/5 px-8 py-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/10"
+            >
+              AI Search Guide
             </Link>
           </div>
           {/* 統計 */}
@@ -272,6 +284,8 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
             <Link href="/" className="hover:text-slate-600 hover:underline">Transfer</Link>
             <span className="mx-2">·</span>
             <Link href="/host" className="hover:text-slate-600 hover:underline">Hosting</Link>
+            <span className="mx-2">·</span>
+            <Link href="/ai" className="hover:text-slate-600 hover:underline">AI guide</Link>
           </p>
         </div>
       </footer>

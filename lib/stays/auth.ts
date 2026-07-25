@@ -12,6 +12,41 @@ import type { StaysUser, UserRole } from "./types";
 
 const KEY = "stays_session_v1";
 
+const DEMO_SESSIONS: Record<string, StaysSession> = {
+  "guest@demo.com": {
+    id: "demo-guest",
+    name: "Hiroshi",
+    email: "guest@demo.com",
+    role: "guest",
+    host_id: null,
+    password_set: true,
+    avatar_url: null,
+  },
+  "host@demo.com": {
+    id: "demo-host",
+    name: "Crane Nest Host",
+    email: "host@demo.com",
+    role: "host",
+    host_id: "11111111-1111-1111-1111-111111111111",
+    password_set: true,
+    avatar_url: null,
+  },
+  "admin@demo.com": {
+    id: "demo-admin",
+    name: "Platform Admin",
+    email: "admin@demo.com",
+    role: "admin",
+    host_id: "11111111-1111-1111-1111-111111111111",
+    password_set: true,
+    avatar_url: null,
+  },
+};
+
+function demoLogin(email: string, password: string): StaysSession | null {
+  if (password !== "demo123") return null;
+  return DEMO_SESSIONS[email.trim().toLowerCase()] || null;
+}
+
 export interface StaysSession {
   id: string;
   name: string;
@@ -53,13 +88,21 @@ function toSession(u: any): StaysSession {
 }
 
 export async function login(email: string, password: string): Promise<StaysSession> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const demo = demoLogin(normalizedEmail, password);
+  if (demo) {
+    setSession(demo);
+    return demo;
+  }
   const { data, error } = await supabase
     .from("stays_users")
     .select("*")
-    .eq("email", email.trim().toLowerCase())
+    .eq("email", normalizedEmail)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("メールまたはパスワードが違います");
+  if (error || !data) {
+    if (error) throw error;
+    throw new Error("メールまたはパスワードが違います");
+  }
   const u = data as any;
   if (u.is_suspended) throw new Error("このアカウントは停止されています");
   if (!u.password)
