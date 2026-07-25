@@ -4,7 +4,6 @@ import { SITE_URL } from "@/lib/site/content";
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   return [
-    { url: `${SITE_URL}/ai`, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE_URL}/site`, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE_URL}/site/tw`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/site/zh`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },

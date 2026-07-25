@@ -1,12 +1,13 @@
 # 便槽・送迎通知 v13（WxPusher SPT対応 + 朝10時まで送迎）
 
-## AI検索分離・予約アプリUI v14
+## SEO/AEO整理・予約アプリUI v15
 
-- `/ai` を追加。Gemini、ChatGPT、Perplexity、豆包などのAI検索が読み取りやすい紹介ページとして、AI回答用ブリーフ、サービス概要、役割分離、FAQ、JSON-LDを掲載。
-- `/stays` をスマホ予約アプリUIへ刷新。検索シート、房源/体验/服务タブ、AI自然文検索、人気房源レール、下部ナビを追加。
+- アプリ内AI検索として見えていた `/ai` 導線と `/stays` のAI自然文検索UIを撤去。
+- `/site` に多言語の公式要約、FAQ、Service/ItemList/Breadcrumb/FAQ JSON-LDを集約し、Google AI Overview・Gemini・豆包などが理解しやすいSEO/AEO構成へ整理。
+- `/stays` をAirbnb風のスマホ予約UIへ整理。検索シート、房源/体验/服务タブ、エリア別レール、日付・人数・空室判定、高度フィルター、下部ナビを維持。
 - `/stays/messages` を追加。旅行者がホストとの会話へ戻れるメッセージ受信箱を実装。
 - `/host` のモバイルUIを改善。今日必看・日历・房源・消息・菜单の下部ナビと、スマホ向け予約カード表示を追加。
-- `public/llms.txt`、`sitemap.xml`、`robots.txt`、公式サイトLPからAI紹介ページと予約ページへの導線を整理。
+- `public/llms.txt`、`sitemap.xml`、`robots.txt`、公式サイトLPから公式サイトと予約ページへの導線を整理。
 - Supabase未設定のローカルプレビューでも、デモ物件表示と `guest@demo.com` / `host@demo.com` / `admin@demo.com` の `demo123` ログインが使えるようにした。
 
 このフォルダの中身をリポジトリの同じ場所に上書きコピーしてGitHubへpush → Vercel自動デプロイ。

@@ -12,15 +12,12 @@ import {
   SlidersHorizontal,
   Sparkles,
   Star,
-  Users,
   X,
-  type LucideIcon,
 } from "lucide-react";
-import SmartSearchBar from "@/components/stays/SmartSearchBar";
 import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
 import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
 import WishlistButton from "@/components/stays/WishlistButton";
-import { addDays, buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
+import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
@@ -203,10 +200,12 @@ function RatingBadge({ avg }: { avg: number }) {
   );
 }
 
-function shortDateRange(start: string, end: string) {
+function nightsBetween(start: string, end: string) {
+  if (!start || !end || end <= start) return 2;
   const s = new Date(`${start}T00:00:00`);
   const e = new Date(`${end}T00:00:00`);
-  return `${s.getMonth() + 1}/${s.getDate()} → ${e.getMonth() + 1}/${e.getDate()}`;
+  const nights = Math.round((e.getTime() - s.getTime()) / 86_400_000);
+  return Number.isFinite(nights) && nights > 0 ? nights : 2;
 }
 
 function ListingCard({
@@ -217,6 +216,7 @@ function ListingCard({
   onSaved,
   compact = false,
   price,
+  nights,
 }: {
   listing: Listing;
   avg: number;
@@ -225,6 +225,7 @@ function ListingCard({
   onSaved: (saved: boolean) => void;
   compact?: boolean;
   price: string;
+  nights: number;
 }) {
   const subtitle = `${listing.city} · ${listing.max_guests}人 · ${listing.bedrooms}寝室`;
   return (
@@ -251,7 +252,7 @@ function ListingCard({
           <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-500">{subtitle}</p>
           <p className="mt-1 text-base font-black text-slate-950">
             {price}
-            <span className="font-semibold text-slate-500"> / 晚</span>
+            <span className="font-semibold text-slate-500"> / {nights}晚</span>
           </p>
           {reviewCount > 0 && <p className="mt-0.5 text-xs font-semibold text-slate-400">{reviewCount} 条评价</p>}
         </div>
@@ -375,15 +376,8 @@ export default function StaysHomePage() {
   const featured = useMemo(() => filtered.filter((l) => isFeatured(l) || averageRating(reviewsByListing.get(l.id) || []) >= 4.8), [filtered, reviewsByListing]);
   const osaka = filtered.filter((l) => /大阪|泉佐野|難波|Osaka|Izumisano/i.test(`${l.city} ${l.title} ${l.address}`));
   const kyoto = filtered.filter((l) => /京都|Kyoto/i.test(`${l.city} ${l.title} ${l.address}`));
-  const nextWeekend = shortDateRange(addDays(todayStr(), 5), addDays(todayStr(), 7));
-  const stats: { Icon: LucideIcon; label: string; value: string | number }[] = [
-    { Icon: Home, label: "房源", value: filtered.length },
-    { Icon: CalendarDays, label: "周末", value: nextWeekend },
-    { Icon: Users, label: "人数", value: `${guests}人` },
-    { Icon: MapPin, label: "区域", value: q || "全部" },
-    { Icon: Sparkles, label: "AI", value: "可用" },
-    { Icon: Settings2, label: "筛选", value: `${filters.propertyTypes.length + filters.amenities.length}` },
-  ];
+  const nights = nightsBetween(dateIn, dateOut);
+  const dateSummary = dateIn && dateOut ? `${dateIn} 至 ${dateOut}` : "选择日期可查看实时空房";
   const markers: MapMarker[] = filtered
     .filter((l) => l.lat != null && l.lng != null)
     .map((l) => ({ id: l.id, lat: l.lat!, lng: l.lng!, title: l.title, price: l.price_per_night, href: `/stays/${l.id}` }));
@@ -443,7 +437,7 @@ export default function StaysHomePage() {
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
           >
-            <SlidersHorizontal className="h-4 w-4" /> Mobile search
+            <SlidersHorizontal className="h-4 w-4" /> 筛选搜索
           </button>
         </div>
 
@@ -464,30 +458,19 @@ export default function StaysHomePage() {
       </section>
 
       <div className="px-4 pt-6 sm:px-0">
-        <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-          <SmartSearchBar
-            onParsed={(p) => {
-              if (p.q) setQ(p.q);
-              if (p.guests) setGuests(Math.min(8, p.guests));
-              setFilters(p.filters);
-            }}
-          />
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-slate-500">
+              {filtered.length} 个房源 · {guests} 位客人 · {dateSummary}
+            </p>
+            <h1 className="mt-1 hidden text-2xl font-black text-slate-950 sm:block">直观查找关西住宿</h1>
+          </div>
           <div className="flex items-center gap-2">
             <SearchFilters filters={filters} onChange={setFilters} />
             <button onClick={resetSearch} className="hidden rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-500 sm:block">
               Reset
             </button>
           </div>
-        </div>
-
-        <div className="mb-6 grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {stats.map(({ Icon, label, value }) => (
-            <div key={label} className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-              <Icon className="mb-2 h-4 w-4 text-rose-600" />
-              <p className="text-[11px] font-bold text-slate-400">{label}</p>
-              <p className="mt-0.5 truncate text-sm font-black text-slate-950">{value}</p>
-            </div>
-          ))}
         </div>
 
         {availableIds && (
@@ -526,7 +509,8 @@ export default function StaysHomePage() {
                         saved={saved.has(l.id)}
                         onSaved={(s) => updateSaved(l.id, s)}
                         compact
-                        price={fmt(l.price_per_night)}
+                        price={fmt(l.price_per_night * nights + l.cleaning_fee)}
+                        nights={nights}
                       />
                     );
                   })}
@@ -548,7 +532,8 @@ export default function StaysHomePage() {
                         reviewCount={rv.length}
                         saved={saved.has(l.id)}
                         onSaved={(s) => updateSaved(l.id, s)}
-                        price={fmt(l.price_per_night)}
+                        price={fmt(l.price_per_night * nights + l.cleaning_fee)}
+                        nights={nights}
                       />
                     );
                   })}
@@ -571,7 +556,8 @@ export default function StaysHomePage() {
                         saved={saved.has(l.id)}
                         onSaved={(s) => updateSaved(l.id, s)}
                         compact
-                        price={fmt(l.price_per_night)}
+                        price={fmt(l.price_per_night * nights + l.cleaning_fee)}
+                        nights={nights}
                       />
                     );
                   })}

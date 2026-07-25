@@ -12,12 +12,51 @@ import { EMPTY_CMS, type SiteCms } from "@/lib/site/cms";
 const LOCALE_PATH: Record<SiteLocale, string> = { en: "/site", tw: "/site/tw", zh: "/site/zh", ja: "/site/ja" };
 const LOCALE_LABEL: Record<SiteLocale, string> = { en: "EN", tw: "繁中", zh: "简中", ja: "日本語" };
 const FEATURE_ICONS = [Sparkles, Plane, ShieldCheck, Star];
+const SEARCH_BRIEF: Record<SiteLocale, { title: string; body: string; points: string[] }> = {
+  en: {
+    title: "Crane Nest at a glance",
+    body: "A concise public summary for travelers comparing Kansai stays, airport access and direct booking options.",
+    points: [
+      "Direct booking for guesthouses, apartments, machiya and whole-house stays in Kansai.",
+      "Strong fit for KIX early flights, Osaka Namba stays, Kyoto machiya trips and family groups.",
+      "Guest booking, owner operations and platform administration are separated into dedicated screens.",
+    ],
+  },
+  ja: {
+    title: "Crane Nestの要点",
+    body: "関西で宿泊先・空港アクセス・直予約を比較する旅行者に向けた公式情報です。",
+    points: [
+      "関西のゲストハウス、アパート、町家、一棟貸しを直接予約できる宿泊サービスです。",
+      "関空の早朝便・深夜到着、大阪難波の滞在、京都町家、家族旅行に向いています。",
+      "ゲスト予約、オーナー管理、プラットフォーム管理をそれぞれ専用画面で分離しています。",
+    ],
+  },
+  zh: {
+    title: "Crane Nest 重点信息",
+    body: "面向正在比较关西住宿、机场交通和直订方式的旅客的官方说明。",
+    points: [
+      "可直接预订关西的民宿、公寓、町家和整栋住宿。",
+      "适合关西机场早班机/晚到、大阪难波住宿、京都町家和家庭团体旅行。",
+      "旅客预订、房东运营、平台管理分别使用独立界面，流程更清晰。",
+    ],
+  },
+  tw: {
+    title: "Crane Nest 重點資訊",
+    body: "面向正在比較關西住宿、機場交通和直訂方式的旅客的官方說明。",
+    points: [
+      "可直接預訂關西的民宿、公寓、町家和整棟住宿。",
+      "適合關西機場早班機/晚到、大阪難波住宿、京都町家和家庭團體旅行。",
+      "旅客預訂、房東營運、平台管理分別使用獨立介面，流程更清楚。",
+    ],
+  },
+};
 
 export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteLocale; cms?: SiteCms }) {
   const c = SITE_CONTENT[locale];
   const ov = cms.text_overrides?.[locale] || {};
   const heroHeading = ov.heroHeading || c.hero.heading;
   const heroSub = ov.heroSub || c.hero.sub;
+  const searchBrief = SEARCH_BRIEF[locale];
 
   const jsonLd = [
     {
@@ -31,6 +70,29 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
     },
     {
       "@context": "https://schema.org",
+      "@type": "Service",
+      name: "Crane Nest direct booking",
+      serviceType: "Accommodation direct booking and airport transfer support",
+      url: `${SITE_URL}/site`,
+      provider: {
+        "@type": "Organization",
+        name: "Crane Nest",
+        url: SITE_URL,
+      },
+      areaServed: c.areas.map((a) => a.name),
+      audience: [
+        { "@type": "Audience", audienceType: "International travelers" },
+        { "@type": "Audience", audienceType: "Accommodation owners" },
+        { "@type": "Audience", audienceType: "Kansai airport transfer users" },
+      ],
+      availableChannel: {
+        "@type": "ServiceChannel",
+        serviceUrl: `${SITE_URL}/stays`,
+      },
+      description: c.description,
+    },
+    {
+      "@context": "https://schema.org",
       "@type": "WebSite",
       name: "Crane Nest",
       url: SITE_URL,
@@ -40,6 +102,26 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
         target: `${SITE_URL}/stays?q={search_term_string}`,
         "query-input": "required name=search_term_string",
       },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: c.areasTitle,
+      itemListElement: c.areas.map((area, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: area.name,
+        description: area.desc,
+        url: `${SITE_URL}/stays`,
+      })),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Crane Nest", item: SITE_URL },
+        { "@type": "ListItem", position: 2, name: "Official site", item: `${SITE_URL}/site` },
+      ],
     },
     {
       "@context": "https://schema.org",
@@ -90,12 +172,6 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
             >
               {c.hero.ctaSearch} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-            <Link
-              href="/ai"
-              className="ml-1 hidden rounded-full border border-white/20 px-4 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-white/10 md:inline-flex"
-            >
-              AI guide
-            </Link>
           </nav>
         </div>
       </header>
@@ -140,12 +216,6 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
             >
               {c.hero.ctaTransfer}
             </Link>
-            <Link
-              href="/ai"
-              className="rounded-2xl border border-white/20 bg-white/5 px-8 py-4 text-sm font-bold text-white backdrop-blur transition hover:bg-white/10"
-            >
-              AI Search Guide
-            </Link>
           </div>
           {/* 統計 */}
           <div className="cn-fade cn-d3 mx-auto mt-14 grid max-w-2xl grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/5 py-4 backdrop-blur">
@@ -181,6 +251,24 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* 検索エンジン・回答エンジン向けにも読みやすい公式要約 */}
+      <section className="mx-auto max-w-6xl px-5 py-14">
+        <div className="grid gap-8 border-y border-slate-100 py-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-900">{searchBrief.title}</h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">{searchBrief.body}</p>
+          </div>
+          <dl className="grid gap-5 sm:grid-cols-3">
+            {searchBrief.points.map((point, index) => (
+              <div key={point}>
+                <dt className="text-xs font-black uppercase tracking-[0.16em] text-sky-600">Point {index + 1}</dt>
+                <dd className="mt-2 text-sm font-semibold leading-relaxed text-slate-700">{point}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 
@@ -284,8 +372,6 @@ export default function SiteLanding({ locale, cms = EMPTY_CMS }: { locale: SiteL
             <Link href="/" className="hover:text-slate-600 hover:underline">Transfer</Link>
             <span className="mx-2">·</span>
             <Link href="/host" className="hover:text-slate-600 hover:underline">Hosting</Link>
-            <span className="mx-2">·</span>
-            <Link href="/ai" className="hover:text-slate-600 hover:underline">AI guide</Link>
           </p>
         </div>
       </footer>

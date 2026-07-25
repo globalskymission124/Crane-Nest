@@ -65,7 +65,7 @@ export default function SearchFilters({
         <select
           value={filters.sort}
           onChange={(e) => set({ sort: e.target.value as Filters["sort"] })}
-          className="rounded-full border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none"
+          className="hidden rounded-full border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none sm:block"
         >
           <option value="recommended">{t.sortRecommended}</option>
           <option value="price_asc">{t.sortPriceAsc}</option>
@@ -75,7 +75,7 @@ export default function SearchFilters({
       </div>
 
       {open && (
-        <div className="absolute left-0 top-10 z-30 w-[min(92vw,26rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+        <div className="absolute right-0 top-10 z-30 w-[min(92vw,26rem)] rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-bold">{t.filters}</p>
             <div className="flex gap-2">
