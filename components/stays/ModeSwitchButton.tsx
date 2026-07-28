@@ -35,7 +35,7 @@ export default function ModeSwitchButton({
   function startSwitch() {
     if (switching) return;
     setSwitching(true);
-    timerRef.current = setTimeout(() => router.push(href), 1480);
+    timerRef.current = setTimeout(() => router.push(href), 1980);
   }
 
   return (
@@ -53,26 +53,115 @@ export default function ModeSwitchButton({
       </button>
 
       {switching && (
-        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-white" aria-live="assertive">
-          <div className="mode-switch-perspective">
-            <div className="mode-switch-card">
-              <div className="mode-switch-face mode-switch-front">
-                <Scene mode={from} />
-              </div>
-              <div className="mode-switch-face mode-switch-back">
-                <Scene mode={to} />
+        <div className="mode-switch-overlay fixed inset-0 z-[80] flex flex-col items-center justify-center overflow-hidden bg-white" aria-live="assertive">
+          <span className="mode-switch-grid" />
+          <div className="mode-switch-stage">
+            <span className="mode-switch-ring mode-switch-ring-a" />
+            <span className="mode-switch-ring mode-switch-ring-b" />
+            <span className="mode-switch-scan" />
+            <div className="mode-switch-perspective">
+              <div className="mode-switch-card">
+                <div className="mode-switch-face mode-switch-front">
+                  <div className="mode-switch-shell">
+                    <Scene mode={from} />
+                  </div>
+                </div>
+                <div className="mode-switch-face mode-switch-back">
+                  <div className="mode-switch-shell">
+                    <Scene mode={to} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <p className="mt-9 text-2xl font-black text-slate-900">{COPY[to].loading}</p>
+          <p className="mode-switch-title">{COPY[to].loading}</p>
+          <span className="mode-switch-progress">
+            <span />
+          </span>
         </div>
       )}
 
       <style jsx>{`
+        .mode-switch-overlay {
+          background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.98)),
+            radial-gradient(circle at 50% 42%, rgba(14, 165, 233, 0.16), transparent 36%),
+            radial-gradient(circle at 50% 56%, rgba(244, 63, 94, 0.12), transparent 35%);
+        }
+
+        .mode-switch-grid {
+          background-image:
+            linear-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+          background-size: 28px 28px;
+          inset: -10%;
+          mask-image: radial-gradient(circle at center, black 0%, transparent 66%);
+          opacity: 0.5;
+          position: absolute;
+          transform: perspective(900px) rotateX(62deg) translateY(115px);
+          animation: gridDrift 1.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .mode-switch-stage {
+          height: 260px;
+          position: relative;
+          width: 280px;
+        }
+
+        .mode-switch-stage::after {
+          background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0) 68%);
+          border-radius: 50%;
+          bottom: 10px;
+          content: "";
+          height: 34px;
+          left: 30px;
+          position: absolute;
+          width: 220px;
+          animation: shadowPulse 1.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .mode-switch-ring {
+          border: 1px solid rgba(14, 165, 233, 0.35);
+          border-radius: 50%;
+          box-shadow:
+            0 0 18px rgba(14, 165, 233, 0.12),
+            inset 0 0 18px rgba(244, 63, 94, 0.08);
+          height: 232px;
+          left: 24px;
+          position: absolute;
+          top: 2px;
+          width: 232px;
+          animation: ringSpin 1.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .mode-switch-ring-b {
+          border-color: rgba(244, 63, 94, 0.24);
+          height: 196px;
+          left: 42px;
+          top: 20px;
+          transform: rotateX(68deg) rotateZ(22deg);
+          width: 196px;
+          animation-name: ringCounterSpin;
+        }
+
+        .mode-switch-scan {
+          background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.54), rgba(255, 255, 255, 0.92), transparent);
+          filter: blur(0.5px);
+          height: 2px;
+          left: -22px;
+          position: absolute;
+          top: 112px;
+          width: 324px;
+          animation: scanSweep 1.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
         .mode-switch-perspective {
-          height: 190px;
-          perspective: 1200px;
-          width: 230px;
+          height: 214px;
+          left: 20px;
+          perspective: 1400px;
+          position: absolute;
+          top: 0;
+          width: 240px;
         }
 
         .mode-switch-card {
@@ -80,7 +169,7 @@ export default function ModeSwitchButton({
           position: relative;
           transform-style: preserve-3d;
           width: 100%;
-          animation: modeFlip 1.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          animation: modeFlip 1.78s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
         .mode-switch-face {
@@ -94,25 +183,211 @@ export default function ModeSwitchButton({
           width: 100%;
         }
 
+        .mode-switch-shell {
+          align-items: center;
+          background:
+            linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(248, 250, 252, 0.74)),
+            linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(244, 63, 94, 0.14));
+          border: 1px solid rgba(148, 163, 184, 0.28);
+          border-radius: 34px;
+          box-shadow:
+            0 34px 68px rgba(15, 23, 42, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.92),
+            inset 0 -28px 42px rgba(15, 23, 42, 0.04);
+          display: flex;
+          height: 196px;
+          justify-content: center;
+          overflow: hidden;
+          position: relative;
+          transform: translateZ(34px);
+          width: 224px;
+        }
+
+        .mode-switch-shell::before {
+          background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.76) 48%, transparent 62%);
+          content: "";
+          height: 280px;
+          left: -150px;
+          position: absolute;
+          top: -40px;
+          transform: rotate(8deg);
+          width: 96px;
+          animation: glassSweep 1.78s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .mode-switch-shell::after {
+          border: 1px solid rgba(255, 255, 255, 0.7);
+          border-radius: 28px;
+          content: "";
+          inset: 10px;
+          position: absolute;
+        }
+
         .mode-switch-back {
           transform: rotateY(180deg);
         }
 
+        .mode-switch-title {
+          color: #0f172a;
+          font-size: 1.55rem;
+          font-weight: 900;
+          margin-top: 22px;
+          position: relative;
+          text-align: center;
+          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+          animation: titleResolve 1.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .mode-switch-progress {
+          background: rgba(15, 23, 42, 0.08);
+          border-radius: 999px;
+          display: block;
+          height: 4px;
+          margin-top: 18px;
+          overflow: hidden;
+          position: relative;
+          width: 156px;
+        }
+
+        .mode-switch-progress span {
+          background: linear-gradient(90deg, #0ea5e9, #f43f5e);
+          border-radius: inherit;
+          display: block;
+          height: 100%;
+          transform-origin: left center;
+          animation: progressFill 1.9s linear forwards;
+        }
+
         @keyframes modeFlip {
           0% {
-            transform: rotateY(0deg) translateY(8px) scale(0.92);
+            transform: rotateY(0deg) rotateX(0deg) translateY(16px) scale(0.9);
             opacity: 0;
           }
-          14% {
+          10% {
             opacity: 1;
           }
+          42% {
+            transform: rotateY(92deg) rotateX(8deg) translateY(-4px) scale(1.04);
+          }
+          58% {
+            transform: rotateY(126deg) rotateX(-5deg) translateY(-8px) scale(1.02);
+          }
           100% {
-            transform: rotateY(180deg) translateY(0) scale(1);
+            transform: rotateY(180deg) rotateX(0deg) translateY(0) scale(1);
             opacity: 1;
           }
         }
 
+        @keyframes gridDrift {
+          from {
+            transform: perspective(900px) rotateX(62deg) translateY(145px);
+            opacity: 0;
+          }
+          to {
+            transform: perspective(900px) rotateX(62deg) translateY(115px);
+            opacity: 0.5;
+          }
+        }
+
+        @keyframes ringSpin {
+          from {
+            transform: rotateX(68deg) rotateZ(-26deg) scale(0.9);
+            opacity: 0;
+          }
+          to {
+            transform: rotateX(68deg) rotateZ(128deg) scale(1);
+            opacity: 1;
+          }
+        }
+
+        @keyframes ringCounterSpin {
+          from {
+            transform: rotateX(68deg) rotateZ(70deg) scale(0.86);
+            opacity: 0;
+          }
+          to {
+            transform: rotateX(68deg) rotateZ(-58deg) scale(1);
+            opacity: 0.9;
+          }
+        }
+
+        @keyframes scanSweep {
+          0% {
+            transform: translateY(-74px) scaleX(0.3);
+            opacity: 0;
+          }
+          18% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(88px) scaleX(1);
+            opacity: 0;
+          }
+        }
+
+        @keyframes glassSweep {
+          0% {
+            transform: translateX(0) rotate(8deg);
+            opacity: 0;
+          }
+          24% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(420px) rotate(8deg);
+            opacity: 0;
+          }
+        }
+
+        @keyframes shadowPulse {
+          from {
+            transform: scaleX(0.72);
+            opacity: 0;
+          }
+          45% {
+            transform: scaleX(1.1);
+            opacity: 1;
+          }
+          to {
+            transform: scaleX(1);
+            opacity: 0.8;
+          }
+        }
+
+        @keyframes titleResolve {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          58% {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes progressFill {
+          from {
+            transform: scaleX(0);
+          }
+          to {
+            transform: scaleX(1);
+          }
+        }
+
         @media (prefers-reduced-motion: reduce) {
+          .mode-switch-grid,
+          .mode-switch-ring,
+          .mode-switch-scan,
+          .mode-switch-shell::before,
+          .mode-switch-stage::after,
+          .mode-switch-title,
+          .mode-switch-progress span {
+            animation: none;
+          }
+
           .mode-switch-card {
             animation: none;
             transform: rotateY(180deg);
