@@ -85,8 +85,39 @@ async function preprocessMrz(imageUrl: string): Promise<string> {
   });
 }
 
-// Tesseract.js を動的インポートしてパスポート画像からMRZを読み取る
-async function runOcr(imageUrl: string): Promise<{ fullName: string; passportNumber: string }> {
+// ファイルを base64 データURLに変換する
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Gemini 3.5 Flash（サーバー側APIルート経由）でパスポートを読み取る
+async function runGeminiOcr(file: File): Promise<{ fullName: string; passportNumber: string }> {
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    const res = await fetch("/api/passport/ocr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: dataUrl, mimeType: file.type || "image/jpeg" }),
+    });
+    if (!res.ok) return { fullName: "", passportNumber: "" };
+    const data = await res.json();
+    return {
+      fullName: String(data.fullName ?? "").trim(),
+      passportNumber: String(data.passportNumber ?? "").trim(),
+    };
+  } catch (err) {
+    console.warn("Gemini OCR failed:", err);
+    return { fullName: "", passportNumber: "" };
+  }
+}
+
+// Tesseract.js を動的インポートしてパスポート画像からMRZを読み取る（Gemini失敗時のフォールバック）
+async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; passportNumber: string }> {
   try {
     // MRZ領域を前処理
     const mrzImage = await preprocessMrz(imageUrl);
@@ -138,7 +169,11 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
     setPreviewUrl(objectUrl);
     setPhase("processing");
 
-    const result = await runOcr(objectUrl);
+    // まず Gemini 3.5 Flash で読み取り、失敗時は Tesseract にフォールバック
+    let result = await runGeminiOcr(file);
+    if (!result.fullName && !result.passportNumber) {
+      result = await runTesseractOcr(objectUrl);
+    }
 
     // OCRが何かしら読み取れた場合のみセット
     setFullName(result.fullName);
