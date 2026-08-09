@@ -184,7 +184,14 @@ function ProfileBody() {
           }}
         />
         <div>
-          <h1 className="text-2xl font-extrabold">プロフィール</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-extrabold">
+            プロフィール
+            {ppNo.trim() && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                <BadgeCheck className="h-3.5 w-3.5" /> 本人確認済み
+              </span>
+            )}
+          </h1>
           <p className="text-sm text-slate-500">
             {avatarBusy ? "アイコンをアップロード中…" : "写真をタップしてアイコンを変更（自動で縮小されます）"}
           </p>
@@ -192,7 +199,7 @@ function ProfileBody() {
       </div>
 
       <Link
-        href={session.role === "admin" ? "/admin/stays" : session.role === "host" ? "/host" : "/host"}
+        href={session.role === "admin" ? "/admin/stays" : session.role === "host" ? "/host" : "/stays/become-host"}
         className="mb-4 flex items-center justify-between rounded-[1.4rem] bg-slate-950 px-5 py-4 text-sm font-black text-white shadow-lg shadow-slate-950/15"
       >
         <span>{session.role === "admin" ? "切换至平台管理" : session.role === "host" ? "切换至经营模式" : "成为房东"}</span>

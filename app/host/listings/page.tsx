@@ -50,8 +50,14 @@ export default function HostListingsPage() {
 
   async function load() {
     const ls = await fetchAllListings();
-    setListings(ls);
-    if (ls[0]) setHost(await fetchHost(ls[0].host_id));
+    // ホストは自分名義の物件のみ表示、管理者は全件表示
+    const mine =
+      session?.role === "host" && session.host_id
+        ? ls.filter((l) => l.host_id === session.host_id)
+        : ls;
+    setListings(mine);
+    if (session?.host_id) setHost(await fetchHost(session.host_id));
+    else if (ls[0]) setHost(await fetchHost(ls[0].host_id));
     else {
       const { data } = await supabase.from("stays_hosts").select("*").limit(1).maybeSingle();
       setHost((data as Host) || null);
@@ -59,7 +65,7 @@ export default function HostListingsPage() {
   }
   useEffect(() => {
     load();
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startNew() {
     setEditing({ ...empty });
@@ -86,7 +92,8 @@ export default function HostListingsPage() {
     setSaving(true);
     try {
       const photos = photosText.split("\n").map((s) => s.trim()).filter(Boolean);
-      await upsertListing({ ...editing, photos, host_id: editing.host_id || host.id });
+      // 新規物件はログイン中オーナーのhost_idに紐付ける（無い場合のみ既存hostにフォールバック）
+      await upsertListing({ ...editing, photos, host_id: editing.host_id || session?.host_id || host.id });
       setEditing(null);
       await load();
     } catch (e: any) {

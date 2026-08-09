@@ -231,6 +231,58 @@ export async function signup(name: string, email: string, password: string): Pro
   return s;
 }
 
+// ゲスト → オーナー(host)への昇格。
+// 1) stays_hosts に本人のホストレコードを作成
+// 2) stays_users の role を host、host_id を新規ホストIDに更新
+// 3) セッションを更新（以後 /host にアクセス可能・物件を自分名義で公開可能）
+export async function becomeHost(
+  userId: string,
+  profile: { name: string; email: string; phone?: string | null; avatar_url?: string | null }
+): Promise<StaysSession> {
+  const name = profile.name.trim();
+  const email = profile.email.trim().toLowerCase();
+  if (!name) throw new Error("屋号（表示名）を入力してください");
+  if (!userId || userId.startsWith("demo-"))
+    throw new Error("デモアカウントではオーナー登録できません。通常のアカウントでログインしてください");
+
+  // 既に同じメールのホストが存在すれば再利用（重複作成を防ぐ）
+  const { data: existingHost } = await supabase
+    .from("stays_hosts")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  let hostId: string;
+  if (existingHost) {
+    hostId = (existingHost as any).id;
+  } else {
+    const { data: host, error: hErr } = await supabase
+      .from("stays_hosts")
+      .insert({
+        name,
+        email,
+        phone: profile.phone?.trim() || null,
+        avatar_url: profile.avatar_url ?? null,
+      })
+      .select()
+      .single();
+    if (hErr || !host) throw hErr || new Error("オーナー情報の作成に失敗しました");
+    hostId = (host as any).id;
+  }
+
+  const { data: user, error: uErr } = await supabase
+    .from("stays_users")
+    .update({ role: "host", host_id: hostId })
+    .eq("id", userId)
+    .select()
+    .single();
+  if (uErr || !user) throw uErr || new Error("アカウントの更新に失敗しました");
+
+  const s = toSession(user);
+  setSession(s);
+  return s;
+}
+
 export function logout() {
   setSession(null);
 }
