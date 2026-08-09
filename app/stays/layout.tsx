@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, Home, LayoutGrid, LogIn, LogOut, Luggage } from "lucide-react";
+import { Heart, Home, LayoutGrid, LogIn, LogOut, Luggage, Sparkles } from "lucide-react";
 import NotificationsBell from "@/components/stays/NotificationsBell";
 import CurrencySwitcher from "@/components/stays/CurrencySwitcher";
 import InstallBanner from "@/components/stays/InstallBanner";
@@ -28,6 +28,12 @@ export default function StaysLayout({ children }: { children: React.ReactNode })
               className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100 sm:flex"
             >
               <LayoutGrid className="h-4 w-4" /> {t.searchStays}
+            </Link>
+            <Link
+              href="/stays/experiences"
+              className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-100 sm:flex"
+            >
+              <Sparkles className="h-4 w-4" /> 体験
             </Link>
             <Link
               href="/stays/wishlist"

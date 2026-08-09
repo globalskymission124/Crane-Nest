@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarClock, Home, LayoutGrid, ListChecks, MessageSquare, QrCode, Tag } from "lucide-react";
+import { BarChart3, CalendarClock, Home, LayoutGrid, ListChecks, MessageSquare, QrCode, Sparkles, Tag, Wallet } from "lucide-react";
 
 const items = [
   { href: "/host", label: "予約", icon: ListChecks },
   { href: "/host/analytics", label: "分析", icon: BarChart3 },
+  { href: "/host/payouts", label: "受取", icon: Wallet },
   { href: "/host/listings", label: "物件", icon: Home },
+  { href: "/host/experiences", label: "体験", icon: Sparkles },
   { href: "/host/checkin", label: "パスポート登録", icon: QrCode },
   { href: "/host/promotions", label: "クーポン", icon: Tag },
   { href: "/host/calendar", label: "カレンダー同期", icon: CalendarClock },

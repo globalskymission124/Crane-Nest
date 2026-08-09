@@ -17,6 +17,73 @@ export interface Host {
   email: string;
   phone: string | null;
   avatar_url: string | null;
+  payout_bank_name?: string | null;
+  payout_account_name?: string | null;
+  payout_account_info?: string | null;
+}
+
+export type ExperienceCategory =
+  | "food"
+  | "culture"
+  | "nature"
+  | "nightlife"
+  | "workshop"
+  | "tour"
+  | "other";
+
+export const EXPERIENCE_CATEGORY_LABELS: Record<ExperienceCategory, string> = {
+  food: "グルメ・食体験",
+  culture: "文化・伝統",
+  nature: "自然・アウトドア",
+  nightlife: "ナイトライフ",
+  workshop: "ワークショップ",
+  tour: "ツアー・散策",
+  other: "その他",
+};
+
+export interface Experience {
+  id: string;
+  host_id: string;
+  title: string;
+  description: string;
+  category: ExperienceCategory;
+  city: string;
+  meeting_point: string;
+  lat: number | null;
+  lng: number | null;
+  price_per_person: number;
+  currency: string;
+  duration_minutes: number;
+  max_guests: number;
+  photos: string[];
+  is_published: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ExperienceBooking {
+  id: string;
+  experience_id: string;
+  guest_name: string;
+  guest_email: string;
+  date: string; // YYYY-MM-DD
+  time: string | null;
+  guests_count: number;
+  total_price: number;
+  status: BookingStatus;
+  note: string | null;
+  created_at?: string;
+}
+
+export interface Payout {
+  id: string;
+  host_id: string;
+  amount: number;
+  status: "pending" | "paid";
+  period_start: string | null;
+  period_end: string | null;
+  note: string | null;
+  created_at?: string;
 }
 
 export interface Listing {

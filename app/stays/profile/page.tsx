@@ -10,7 +10,7 @@ import Link from "next/link";
 import { ArrowUpDown, BadgeCheck, Camera, Coins, Gift, KeyRound, ScanLine, ShieldAlert, UserCircle2 } from "lucide-react";
 import { useRef } from "react";
 import AuthGuard from "@/components/stays/AuthGuard";
-import { updateProfile, useStaysSession } from "@/lib/stays/auth";
+import { updateProfile, setPassword, useStaysSession } from "@/lib/stays/auth";
 import { resizeImage } from "@/lib/stays/image";
 import { uploadSiteImage } from "@/lib/site/cms";
 import { uploadHostPassport } from "@/lib/stays/checkin";
@@ -139,7 +139,7 @@ function ProfileBody() {
     setSaving(true);
     setMsg(null);
     try {
-      await updateProfile(session.id, { password: pw1 });
+      await setPassword(session.id, pw1);
       await audit(session.email, session.role, "profile.password_set", session.id);
       setPw1("");
       setPw2("");

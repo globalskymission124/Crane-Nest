@@ -2,7 +2,38 @@
 // オーナー/管理者向けミューテーション
 // =========================================================
 import { supabase } from "@/lib/supabase";
-import type { Booking, CalendarBlock, Listing, Review } from "./types";
+import type { Booking, CalendarBlock, Listing, Payout, Review } from "./types";
+
+// ---- 受取（payout）----
+// 1予約あたりのホスト受取額 = 支払総額 - ゲストサービス料 - 成約手数料
+export function hostNetFromBooking(b: Booking): number {
+  return Math.max(0, (b.total_price || 0) - (b.guest_fee || 0) - (b.host_commission || 0));
+}
+
+export async function fetchPayouts(hostId: string): Promise<Payout[]> {
+  const { data, error } = await supabase
+    .from("stays_payouts")
+    .select("*")
+    .eq("host_id", hostId)
+    .order("created_at", { ascending: false });
+  if (error) return [];
+  return (data as Payout[]) || [];
+}
+
+export async function saveHostPayoutInfo(
+  hostId: string,
+  info: { bank_name: string; account_name: string; account_info: string }
+): Promise<void> {
+  const { error } = await supabase
+    .from("stays_hosts")
+    .update({
+      payout_bank_name: info.bank_name.trim() || null,
+      payout_account_name: info.account_name.trim() || null,
+      payout_account_info: info.account_info.trim() || null,
+    })
+    .eq("id", hostId);
+  if (error) throw error;
+}
 
 export async function updateBookingStatus(id: string, status: Booking["status"]) {
   const { error } = await supabase.from("stays_bookings").update({ status }).eq("id", id);

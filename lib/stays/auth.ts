@@ -87,30 +87,28 @@ function toSession(u: any): StaysSession {
   };
 }
 
+// パスワードはサーバー側 (/api/stays/auth) で bcrypt 照合する。
+// クライアントは平文パスワードをDBと直接照合しない。
+async function callAuth(payload: Record<string, unknown>): Promise<StaysSession> {
+  const res = await fetch("/api/stays/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || "認証に失敗しました");
+  return json as StaysSession;
+}
+
 export async function login(email: string, password: string): Promise<StaysSession> {
   const normalizedEmail = email.trim().toLowerCase();
+  // デモアカウントはクライアント側で完結（DB不要）
   const demo = demoLogin(normalizedEmail, password);
   if (demo) {
     setSession(demo);
     return demo;
   }
-  const { data, error } = await supabase
-    .from("stays_users")
-    .select("*")
-    .eq("email", normalizedEmail)
-    .maybeSingle();
-  if (error || !data) {
-    if (error) throw error;
-    throw new Error("メールまたはパスワードが違います");
-  }
-  const u = data as any;
-  if (u.is_suspended) throw new Error("このアカウントは停止されています");
-  if (!u.password)
-    throw new Error(
-      "このアカウントはパスワード未設定です。「パスポート番号でログイン」をご利用いただくか、ログイン後にプロフィールでパスワードを設定してください"
-    );
-  if (u.password !== password) throw new Error("メールまたはパスワードが違います");
-  const s = toSession(u);
+  const s = await callAuth({ action: "login", email: normalizedEmail, password });
   setSession(s);
   return s;
 }
@@ -179,13 +177,13 @@ export async function autoSignInWithPassport(
   }
 }
 
-// プロフィール更新（名前 / メール / パスワード）。セッションも更新する。
+// プロフィール更新（名前 / メール / アバター / パスポート）。セッションも更新する。
+// ※パスワード変更は setPassword()（サーバー側でハッシュ化）を使うこと。
 export async function updateProfile(
   userId: string,
   patch: {
     name?: string;
     email?: string;
-    password?: string;
     avatar_url?: string | null;
     passport_number?: string | null;
     nationality?: string | null;
@@ -195,7 +193,6 @@ export async function updateProfile(
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name.trim();
   if (patch.email !== undefined) payload.email = patch.email.trim().toLowerCase();
-  if (patch.password !== undefined) payload.password = patch.password;
   if (patch.avatar_url !== undefined) payload.avatar_url = patch.avatar_url;
   if (patch.passport_number !== undefined)
     payload.passport_number = patch.passport_number ? patch.passport_number.trim().toUpperCase() : null;
@@ -217,16 +214,19 @@ export async function updateProfile(
 }
 
 export async function signup(name: string, email: string, password: string): Promise<StaysSession> {
-  const { data, error } = await supabase
-    .from("stays_users")
-    .insert({ name: name.trim(), email: email.trim().toLowerCase(), password, role: "guest" })
-    .select()
-    .single();
-  if (error) {
-    if ((error as any).code === "23505") throw new Error("このメールは既に登録されています");
-    throw error;
-  }
-  const s = toSession(data);
+  const s = await callAuth({
+    action: "signup",
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  setSession(s);
+  return s;
+}
+
+// パスワードの設定/変更（サーバー側でハッシュ化）。セッションも更新する。
+export async function setPassword(userId: string, password: string): Promise<StaysSession> {
+  const s = await callAuth({ action: "set_password", userId, password });
   setSession(s);
   return s;
 }
