@@ -22,7 +22,7 @@ import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
 import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
-import { averageRating, fetchAllReviews, fetchBlocks, fetchBookings, fetchListings } from "@/lib/stays/queries";
+import { averageRating, fetchAllReviews, fetchBlocks, fetchBookings, fetchListings, hostRatingStats } from "@/lib/stays/queries";
 import { DEMO_LISTINGS, DEMO_REVIEWS } from "@/lib/stays/demoData";
 import type { Listing, Review } from "@/lib/stays/types";
 
@@ -217,6 +217,7 @@ function ListingCard({
   compact = false,
   price,
   nights,
+  isSuperhost = false,
 }: {
   listing: Listing;
   avg: number;
@@ -226,6 +227,7 @@ function ListingCard({
   compact?: boolean;
   price: string;
   nights: number;
+  isSuperhost?: boolean;
 }) {
   const subtitle = `${listing.city} · ${listing.max_guests}人 · ${listing.bedrooms}寝室`;
   return (
@@ -240,9 +242,16 @@ function ListingCard({
               <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-300">No Image</div>
             )}
           </div>
-          <span className="absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
-            房客推荐
-          </span>
+          <div className="absolute left-4 top-4 flex flex-col items-start gap-1.5">
+            {isSuperhost && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-500 px-3 py-1.5 text-xs font-black text-white shadow-sm">
+                <Star className="h-3 w-3 fill-white" /> スーパーホスト
+              </span>
+            )}
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-slate-950 shadow-sm">
+              房客推荐
+            </span>
+          </div>
         </div>
         <div className="pt-3">
           <div className="flex items-start justify-between gap-3">
@@ -333,6 +342,16 @@ export default function StaysHomePage() {
     }
     return map;
   }, [reviews]);
+
+  // ホスト単位でスーパーホスト判定（一覧カード用）。全宿・全レビューから集計。
+  const superhostByHost = useMemo(() => {
+    const map = new Map<string, boolean>();
+    const hostIds = new Set(listings.map((l) => l.host_id));
+    hostIds.forEach((hid) => {
+      map.set(hid, hostRatingStats(hid, listings, reviews).isSuperhost);
+    });
+    return map;
+  }, [listings, reviews]);
 
   const filtered = useMemo(() => {
     const kw = q.trim().toLowerCase();
@@ -511,6 +530,7 @@ export default function StaysHomePage() {
                         compact
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
+                        isSuperhost={superhostByHost.get(l.host_id) || false}
                       />
                     );
                   })}
@@ -534,6 +554,7 @@ export default function StaysHomePage() {
                         onSaved={(s) => updateSaved(l.id, s)}
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
+                        isSuperhost={superhostByHost.get(l.host_id) || false}
                       />
                     );
                   })}
@@ -558,6 +579,7 @@ export default function StaysHomePage() {
                         compact
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
+                        isSuperhost={superhostByHost.get(l.host_id) || false}
                       />
                     );
                   })}

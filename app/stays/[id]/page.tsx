@@ -7,7 +7,7 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag } from "lucide-react";
+import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag, Award } from "lucide-react";
 import StaysMap from "@/components/stays/StaysMap";
 import BookingWidget from "@/components/stays/BookingWidget";
 import ReviewsSection from "@/components/stays/ReviewsSection";
@@ -22,7 +22,10 @@ import {
   fetchReviews,
   fetchBlocks,
   fetchBookings,
+  fetchAllReviews,
   averageRating,
+  hostRatingStats,
+  type HostRatingStats,
 } from "@/lib/stays/queries";
 import { createReport, fetchWishlist, similarListings } from "@/lib/stays/v2";
 import { addDays, buildBlockedNights, todayStr } from "@/lib/stays/availability";
@@ -42,6 +45,7 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
   const [savedHere, setSavedHere] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [hostStats, setHostStats] = useState<HostRatingStats | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -49,18 +53,20 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
         const l = await fetchListing(params.id);
         setListing(l);
         if (l) {
-          const [h, rv, bl, bk, all] = await Promise.all([
+          const [h, rv, bl, bk, all, allRv] = await Promise.all([
             fetchHost(l.host_id),
             fetchReviews(l.id),
             fetchBlocks(l.id),
             fetchBookings(l.id),
             fetchListings(),
+            fetchAllReviews(),
           ]);
           setHost(h);
           setReviews(rv);
           setBlocks(bl);
           setBookings(bk);
           setSimilar(similarListings(l, all));
+          setHostStats(hostRatingStats(l.host_id, all, allRv));
         }
       } finally {
         setLoading(false);
@@ -100,6 +106,27 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
     );
 
   const avg = averageRating(reviews);
+
+  // 宿泊検証レビュー: この宿に完了予約を持つログインゲストのみ投稿可能。
+  // 1予約1レビュー（同じbooking_idのレビューが既にあれば不可）。
+  const myCompleted = session
+    ? bookings.find(
+        (b) =>
+          b.status === "completed" &&
+          b.guest_email.trim().toLowerCase() === session.email.trim().toLowerCase()
+      )
+    : undefined;
+  const alreadyReviewed =
+    !!myCompleted && reviews.some((r) => r.booking_id === myCompleted.id);
+  const canReview = !!myCompleted && !alreadyReviewed;
+  const reviewReason: "login" | "no_stay" | "already" | null = !session
+    ? "login"
+    : !myCompleted
+      ? "no_stay"
+      : alreadyReviewed
+        ? "already"
+        : null;
+
   // 実データに基づく人気シグナル（偽の演出はしない）
   const recent7 = bookings.filter(
     (b) => b.status !== "cancelled" && b.created_at && Date.now() - new Date(b.created_at).getTime() < 7 * 86400000
@@ -194,12 +221,32 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
 
           {host && (
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700">
+              <div className="relative flex h-11 w-11 items-center justify-center rounded-full bg-brand-100 font-bold text-brand-700">
                 {host.name.charAt(0)}
+                {hostStats?.isSuperhost && (
+                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-white shadow ring-2 ring-white">
+                    <Award className="h-3 w-3" />
+                  </span>
+                )}
               </div>
               <div>
-                <p className="font-semibold">{t.hostLabel}: {host.name}</p>
-                <p className="text-xs text-slate-500">{listing.city}</p>
+                <p className="flex items-center gap-2 font-semibold">
+                  {t.hostLabel}: {host.name}
+                  {hostStats?.isSuperhost && (
+                    <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-600">
+                      <Award className="h-3 w-3" /> スーパーホスト
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {listing.city}
+                  {hostStats && hostStats.reviewCount > 0 && (
+                    <>
+                      {" "}・ <Star className="mb-0.5 inline h-3 w-3 fill-amber-400 text-amber-400" />{" "}
+                      {hostStats.avgRating.toFixed(1)}（{hostStats.reviewCount}件）
+                    </>
+                  )}
+                </p>
               </div>
             </div>
           )}
@@ -254,7 +301,14 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
 
           <div id="reviews">
             <ReviewHighlights reviews={reviews} />
-            <ReviewsSection listingId={listing.id} initialReviews={reviews} />
+            <ReviewsSection
+              listingId={listing.id}
+              initialReviews={reviews}
+              canReview={canReview}
+              bookingId={myCompleted?.id ?? null}
+              reviewerName={session?.name ?? ""}
+              reason={reviewReason}
+            />
           </div>
           <ContactHostCard listing={listing} host={host} />
           <SimilarListings listings={similar} />

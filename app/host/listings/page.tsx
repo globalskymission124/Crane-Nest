@@ -37,6 +37,7 @@ const empty: Partial<Listing> = {
   min_nights: 1,
   weekly_discount_pct: 0,
   monthly_discount_pct: 0,
+  checkin_instructions: "",
 };
 
 export default function HostListingsPage() {
@@ -209,6 +210,16 @@ export default function HostListingsPage() {
             </label>
             <label className="sm:col-span-2 text-xs font-semibold text-slate-500">写真URL（1行に1つ）
               <textarea value={photosText} onChange={(e) => setPhotosText(e.target.value)} rows={3} placeholder="https://..." className={field} />
+            </label>
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-500">セルフチェックイン案内（鍵の受け取り・入館手順）
+              <textarea
+                value={editing.checkin_instructions ?? ""}
+                onChange={(e) => setEditing({ ...editing, checkin_instructions: e.target.value })}
+                rows={4}
+                placeholder="例：玄関右のキーボックス（暗証番号は予約確定メールに記載）から鍵を取り出してください。エレベーターで3階へ、305号室です。ゴミの分別は室内の案内をご確認ください。"
+                className={field}
+              />
+              <span className="mt-1 block font-normal text-slate-400">予約が確定すると、この内容がゲストの「旅程」画面に表示されます。</span>
             </label>
           </div>
 

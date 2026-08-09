@@ -48,6 +48,7 @@ export interface Listing {
   min_nights: number;
   weekly_discount_pct: number;
   monthly_discount_pct: number;
+  checkin_instructions?: string | null; // セルフチェックイン案内（鍵・入館手順）
   created_at?: string;
   updated_at?: string;
 }

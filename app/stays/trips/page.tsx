@@ -3,7 +3,7 @@
 // 旅程（マイ予約）: 支払い / キャンセル（ポリシーに基づく返金） / レビュー導線
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, CreditCard, Luggage, TicketCheck } from "lucide-react";
+import { CalendarDays, CreditCard, KeyRound, Luggage, MapPin, TicketCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { useStaysSession } from "@/lib/stays/auth";
@@ -109,6 +109,9 @@ function TripsBody() {
   function BookingCard({ b }: { b: Booking }) {
     const l = listings.get(b.listing_id);
     const [showPass, setShowPass] = useState(false);
+    const [showCheckin, setShowCheckin] = useState(false);
+    // セルフチェックイン: 確定済み予約で、ホストが案内を登録している場合に表示
+    const hasCheckin = b.status === "confirmed" && !!l?.checkin_instructions?.trim();
     // デジタル到着パス: 確定済み予約の証明QR（オーナーが到着時に確認）
     const passPayload = `CRANE-NEST-PASS|${b.id}|${b.guest_name}|${b.check_in}|${b.check_out}|${b.guests_count}pax|${b.payment_status}`;
     const st = STATUS_LABEL[b.status];
@@ -175,7 +178,33 @@ function TripsBody() {
                 <TicketCheck className="h-3.5 w-3.5" /> 到着パス
               </button>
             )}
+            {hasCheckin && (
+              <button
+                onClick={() => setShowCheckin((s) => !s)}
+                className="flex items-center gap-1.5 rounded-xl border border-brand-200 px-4 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+              >
+                <KeyRound className="h-3.5 w-3.5" /> セルフチェックイン案内
+              </button>
+            )}
           </div>
+          {hasCheckin && showCheckin && (
+            <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50/50 p-4">
+              <p className="flex items-center gap-1.5 text-sm font-bold text-brand-700">
+                <KeyRound className="h-4 w-4" /> セルフチェックイン案内
+              </p>
+              {l?.address && (
+                <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-600">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" /> {l.address}
+                </p>
+              )}
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                {l!.checkin_instructions}
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                ※ 到着時に問題があれば、メッセージからホストへご連絡ください。
+              </p>
+            </div>
+          )}
           {showPass && b.status === "confirmed" && (
             <div className="mt-3 flex items-center gap-4 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/50 p-4">
               <div className="shrink-0 rounded-xl bg-white p-2 shadow-sm">
