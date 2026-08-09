@@ -8,8 +8,9 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import { Copy, RefreshCw, Plus, Trash2, Link2 } from "lucide-react";
-import { fetchAllListings, fetchBlocks } from "@/lib/stays/queries";
+import { fetchAllListings, fetchBlocks, hostScope, ownedListings } from "@/lib/stays/queries";
 import { addManualBlock, deleteBlock, upsertListing } from "@/lib/stays/host";
+import { useStaysSession } from "@/lib/stays/auth";
 import type { CalendarBlock, Listing } from "@/lib/stays/types";
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -24,6 +25,7 @@ const SOURCE_STYLE: Record<string, string> = {
 };
 
 export default function HostCalendarPage() {
+  const { session } = useStaysSession();
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [blocks, setBlocks] = useState<CalendarBlock[]>([]);
@@ -36,11 +38,12 @@ export default function HostCalendarPage() {
 
   useEffect(() => {
     setOrigin(window.location.origin);
-    fetchAllListings().then((ls) => {
+    fetchAllListings().then((all) => {
+      const ls = ownedListings(all, hostScope(session)); // 自分の物件のみ
       setListings(ls);
       if (ls[0]) setSelectedId(ls[0].id);
     });
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedId) return;

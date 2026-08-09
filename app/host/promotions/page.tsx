@@ -5,7 +5,7 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import { Gift, Plus, Tag, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
-import { fetchAllListings } from "@/lib/stays/queries";
+import { fetchAllListings, hostScope, ownedListings } from "@/lib/stays/queries";
 import { deleteAddon, deleteCoupon, fetchAllAddons, fetchCoupons, upsertAddon, upsertCoupon, audit } from "@/lib/stays/v2";
 import { useStaysSession } from "@/lib/stays/auth";
 import { formatJPY } from "@/lib/stays/types";
@@ -33,9 +33,11 @@ export default function HostPromotionsPage() {
 
   async function load() {
     const [cs, ls, ads] = await Promise.all([fetchCoupons(), fetchAllListings(), fetchAllAddons()]);
-    setCoupons(cs);
-    setListings(ls);
-    setAddons(ads);
+    const scope = hostScope(session);
+    // オーナーは自分の物件・自分のクーポン/アドオンのみ（管理者は全件）
+    setListings(ownedListings(ls, scope));
+    setCoupons(scope ? cs.filter((c) => c.host_id === scope) : cs);
+    setAddons(scope ? ads.filter((a) => a.host_id === scope) : ads);
   }
 
   // ---- アドオン（アップセル商品）----
@@ -62,7 +64,7 @@ export default function HostPromotionsPage() {
   }
   useEffect(() => {
     load();
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     if (!editing?.code?.trim()) return alert("クーポンコードを入力してください");

@@ -17,7 +17,7 @@ import {
 import ModeSwitchButton from "@/components/stays/ModeSwitchButton";
 import NotificationsBell from "@/components/stays/NotificationsBell";
 import { logout, useStaysSession } from "@/lib/stays/auth";
-import { averageRating, fetchAllBookings, fetchAllListings, fetchAllReviews } from "@/lib/stays/queries";
+import { averageRating, fetchAllBookings, fetchAllListings, fetchAllReviews, hostScope, ownedListings, byListingIds } from "@/lib/stays/queries";
 import { formatJPY } from "@/lib/stays/types";
 import type { Booking, Listing, Review } from "@/lib/stays/types";
 
@@ -43,14 +43,17 @@ export default function HostMenuPage() {
     let alive = true;
     Promise.all([fetchAllBookings(), fetchAllListings(), fetchAllReviews()]).then(([bookingData, listingData, reviewData]) => {
       if (!alive) return;
-      setBookings(bookingData);
-      setListings(listingData);
-      setReviews(reviewData);
+      const scope = hostScope(session);
+      const myListings = ownedListings(listingData, scope);
+      const ids = new Set(myListings.map((l) => l.id));
+      setListings(myListings);
+      setBookings(scope ? byListingIds(bookingData, ids) : bookingData);
+      setReviews(scope ? reviewData.filter((r) => ids.has(r.listing_id)) : reviewData);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stats = useMemo(() => {
     const activeBookings = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "completed");

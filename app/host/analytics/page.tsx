@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { BadgeJapaneseYen, BarChart3, CalendarCheck2, Lightbulb, Star, TrendingUp } from "lucide-react";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
-import { fetchAllListings, fetchAllReviews, fetchBlocks, fetchBookings, averageRating } from "@/lib/stays/queries";
+import { fetchAllListings, fetchAllReviews, fetchBlocks, fetchBookings, averageRating, hostScope, ownedListings } from "@/lib/stays/queries";
+import { useStaysSession } from "@/lib/stays/auth";
 import { upsertListing } from "@/lib/stays/host";
 import { monthlyStats } from "@/lib/stays/v2";
 import { suggestPrice, type PriceSuggestion } from "@/lib/stays/pricing";
@@ -24,14 +25,18 @@ interface PerListing {
 }
 
 export default function HostAnalyticsPage() {
+  const { session } = useStaysSession();
   const [rows, setRows] = useState<PerListing[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
 
   async function load() {
-    const [listings, rv] = await Promise.all([fetchAllListings(), fetchAllReviews()]);
-    setReviews(rv);
+    const scope = hostScope(session);
+    const [allListings, rv] = await Promise.all([fetchAllListings(), fetchAllReviews()]);
+    const listings = ownedListings(allListings, scope); // 自分の物件のみ集計
+    const listingIds = new Set(listings.map((l) => l.id));
+    setReviews(scope ? rv.filter((r) => listingIds.has(r.listing_id)) : rv);
     const data = await Promise.all(
       listings.map(async (l) => {
         const [bk, bl] = await Promise.all([fetchBookings(l.id), fetchBlocks(l.id)]);
@@ -63,7 +68,7 @@ export default function HostAnalyticsPage() {
   }
   useEffect(() => {
     load();
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allBookings = useMemo(() => rows.flatMap((r) => r.bookings), [rows]);
   const active = useMemo(() => allBookings.filter((b) => b.status !== "cancelled"), [allBookings]);

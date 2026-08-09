@@ -111,6 +111,10 @@ export async function createBooking(
 export async function createReview(
   payload: Pick<Review, "listing_id" | "guest_name" | "rating" | "comment"> & {
     booking_id?: string | null;
+    rating_cleanliness?: number | null;
+    rating_accuracy?: number | null;
+    rating_checkin?: number | null;
+    rating_value?: number | null;
   }
 ): Promise<Review> {
   const { data, error } = await supabase
@@ -234,4 +238,83 @@ export function averageRating(reviews: Review[]): number {
   const visible = reviews.filter((r) => !r.is_hidden);
   if (visible.length === 0) return 0;
   return visible.reduce((s, r) => s + r.rating, 0) / visible.length;
+}
+
+// ---- 項目別評価（清潔さ・正確さ・チェックイン・価格）の平均 ----
+export type ReviewCategory = "cleanliness" | "accuracy" | "checkin" | "value";
+
+const CATEGORY_FIELD: Record<ReviewCategory, keyof Review> = {
+  cleanliness: "rating_cleanliness",
+  accuracy: "rating_accuracy",
+  checkin: "rating_checkin",
+  value: "rating_value",
+};
+
+// 各カテゴリの平均。値が1つも無いカテゴリは null を返す。
+export function categoryAverages(reviews: Review[]): Record<ReviewCategory, number | null> {
+  const visible = reviews.filter((r) => !r.is_hidden);
+  const out = {} as Record<ReviewCategory, number | null>;
+  (Object.keys(CATEGORY_FIELD) as ReviewCategory[]).forEach((cat) => {
+    const vals = visible
+      .map((r) => r[CATEGORY_FIELD[cat]] as number | null)
+      .filter((v): v is number => typeof v === "number");
+    out[cat] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  });
+  return out;
+}
+
+// ---- オーナー別スコープ（マルチテナント表示） ----
+// host ロールは自分の host_id のみ、admin（または未ログイン）は null=全件。
+export function hostScope(
+  session: { role: string; host_id: string | null } | null
+): string | null {
+  return session && session.role === "host" ? session.host_id : null;
+}
+
+// 物件をオーナーで絞り込む（scope が null なら全件）。
+export function ownedListings<T extends { host_id: string }>(
+  listings: T[],
+  scope: string | null
+): T[] {
+  return scope ? listings.filter((l) => l.host_id === scope) : listings;
+}
+
+// listing_id を持つ行（予約・レビュー・空室ブロック等）を、対象物件のみに絞り込む。
+export function byListingIds<T extends { listing_id: string }>(
+  rows: T[],
+  listingIds: Set<string>
+): T[] {
+  return rows.filter((r) => listingIds.has(r.listing_id));
+}
+
+// ---- スーパーホスト判定 ----
+// Airbnbに倣った簡易基準: そのホストの全公開宿のレビュー平均が高く、件数も十分。
+export const SUPERHOST_MIN_REVIEWS = 5;
+export const SUPERHOST_MIN_RATING = 4.8;
+
+export interface HostRatingStats {
+  avgRating: number;
+  reviewCount: number;
+  isSuperhost: boolean;
+}
+
+// hostId のホストについて、全宿(listings)と全レビュー(allReviews)から集計する。
+export function hostRatingStats(
+  hostId: string,
+  listings: Listing[],
+  allReviews: Review[]
+): HostRatingStats {
+  const hostListingIds = new Set(
+    listings.filter((l) => l.host_id === hostId).map((l) => l.id)
+  );
+  const relevant = allReviews.filter(
+    (r) => !r.is_hidden && hostListingIds.has(r.listing_id)
+  );
+  const reviewCount = relevant.length;
+  const avgRating = reviewCount
+    ? relevant.reduce((s, r) => s + r.rating, 0) / reviewCount
+    : 0;
+  const isSuperhost =
+    reviewCount >= SUPERHOST_MIN_REVIEWS && avgRating >= SUPERHOST_MIN_RATING;
+  return { avgRating, reviewCount, isSuperhost };
 }

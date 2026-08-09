@@ -7,10 +7,12 @@ import { useEffect, useMemo, useState } from "react";
 import { MessageSquare } from "lucide-react";
 import ChatBox from "@/components/stays/ChatBox";
 import { supabase } from "@/lib/supabase";
-import { fetchConversations, fetchAllListings } from "@/lib/stays/queries";
+import { fetchConversations, fetchAllListings, hostScope, ownedListings } from "@/lib/stays/queries";
+import { useStaysSession } from "@/lib/stays/auth";
 import type { Conversation, Host, Listing } from "@/lib/stays/types";
 
 export default function HostMessagesPage() {
+  const { session } = useStaysSession();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
@@ -18,18 +20,23 @@ export default function HostMessagesPage() {
 
   useEffect(() => {
     (async () => {
-      // シードの単一ホストを対象にする（Auth導入時はログインホストで絞る）
-      const { data: host } = await supabase.from("stays_hosts").select("*").limit(1).maybeSingle();
-      const [convs, ls] = await Promise.all([
-        fetchConversations((host as Host)?.id),
+      const scope = hostScope(session);
+      // ログイン中オーナーのhost_idで会話を絞る。管理者はシードの単一ホストを対象。
+      let hostId: string | null = scope;
+      if (!hostId) {
+        const { data: host } = await supabase.from("stays_hosts").select("*").limit(1).maybeSingle();
+        hostId = (host as Host)?.id ?? null;
+      }
+      const [convs, all] = await Promise.all([
+        fetchConversations(hostId ?? undefined),
         fetchAllListings(),
       ]);
       setConversations(convs);
-      setListings(ls);
+      setListings(ownedListings(all, scope));
       if (convs[0]) setSelected(convs[0]);
       setLoading(false);
     })();
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listingMap = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
 

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BarChart3, Check, X, Clock, QrCode, Rocket, Tag } from "lucide-react";
-import { fetchAllBookings, fetchAllListings } from "@/lib/stays/queries";
+import { fetchAllBookings, fetchAllListings, hostScope, ownedListings, byListingIds } from "@/lib/stays/queries";
 import { updateBookingStatus } from "@/lib/stays/host";
 import { notify, audit } from "@/lib/stays/v2";
 import { useStaysSession } from "@/lib/stays/auth";
@@ -42,13 +42,17 @@ export default function HostBookingsPage() {
 
   async function load() {
     const [bk, ls] = await Promise.all([fetchAllBookings(), fetchAllListings()]);
-    setBookings(bk);
-    setListings(ls);
+    // オーナー別スコープ: 自分の物件と、その物件の予約のみ
+    const scope = hostScope(session);
+    const myListings = ownedListings(ls, scope);
+    const ids = new Set(myListings.map((l) => l.id));
+    setListings(myListings);
+    setBookings(scope ? byListingIds(bk, ids) : bk);
     setLoading(false);
   }
   useEffect(() => {
     load();
-  }, []);
+  }, [session?.host_id, session?.role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listingMap = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
   const filtered = bookings.filter((b) => filter === "all" || b.status === filter);
