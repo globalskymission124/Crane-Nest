@@ -1,0 +1,209 @@
+{
+  "title": "Credit Card Pre-authorization",
+  "orderId": "Order ID",
+  "days": "Days",
+  "cardInfo": "Credit Card Information",
+  "email": "Email Address",
+  "emailPlaceholder": "Please enter email address",
+  "preAuthAmount": "Pre-authorization Amount",
+  "preAuthNote": "This is a temporary pre-authorization amount and will not be charged immediately. The actual fee will be determined upon order settlement.",
+  "preAuthInfoTitle": "Pre-authorization Information",
+  "preAuthInfo": {
+    "deposit": "We will pre-authorize the above amount on your credit card as a security deposit",
+    "frozen": "During the pre-authorization period, this amount will be frozen but not charged",
+    "completion": "Upon order completion, the actual amount will be charged and the remaining balance will be automatically released",
+    "cancelled": "If the order is cancelled, the pre-authorization will be automatically released after the specified period",
+    "security": "Your payment information will be securely transmitted and stored using encryption"
+  },
+  "viewAgreement": "View full user agreement",
+  "agreeTerms": "I have read and agree to the above pre-authorization terms and authorize the system to pre-authorize my credit card",
+  "submit": "Confirm and Authorize",
+  "processing": "Processing...",
+  "poweredBy": "Powered by",
+  "success": {
+    "title": "Hold Authorized",
+    "message": "A hold of {amount} has been placed on your card.",
+    "note": "This is a hold, not a charge. It will be captured or released based on your rental.",
+    "paymentId": "Payment ID"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "cardDeclined": "Your card was declined.",
+    "invalidCard": "Please check your card details.",
+    "required": "This field is required.",
+    "agreeRequired": "You must agree to the terms."
+  },
+  "agreement": {
+    "back": "Back to Pre-authorization",
+    "title": "Credit Card Pre-Authorization User Agreement",
+    "effectiveDate": "Effective Date",
+    "lastUpdated": "Last Updated",
+    "introduction": {
+      "title": "Introduction",
+      "content": "This agreement applies to credit card pre-authorization services. The pre-authorization you perform through this page is a transaction with the merchant using this system; payment processing is completed through the Stripe account configured by that merchant."
+    },
+    "section1": {
+      "title": "1. Acceptance of Agreement",
+      "content": "Before using this pre-authorization service, please read and fully understand the entire content of this agreement. By checking the consent checkbox and clicking \"Confirm and Authorize,\" you acknowledge that you have read, understood, and agreed to all terms of this agreement, and authorize the Merchant to process your credit card pre-authorization and related personal information."
+    },
+    "section2": {
+      "title": "2. Service Description",
+      "sub1": {
+        "title": "2.1 Nature of Pre-Authorization",
+        "item1": "This service is credit card pre-authorization, not an actual charge. The system will freeze the pre-authorization amount on your credit card as a guarantee.",
+        "item2": "During the pre-authorization period, this amount will be temporarily frozen by your bank but will not be charged to your account immediately.",
+        "item3": "Actual fees are based on the final order settlement; the system will charge according to the actual consumption amount, and any excess will be automatically released."
+      },
+      "sub2": {
+        "title": "2.2 Purpose of Pre-Authorization",
+        "item1": "Pre-authorization serves as an order guarantee to protect the legitimate interests of the Merchant.",
+        "item2": "After order completion, settlement will be made based on actual consumption amount.",
+        "item3": "If the order is cancelled or no settlement is required, the pre-authorization will be automatically released after the specified period."
+      },
+      "sub3": {
+        "title": "2.3 Payment Processing",
+        "item1": "This service processes payment information through the Stripe payment infrastructure.",
+        "item2": "Your full credit card number will not be stored by the Merchant; payment data is securely stored and processed by Stripe in its PCI-DSS compliant environment."
+      }
+    },
+    "section3": {
+      "title": "3. Your Authorizations",
+      "intro": "By using this service, you expressly agree and authorize the Merchant to:",
+      "item1": {
+        "title": "Pre-Authorization Operation:",
+        "content": "Execute pre-authorization on your provided credit card and freeze the corresponding amount as guarantee."
+      },
+      "item2": {
+        "title": "Information Collection:",
+        "content": "Collect and store information necessary for completing pre-authorization and compliance, including order details, partial card information, timestamps, IP address, and device information."
+      },
+      "item3": {
+        "title": "Electronic Authorization Evidence:",
+        "content": "Store the above information as electronic authorization evidence to comply with card network requirements for card-not-present pre-authorization."
+      },
+      "item4": {
+        "title": "Automatic Release:",
+        "content": "Automatically initiate pre-authorization release when the pre-authorization expires or the order is completed."
+      }
+    },
+    "section4": {
+      "title": "4. Personal Information and Privacy",
+      "content": "Information collected is used only for pre-authorization processing, order management, security verification, compliance auditing, and legal obligation fulfillment. The Merchant will not sell your personal information to third parties. Payment-related sensitive data is encrypted and stored by Stripe according to industry standards."
+    },
+    "section5": {
+      "title": "5. Pre-Authorization Release Rules",
+      "item1": {
+        "title": "Normal Release:",
+        "content": "After the pre-authorization expires, the system will automatically initiate release, and funds will be returned to your credit card's available limit."
+      },
+      "item2": {
+        "title": "Early Release:",
+        "content": "Administrators may manually release when business rules permit."
+      },
+      "item3": {
+        "title": "Actual Charge:",
+        "content": "If the order incurs actual consumption, the actual amount will be charged and the pre-authorization balance will be released accordingly."
+      }
+    },
+    "section6": {
+      "title": "6. Risk Notice",
+      "item1": "Pre-authorization will occupy your credit card's available limit; please ensure sufficient limit.",
+      "item2": "After pre-authorization release, the fund return time is determined by the card issuer.",
+      "item3": "For delays or anomalies due to network, banking system, or force majeure, the Merchant will assist to the best of its ability within reasonable scope."
+    },
+    "section7": {
+      "title": "7. Agreement Amendments",
+      "content": "The Merchant may amend this agreement based on business needs, legal and regulatory changes, or compliance requirements. Amended agreements will be published on this page. Your continued use of the Service constitutes acceptance of the amended agreement."
+    },
+    "section8": {
+      "title": "8. Governing Law",
+      "item1": "This agreement shall be governed by the laws of Japan.",
+      "item2": "Disputes arising from this agreement shall be resolved through friendly negotiation; if negotiation fails, the matter shall be submitted to the Tokyo District Court for resolution."
+    },
+    "reminder": "Important: By checking the consent checkbox and clicking \"Confirm and Authorize\", you acknowledge that you have fully read, understood, and agreed to this agreement."
+  },
+  "zeroAuth": {
+    "heading": "Zero-Yen Authorization (Credit Guarantee Waiver)",
+    "subheading": "In place of a standard authorization, please save your card on file and agree to the special terms.",
+    "intro": "This procedure is for customers who prefer not to place a standard authorization (credit hold). The charge is ¥0 (zero-yen authorization): only your card is securely saved, and it is billed later only in the event of an accident or damage.",
+    "feeBoxTitle": "About charges if damage occurs",
+    "feeBoxNote": "The amount charged varies by vehicle type and the nature of the damage. You are charged ¥0 at signing / card save. If an accident, damage, scratch, parking violation, speeding, etc. occurs, the loss the Company incurs is billed later.",
+    "todayCharge": "Today's charge",
+    "zeroYen": "¥0",
+    "todayChargeNote": "No actual charge is made when signing and saving the card.",
+    "cardCheck": "Card check",
+    "immediateRelease": "released",
+    "cardCheckNote": "A temporary ¥50 card check is made and released immediately.",
+    "summaryNoCharge": "You are not charged now",
+    "summaryNoChargeNote": "Today's actual charge for this procedure is ¥0.",
+    "summaryDamageOnly": "Later billing only for accident, damage or violations",
+    "summaryDamageOnlyNote": "Only covered events are billed later for the actual loss.",
+    "summaryStripeSecure": "Card details are securely stored by Stripe",
+    "summaryStripeSecureNote": "The shop does not store the full card number.",
+    "sectionCustomer": "Customer Information",
+    "sectionDocs": "Identity Documents",
+    "sectionAgreement": "Special Terms & Consent",
+    "sectionSign": "Electronic Signature",
+    "namePlaceholder": "Full name as on passport",
+    "addressPlaceholder": "Country, state/prefecture, city, street",
+    "contactPlaceholder": "Email address or phone number",
+    "passportNoPlaceholder": "Passport number",
+    "passportUpload": "Upload passport photo (required)",
+    "passportHelper": "Capture the photo page clearly.",
+    "idpUpload": "Upload International Driving Permit (optional)",
+    "idpHelper": "Upload if you have one.",
+    "chooseFile": "Choose / take photo",
+    "fileSelected": "Selected",
+    "viewFullAgreement": "View full agreement",
+    "hideFullAgreement": "Hide full agreement",
+    "signatureLabel": "Please sign here",
+    "signatureClear": "Clear signature",
+    "signatureHelper": "Sign inside the box with your finger or mouse.",
+    "agreeCheckbox": "I agree that the loss the Company incurs from this rental (accidents, damage, scratches, parking / speeding violations, etc.; varies by vehicle) may be charged later.",
+    "submit": "Agree and create contract",
+    "processingContract": "Creating the contract…",
+    "contractCreated": "The contract has been created and saved.",
+    "downloadPdf": "Download contract PDF",
+    "sendToPos": "Send to POS terminal and save card (zero-yen auth)",
+    "processingPos": "Sending to the POS terminal… please tap/insert the card.",
+    "cardSaved": "Card saved. It can be billed later when needed.",
+    "contractId": "Contract No.",
+    "startOver": "Start a new contract",
+    "backToNormal": "Back to standard authorization page",
+    "errors": {
+      "nameRequired": "Please enter your name.",
+      "addressRequired": "Please enter your address.",
+      "contactRequired": "Please enter your contact details.",
+      "passportRequired": "Please upload a passport photo.",
+      "signatureRequired": "Please sign.",
+      "agreeRequired": "Please agree to the special terms.",
+      "generic": "An error occurred. Please try again.",
+      "posFailed": "Failed to send to the POS terminal.",
+      "posDeclined": "The card was declined. Please try another card.",
+      "posTimeout": "Timed out. Please try again.",
+      "posCanceled": "Canceled at the terminal.",
+      "signFailed": "Failed to capture the signature.",
+      "signTimeout": "Signature timed out. Please try again."
+    },
+    "recoveryHint": "Choose an action to continue at the counter.",
+    "recovery": {
+      "retry": "Send again",
+      "tryAnotherCard": "Try another card",
+      "switchToScreenSignature": "Switch to screen signature",
+      "changeStore": "Change location"
+    },
+    "entryLink": "Can't use standard authorization? Use Zero-Yen Authorization",
+    "signMethod": "Signature method",
+    "signMethodScreen": "Sign on this screen",
+    "signMethodReader": "Sign on S700",
+    "branchLabel": "Signing location",
+    "branchRequired": "Please select a location.",
+    "readerFlowHelper": "Tap Start to show the signature screen on the S700. After the customer signs and taps their card, a ¥50 authorization is placed and immediately released to save the card.",
+    "startReaderFlow": "Start signing & card save on S700",
+    "signingOnReader": "Signing on S700… please check the terminal",
+    "signCaptured": "Signature captured. Please tap the card.",
+    "stepSign": "Signature (S700)",
+    "stepCard": "Save card",
+    "downloadAgreementPdf": "Download rental agreement PDF"
+  }
+}
