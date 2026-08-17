@@ -17,6 +17,11 @@ const ko: Dictionary = {
     phoneNumberPlaceholder: "예) 010-1234-5678",
     retake: "다시 촬영",
     next: "다음으로",
+    primaryGuestLabel: "대표자",
+    companionLabel: "동행자",
+    addGuestCta: "동행자 추가",
+    removeGuest: "삭제",
+    optionalTag: "선택",
   },
 
   transfer: {

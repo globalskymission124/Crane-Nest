@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { isWithinTransferServiceHours } from "./transferTime";
-import type { PassportFormData, TransferFormData } from "./types";
+import type { GuestEntry, PassportFormData, TransferFormData } from "./types";
 
 // =========================================================
 // Step 6: ゲストの予約フローで入力された内容をSupabaseへ実際に保存する。
@@ -78,6 +78,37 @@ interface SubmitBookingResult {
   transferRequestId: string;
 }
 
+// 1名分のパスポート情報を guests テーブルへ upsert し、guest.id を返す。
+//  - 写真があれば先に Storage へアップロードしてURLを取得
+//  - 同一パスポート番号は既存行を更新して再利用（upsert）
+//  - 新しい写真がある場合のみ passport_image_url を更新（nullで既存を上書きしない）
+//  - 失敗時は null を返す（呼び出し側で代表者は必須・同行者はスキップ扱い）
+async function upsertGuestEntry(entry: GuestEntry): Promise<string | null> {
+  if (!entry.passportNumber?.trim() || !entry.fullName?.trim()) return null;
+
+  const uploadedImageUrl = entry.passportImageUrl
+    ? await uploadPassportPhoto(entry.passportImageUrl)
+    : null;
+
+  const guestPayload: Record<string, unknown> = {
+    passport_number: entry.passportNumber,
+    full_name: entry.fullName,
+    phone_number: entry.phoneNumber || null,
+  };
+  if (uploadedImageUrl) {
+    guestPayload.passport_image_url = uploadedImageUrl;
+  }
+
+  const { data: guestRow, error: guestError } = await supabase
+    .from("guests")
+    .upsert(guestPayload, { onConflict: "passport_number" })
+    .select("id")
+    .single();
+
+  if (guestError || !guestRow) return null;
+  return guestRow.id as string;
+}
+
 export async function submitBooking(
   passport: PassportFormData,
   transfer: TransferFormData
@@ -85,34 +116,31 @@ export async function submitBooking(
   try {
     if (!isWithinTransferServiceHours(transfer.preferredDepartureTime)) return null;
 
-    // パスポート写真をStorageへアップロード（失敗してもURLなしで続行する）
-    const uploadedImageUrl = passport.passportImageUrl
-      ? await uploadPassportPhoto(passport.passportImageUrl)
-      : null;
-
-    // 同一パスポート番号のゲストは情報を更新しつつ再利用する（upsert）
-    // 新しい写真がある場合のみ passport_image_url を更新（nullで既存を上書きしない）
-    const guestPayload: Record<string, unknown> = {
-      passport_number: passport.passportNumber,
-      full_name: passport.fullName,
-      phone_number: passport.phoneNumber || null,
+    // 代表者（1人目）＋同行者（2人目以降）をまとめて処理する。
+    const primaryEntry: GuestEntry = {
+      fullName: passport.fullName,
+      passportNumber: passport.passportNumber,
+      phoneNumber: passport.phoneNumber,
+      passportImageUrl: passport.passportImageUrl,
     };
-    if (uploadedImageUrl) {
-      guestPayload.passport_image_url = uploadedImageUrl;
+    const companionEntries = passport.companions ?? [];
+
+    // 代表者は必須。ここで失敗したら予約自体を中断する。
+    const primaryGuestId = await upsertGuestEntry(primaryEntry);
+    if (!primaryGuestId) return null;
+
+    // 同行者を順次 upsert。個別に失敗しても予約は止めず、成功分だけリンクする。
+    // 重複パスポート（代表者と同一・同行者同士の重複）は1件に名寄せする。
+    const linkedGuestIds = new Set<string>([primaryGuestId]);
+    for (const companion of companionEntries) {
+      const companionGuestId = await upsertGuestEntry(companion);
+      if (companionGuestId) linkedGuestIds.add(companionGuestId);
     }
-
-    const { data: guestRow, error: guestError } = await supabase
-      .from("guests")
-      .upsert(guestPayload, { onConflict: "passport_number" })
-      .select("id")
-      .single();
-
-    if (guestError || !guestRow) return null;
 
     const { data: transferRow, error: transferError } = await supabase
       .from("transfer_requests")
       .insert({
-        guest_id: guestRow.id,
+        guest_id: primaryGuestId,
         room_number: transfer.roomNumber,
         destination_id: transfer.destinationId,
         transfer_date: transfer.transferDate,
@@ -133,6 +161,18 @@ export async function submitBooking(
       .single();
 
     if (transferError || !transferRow) return null;
+
+    // 予約に紐づく全ゲスト（代表者＋同行者）を中間テーブルへ登録する。
+    // 失敗してもゲストの完了体験は止めない（管理画面側の表示は代表者にフォールバック）。
+    const linkRows = Array.from(linkedGuestIds).map((guestId) => ({
+      transfer_request_id: transferRow.id,
+      guest_id: guestId,
+      is_primary: guestId === primaryGuestId,
+    }));
+    const { error: linkError } = await supabase.from("transfer_request_guests").insert(linkRows);
+    if (linkError) {
+      console.error("[booking] transfer_request_guests insert error:", linkError.message, linkError);
+    }
 
     return {
       bookingReference: `TRF-${transferRow.id.slice(0, 8).toUpperCase()}`,

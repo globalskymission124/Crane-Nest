@@ -18,6 +18,11 @@ const en: Dictionary = {
     phoneNumberPlaceholder: "e.g. +1 555-123-4567",
     retake: "Retake photo",
     next: "Continue",
+    primaryGuestLabel: "Primary guest",
+    companionLabel: "Companion",
+    addGuestCta: "Add a companion",
+    removeGuest: "Remove",
+    optionalTag: "optional",
   },
 
   transfer: {

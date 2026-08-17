@@ -18,6 +18,11 @@ const es: Dictionary = {
     phoneNumberPlaceholder: "p. ej. +34 612 345 678",
     retake: "Tomar otra foto",
     next: "Continuar",
+    primaryGuestLabel: "Huésped principal",
+    companionLabel: "Acompañante",
+    addGuestCta: "Añadir acompañante",
+    removeGuest: "Eliminar",
+    optionalTag: "opcional",
   },
 
   transfer: {

@@ -18,6 +18,11 @@ const zh: Dictionary = {
     phoneNumberPlaceholder: "例：090-1234-5678",
     retake: "重新拍摄",
     next: "下一步",
+    primaryGuestLabel: "主客人",
+    companionLabel: "同行者",
+    addGuestCta: "添加同行者",
+    removeGuest: "删除",
+    optionalTag: "选填",
   },
 
   transfer: {

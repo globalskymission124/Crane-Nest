@@ -63,11 +63,23 @@ export interface TransferRequest {
 // ---------------------------------------------------------
 // ゲストUIのフォーム入力（Supabaseへ送信する前の状態）
 // ---------------------------------------------------------
-export interface PassportFormData {
+
+// 1名分のパスポート情報（代表者・同行者で共通の形）
+export interface GuestEntry {
   fullName: string;
   passportNumber: string;
   phoneNumber: string;
   passportImageUrl: string | null;
+}
+
+export interface PassportFormData {
+  // 代表者（1人目）。後方互換のため従来のトップレベルフィールドを維持する。
+  fullName: string;
+  passportNumber: string;
+  phoneNumber: string;
+  passportImageUrl: string | null;
+  // 同行者（2人目以降）。1名で宿泊する場合は空配列 or 未指定。
+  companions?: GuestEntry[];
 }
 
 export interface TransferFormData {

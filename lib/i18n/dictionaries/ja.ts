@@ -18,6 +18,11 @@ const ja: Dictionary = {
     phoneNumberPlaceholder: "例）090-1234-5678",
     retake: "撮り直す",
     next: "次へ進む",
+    primaryGuestLabel: "代表者",
+    companionLabel: "同行者",
+    addGuestCta: "同行者を追加",
+    removeGuest: "削除",
+    optionalTag: "任意",
   },
 
   transfer: {

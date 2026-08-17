@@ -15,17 +15,36 @@ import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
 
+// 1予約に紐づく1名分（代表者・同行者共通）
+interface GuestPerson {
+  fullName: string;
+  passportNumber: string;
+  phoneNumber: string | null;
+  passportImageUrl: string | null;
+  isPrimary: boolean;
+}
+
 interface GuestRecord {
   transferId: string;
   createdAt: string; // 予約日時（ISO）
   transferDate: string | null; // 送迎日（YYYY-MM-DD）
   stayDate: string | null; // 送迎予定日（ISO、日付部分のみ使用）
+  // 代表者の情報（既存の一覧・モーダル表示との後方互換のため保持）
   fullName: string;
   passportNumber: string;
   phoneNumber: string | null;
   passportImageUrl: string | null;
+  // 予約に含まれる全ゲスト（代表者を先頭に、同行者が続く）
+  guests: GuestPerson[];
   roomNumber: string;
   destinationName: string;
+}
+
+interface RawGuest {
+  full_name: string;
+  passport_number: string;
+  phone_number: string | null;
+  passport_image_url: string | null;
 }
 
 interface RawRow {
@@ -35,16 +54,12 @@ interface RawRow {
   transfer_date: string | null;
   flight_time: string | null;
   suggested_departure_time: string | null;
-  guests: {
-    full_name: string;
-    passport_number: string;
-    phone_number: string | null;
-    passport_image_url: string | null;
-  } | {
-    full_name: string;
-    passport_number: string;
-    phone_number: string | null;
-    passport_image_url: string | null;
+  // 単一FK（代表者）。旧データや中間テーブル未登録時のフォールバック用。
+  guests: RawGuest | RawGuest[] | null;
+  // 中間テーブル経由の全ゲスト（代表者＋同行者）。
+  transfer_request_guests?: {
+    is_primary: boolean;
+    guests: RawGuest | RawGuest[] | null;
   }[] | null;
   destinations: { name: string } | { name: string }[] | null;
 }
@@ -56,19 +71,49 @@ function pickRecord<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] ?? null : value;
 }
 
+function toPerson(guest: RawGuest, isPrimary: boolean, t: AdminDictionary): GuestPerson {
+  return {
+    fullName: guest.full_name ?? t.records.unregisteredName,
+    passportNumber: guest.passport_number ?? "—",
+    phoneNumber: guest.phone_number ?? null,
+    passportImageUrl: guest.passport_image_url ?? null,
+    isPrimary,
+  };
+}
+
 function toRecord(row: RawRow, t: AdminDictionary): GuestRecord {
-  const guest = pickRecord(row.guests);
   const destination = pickRecord(row.destinations);
+
+  // 中間テーブルがあれば全ゲストを展開（代表者を先頭に並べ替え）。
+  // 無ければ従来どおり単一FKの guests を代表者1名として扱う（旧データ互換）。
+  let people: GuestPerson[] = [];
+  const links = row.transfer_request_guests ?? [];
+  if (links.length > 0) {
+    people = links
+      .map((link) => {
+        const g = pickRecord(link.guests);
+        return g ? toPerson(g, link.is_primary, t) : null;
+      })
+      .filter((p): p is GuestPerson => p !== null)
+      .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary));
+  }
+  if (people.length === 0) {
+    const fallback = pickRecord(row.guests);
+    people = fallback ? [toPerson(fallback, true, t)] : [];
+  }
+
+  const primary = people[0];
 
   return {
     transferId: row.id,
     createdAt: row.created_at,
     transferDate: row.transfer_date ?? null,
     stayDate: row.flight_time ?? row.suggested_departure_time ?? null,
-    fullName: guest?.full_name ?? t.records.unregisteredName,
-    passportNumber: guest?.passport_number ?? "—",
-    phoneNumber: guest?.phone_number ?? null,
-    passportImageUrl: guest?.passport_image_url ?? null,
+    fullName: primary?.fullName ?? t.records.unregisteredName,
+    passportNumber: primary?.passportNumber ?? "—",
+    phoneNumber: primary?.phoneNumber ?? null,
+    passportImageUrl: primary?.passportImageUrl ?? null,
+    guests: people,
     roomNumber: row.room_number,
     destinationName: destination?.name ?? t.records.unsetDestination,
   };
@@ -132,6 +177,7 @@ export default function GuestRecordsManager() {
         .select(
           `id, created_at, room_number, transfer_date, flight_time, suggested_departure_time,
            guests ( full_name, passport_number, phone_number, passport_image_url ),
+           transfer_request_guests ( is_primary, guests ( full_name, passport_number, phone_number, passport_image_url ) ),
            destinations ( name )`
         )
         .order("created_at", { ascending: false });
@@ -185,32 +231,46 @@ export default function GuestRecordsManager() {
 
       for (const record of filteredRecords) {
         const dateLabel = formatDateLabel(record.stayDate, t.records.undecided);
-        let photoFileName = "";
 
-        if (record.passportImageUrl) {
-          const baseName = `${dateLabel}_${sanitizeForFilename(record.fullName)}_${sanitizeForFilename(
-            record.passportNumber
-          )}`;
-          let candidate = `${baseName}.${fileExtensionFromUrl(record.passportImageUrl)}`;
-          let suffix = 2;
-          while (usedNames.has(candidate)) {
-            candidate = `${baseName}-${suffix}.${fileExtensionFromUrl(record.passportImageUrl)}`;
-            suffix += 1;
+        // 予約に含まれる全ゲスト（代表者＋同行者）を1名1行で書き出す。
+        const people = record.guests.length > 0
+          ? record.guests
+          : [{
+              fullName: record.fullName,
+              passportNumber: record.passportNumber,
+              phoneNumber: record.phoneNumber,
+              passportImageUrl: record.passportImageUrl,
+              isPrimary: true,
+            } as GuestPerson];
+
+        for (const person of people) {
+          let photoFileName = "";
+
+          if (person.passportImageUrl) {
+            const baseName = `${dateLabel}_${sanitizeForFilename(person.fullName)}_${sanitizeForFilename(
+              person.passportNumber
+            )}`;
+            let candidate = `${baseName}.${fileExtensionFromUrl(person.passportImageUrl)}`;
+            let suffix = 2;
+            while (usedNames.has(candidate)) {
+              candidate = `${baseName}-${suffix}.${fileExtensionFromUrl(person.passportImageUrl)}`;
+              suffix += 1;
+            }
+            usedNames.add(candidate);
+            photoFileName = candidate;
+            photoEntries.push({ fileName: candidate, url: person.passportImageUrl });
           }
-          usedNames.add(candidate);
-          photoFileName = candidate;
-          photoEntries.push({ fileName: candidate, url: record.passportImageUrl });
-        }
 
-        summaryRows.push([
-          formatDateTimeLabel(record.createdAt),
-          record.fullName,
-          record.passportNumber,
-          record.phoneNumber ?? "—",
-          record.roomNumber,
-          record.destinationName,
-          photoFileName || t.records.noPhotoCell,
-        ]);
+          summaryRows.push([
+            formatDateTimeLabel(record.createdAt),
+            person.fullName,
+            person.passportNumber,
+            person.phoneNumber ?? "—",
+            record.roomNumber,
+            record.destinationName,
+            photoFileName || t.records.noPhotoCell,
+          ]);
+        }
       }
 
       // CSV（Excel等で開きやすいようUTF-8 BOM付き）
@@ -222,7 +282,7 @@ export default function GuestRecordsManager() {
       // 一目でわかるHTML一覧表（パスポート写真へのリンク付き）
       const htmlRows = summaryRows
         .map(
-          (row, index) => `
+          (row) => `
             <tr>
               <td>${row[0]}</td>
               <td><strong>${row[1]}</strong></td>
@@ -231,7 +291,7 @@ export default function GuestRecordsManager() {
               <td>${row[4]}</td>
               <td>${row[5]}</td>
               <td>${
-                photoEntries[index] && row[6] !== t.records.noPhotoCell
+                row[6] !== t.records.noPhotoCell
                   ? `<a href="${t.records.photoFolderName}/${encodeURIComponent(row[6])}">${row[6]}</a>`
                   : t.records.noPhotoCell
               }</td>
@@ -392,6 +452,41 @@ export default function GuestRecordsManager() {
                 )}
               </div>
 
+              {/* 同行者（2人目以降） */}
+              {detailRecord.guests.length > 1 && (
+                <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                    <Users className="h-3.5 w-3.5" />
+                    {detailRecord.guests.length - 1}
+                  </span>
+                  {detailRecord.guests
+                    .filter((person) => !person.isPrimary)
+                    .map((person, i) => (
+                      <div key={i} className="flex items-center gap-3 rounded-xl bg-slate-50 p-2">
+                        {person.passportImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={person.passportImageUrl}
+                            alt={t.records.passportPhotoAlt(person.fullName)}
+                            className="h-12 w-12 shrink-0 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300">
+                            <ImageOff className="h-4 w-4" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-800">{person.fullName}</p>
+                          <p className="flex items-center gap-1 text-xs text-slate-500">
+                            <Hash className="h-3 w-3" />
+                            {person.passportNumber}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
               {/* 予約日時 */}
               <p className="flex items-center gap-1.5 text-xs text-slate-400">
                 <Clock className="h-3.5 w-3.5" />
@@ -482,6 +577,12 @@ export default function GuestRecordsManager() {
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <p className="truncate text-sm font-semibold text-slate-800">{record.fullName}</p>
                   <p className="text-xs text-slate-400">{record.passportNumber}</p>
+                  {record.guests.length > 1 && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
+                      <Users className="h-3 w-3" />
+                      +{record.guests.length - 1}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500">
                   {t.records.roomLabel}: {record.roomNumber}・{t.records.destinationLabel}: {record.destinationName}

@@ -34,6 +34,11 @@ export interface Dictionary {
     phoneNumberPlaceholder: string;
     retake: string;
     next: string;
+    primaryGuestLabel: string;
+    companionLabel: string;
+    addGuestCta: string;
+    removeGuest: string;
+    optionalTag: string;
   };
 
   transfer: {

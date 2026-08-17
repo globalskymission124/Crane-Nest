@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Loader2, CheckCircle2, RotateCcw, AlertCircle } from "lucide-react";
+import { Camera, Loader2, CheckCircle2, RotateCcw, AlertCircle, UserPlus, X } from "lucide-react";
 import type { PassportFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -151,23 +151,53 @@ async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; pa
 
 type Phase = "idle" | "processing" | "done" | "ocr_failed";
 
+// 1名分の入力状態（代表者・同行者で共通）
+interface GuestState {
+  id: string;
+  phase: Phase;
+  previewUrl: string | null;
+  fullName: string;
+  passportNumber: string;
+  phoneNumber: string;
+}
+
+function createGuestState(): GuestState {
+  return {
+    id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()),
+    phase: "idle",
+    previewUrl: null,
+    fullName: "",
+    passportNumber: "",
+    phoneNumber: "",
+  };
+}
+
 interface PassportUploadStepProps {
   onNext: (data: PassportFormData) => void;
 }
 
-export default function PassportUploadStep({ onNext }: PassportUploadStepProps) {
+// =========================================================
+// 1名分のパスポート撮影・確認カード
+//  - 代表者(isPrimary)は電話番号を必須、同行者は任意
+//  - 撮影 → OCR → 手直しの流れは全カード共通
+// =========================================================
+interface GuestCaptureCardProps {
+  guest: GuestState;
+  index: number;
+  isPrimary: boolean;
+  onPatch: (patch: Partial<GuestState>) => void;
+  onRemove?: () => void;
+}
+
+function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestCaptureCardProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [fullName, setFullName] = useState("");
-  const [passportNumber, setPassportNumber] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const label = isPrimary ? t.passport.primaryGuestLabel : `${t.passport.companionLabel} ${index}`;
 
   const handleFileSelected = async (file: File) => {
     const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-    setPhase("processing");
+    onPatch({ previewUrl: objectUrl, phase: "processing" });
 
     // まず Gemini 3.5 Flash で読み取り、失敗時は Tesseract にフォールバック
     let result = await runGeminiOcr(file);
@@ -175,10 +205,11 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
       result = await runTesseractOcr(objectUrl);
     }
 
-    // OCRが何かしら読み取れた場合のみセット
-    setFullName(result.fullName);
-    setPassportNumber(result.passportNumber);
-    setPhase(result.fullName || result.passportNumber ? "done" : "ocr_failed");
+    onPatch({
+      fullName: result.fullName,
+      passportNumber: result.passportNumber,
+      phase: result.fullName || result.passportNumber ? "done" : "ocr_failed",
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,36 +218,37 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
   };
 
   const handleRetake = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setFullName("");
-    setPassportNumber("");
-    setPhoneNumber("");
-    setPhase("idle");
+    if (guest.previewUrl) URL.revokeObjectURL(guest.previewUrl);
+    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", phase: "idle" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // OCR失敗でも手入力で次に進める（name・number・phone が揃えばOK）
-  const canProceed =
-    (phase === "done" || phase === "ocr_failed") &&
-    fullName.trim() !== "" &&
-    passportNumber.trim() !== "" &&
-    phoneNumber.trim() !== "";
-
   return (
-    <div className="flex h-full flex-col px-5 py-6">
-      <BannerCarousel />
+    <div className="flex flex-col gap-3">
+      {/* カード見出し（代表者 / 同行者N） */}
+      <div className="flex items-center justify-between">
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            isPrimary ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {label}
+        </span>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={() => {
+              if (guest.previewUrl) URL.revokeObjectURL(guest.previewUrl);
+              onRemove();
+            }}
+            className="flex items-center gap-1 text-xs font-medium text-slate-400 transition hover:text-red-500"
+          >
+            <X className="h-3.5 w-3.5" />
+            {t.passport.removeGuest}
+          </button>
+        )}
+      </div>
 
-      <header className="mb-6">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-brand-600">{t.stepLabel(1, 3)}</p>
-          <LanguageSwitcher />
-        </div>
-        <h1 className="mt-1 text-xl font-bold">{t.passport.title}</h1>
-        <p className="mt-2 text-sm text-slate-500">{t.passport.description}</p>
-      </header>
-
-      {/* アップロードエリア */}
       <input
         ref={fileInputRef}
         type="file"
@@ -226,11 +258,11 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
         onChange={handleInputChange}
       />
 
-      {!previewUrl && (
+      {!guest.previewUrl && (
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="flex flex-1 min-h-[260px] flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-brand-100 bg-gradient-to-b from-brand-50/80 to-white text-brand-500 transition active:scale-[0.99] active:bg-brand-50"
+          className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-brand-100 bg-gradient-to-b from-brand-50/80 to-white text-brand-500 transition active:scale-[0.99] active:bg-brand-50"
         >
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-brand-500 shadow-sm shadow-brand-700/20">
             <Camera className="h-8 w-8" />
@@ -239,27 +271,27 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
         </button>
       )}
 
-      {previewUrl && (
+      {guest.previewUrl && (
         <div className="flex flex-col gap-4">
           <div className="relative overflow-hidden rounded-2xl border border-brand-100 shadow-sm shadow-brand-700/10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt={t.passport.uploadAlt} className="h-48 w-full object-cover" />
+            <img src={guest.previewUrl} alt={t.passport.uploadAlt} className="h-48 w-full object-cover" />
 
-            {phase === "processing" && (
+            {guest.phase === "processing" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 text-white">
                 <Loader2 className="h-8 w-8 animate-spin" />
                 <span className="text-sm font-medium">{t.passport.processing}</span>
               </div>
             )}
 
-            {phase === "done" && (
+            {guest.phase === "done" && (
               <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {t.passport.recognized}
               </div>
             )}
 
-            {phase === "ocr_failed" && (
+            {guest.phase === "ocr_failed" && (
               <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow">
                 <AlertCircle className="h-3.5 w-3.5" />
                 手入力してください
@@ -267,7 +299,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
             )}
           </div>
 
-          {(phase === "done" || phase === "ocr_failed") && (
+          {(guest.phase === "done" || guest.phase === "ocr_failed") && (
             <div className="flex flex-col gap-3 rounded-2xl border border-brand-100/70 bg-gradient-to-b from-brand-50/50 to-white p-4">
               <p className="text-xs text-slate-500">{t.passport.reviewHint}</p>
 
@@ -275,8 +307,8 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
                 <span className="text-xs font-medium text-slate-600">{t.passport.fullNameLabel}</span>
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={guest.fullName}
+                  onChange={(e) => onPatch({ fullName: e.target.value })}
                   className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 />
               </label>
@@ -285,19 +317,24 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
                 <span className="text-xs font-medium text-slate-600">{t.passport.passportNumberLabel}</span>
                 <input
                   type="text"
-                  value={passportNumber}
-                  onChange={(e) => setPassportNumber(e.target.value)}
+                  value={guest.passportNumber}
+                  onChange={(e) => onPatch({ passportNumber: e.target.value })}
                   className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm uppercase tracking-wide focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 />
               </label>
 
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-slate-600">{t.passport.phoneNumberLabel}</span>
+                <span className="text-xs font-medium text-slate-600">
+                  {t.passport.phoneNumberLabel}
+                  {!isPrimary && (
+                    <span className="ml-1 text-[10px] font-normal text-slate-400">（{t.passport.optionalTag}）</span>
+                  )}
+                </span>
                 <input
                   type="tel"
                   inputMode="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  value={guest.phoneNumber}
+                  onChange={(e) => onPatch({ phoneNumber: e.target.value })}
                   placeholder={t.passport.phoneNumberPlaceholder}
                   className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 />
@@ -315,19 +352,102 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+export default function PassportUploadStep({ onNext }: PassportUploadStepProps) {
+  const { t } = useTranslation();
+  // guests[0] が代表者、以降が同行者。初期は代表者1名分。
+  const [guests, setGuests] = useState<GuestState[]>(() => [createGuestState()]);
+
+  const patchGuest = (id: string, patch: Partial<GuestState>) => {
+    setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  };
+
+  const addCompanion = () => {
+    setGuests((prev) => [...prev, createGuestState()]);
+  };
+
+  const removeGuest = (id: string) => {
+    setGuests((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const primary = guests[0];
+  const primaryCaptured = primary.phase === "done" || primary.phase === "ocr_failed";
+
+  // 1名でも複数名でも進める。
+  //  - 代表者: 写真取得済み + 氏名/番号/電話が揃う
+  //  - 同行者: 写真取得済み + 氏名/番号が揃う（電話は任意）+ 処理中でない
+  const isGuestReady = (g: GuestState, isPrimary: boolean) => {
+    if (g.phase === "processing" || !g.previewUrl) return false;
+    if (!g.fullName.trim() || !g.passportNumber.trim()) return false;
+    if (isPrimary && !g.phoneNumber.trim()) return false;
+    return true;
+  };
+
+  const canProceed = guests.every((g, i) => isGuestReady(g, i === 0));
+
+  const handleSubmit = () => {
+    const [head, ...rest] = guests;
+    onNext({
+      fullName: head.fullName,
+      passportNumber: head.passportNumber,
+      phoneNumber: head.phoneNumber,
+      passportImageUrl: head.previewUrl,
+      companions: rest.map((g) => ({
+        fullName: g.fullName,
+        passportNumber: g.passportNumber,
+        phoneNumber: g.phoneNumber,
+        passportImageUrl: g.previewUrl,
+      })),
+    });
+  };
+
+  return (
+    <div className="flex h-full flex-col px-5 py-6">
+      <BannerCarousel />
+
+      <header className="mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-medium text-brand-600">{t.stepLabel(1, 3)}</p>
+          <LanguageSwitcher />
+        </div>
+        <h1 className="mt-1 text-xl font-bold">{t.passport.title}</h1>
+        <p className="mt-2 text-sm text-slate-500">{t.passport.description}</p>
+      </header>
+
+      {/* ゲストごとの撮影カード（代表者＋同行者） */}
+      <div className="flex flex-col gap-6">
+        {guests.map((guest, index) => (
+          <GuestCaptureCard
+            key={guest.id}
+            guest={guest}
+            index={index}
+            isPrimary={index === 0}
+            onPatch={(patch) => patchGuest(guest.id, patch)}
+            onRemove={index === 0 ? undefined : () => removeGuest(guest.id)}
+          />
+        ))}
+      </div>
+
+      {/* 同行者を追加（代表者を撮影し終えてから表示、人数上限なし） */}
+      {primaryCaptured && (
+        <button
+          type="button"
+          onClick={addCompanion}
+          className="mt-4 flex items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50/40 py-3 text-sm font-semibold text-brand-600 transition active:scale-[0.99] active:bg-brand-50"
+        >
+          <UserPlus className="h-4 w-4" />
+          {t.passport.addGuestCta}
+        </button>
+      )}
 
       <div className="mt-6">
         <button
           type="button"
           disabled={!canProceed}
-          onClick={() =>
-            onNext({
-              fullName,
-              passportNumber,
-              phoneNumber,
-              passportImageUrl: previewUrl,
-            })
-          }
+          onClick={handleSubmit}
           className="w-full rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 py-3.5 text-sm font-semibold text-white shadow-md shadow-brand-600/25 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-none disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
         >
           {t.passport.next}

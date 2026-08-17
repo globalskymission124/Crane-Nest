@@ -18,6 +18,11 @@ const fr: Dictionary = {
     phoneNumberPlaceholder: "ex. +33 6 12 34 56 78",
     retake: "Reprendre la photo",
     next: "Continuer",
+    primaryGuestLabel: "Voyageur principal",
+    companionLabel: "Accompagnant",
+    addGuestCta: "Ajouter un accompagnant",
+    removeGuest: "Supprimer",
+    optionalTag: "facultatif",
   },
 
   transfer: {
