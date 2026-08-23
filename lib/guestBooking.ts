@@ -143,6 +143,7 @@ export async function submitBooking(
         guest_id: primaryGuestId,
         room_number: transfer.roomNumber,
         destination_id: transfer.destinationId,
+        terminal: transfer.terminal,
         transfer_date: transfer.transferDate,
         flight_time: transfer.flightTime
           ? toIsoFromTimeInput(transfer.flightTime, transfer.transferDate)

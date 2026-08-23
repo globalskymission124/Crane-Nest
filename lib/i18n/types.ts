@@ -50,6 +50,10 @@ export interface Dictionary {
     roomLoading: string;
     destinationLabel: string;
     destinationLoading: string;
+    terminalLabel: string;
+    terminalRequiredBadge: string;
+    terminalNote: string;
+    terminalOption: (n: number) => string;
     flightTimeLabel: string;
     flightTimeOptionalBadge: string;
     flightTimeOptionalNote: string;
@@ -76,6 +80,8 @@ export interface Dictionary {
     guestNameLabel: string;
     guestFallbackName: string;
     roomLabel: string;
+    terminalLabel: string;
+    terminalValue: (n: number) => string;
     preferredDepartureLabel: string;
     suggestedDepartureLabel: string;
     specifiedDepartureLabel: string;
@@ -89,6 +95,20 @@ export interface Dictionary {
     qrHint: string;
     note1: string;
     note2: string;
+  };
+
+  wifi: {
+    title: string;
+    description: string;
+    networkNameLabel: string;
+    passwordLabel: string;
+    copyPassword: string;
+    copied: string;
+    scanHint: string;
+    sameDeviceHint: string;
+    manualHint: string;
+    androidConnect: string;
+    androidHint: string;
   };
 
   counter: {
