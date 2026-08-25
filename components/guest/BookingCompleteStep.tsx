@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { CheckCircle2, Check, Copy, Image as ImageIcon, Luggage, Users, Wifi } from "lucide-react";
+import { CheckCircle2, Image as ImageIcon, Luggage, Users } from "lucide-react";
 import type { Destination, PassportFormData, Room, TransferFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
-import { GUEST_WIFI, buildWifiQrPayload } from "@/lib/guestWifi";
 import LanguageSwitcher from "./LanguageSwitcher";
+import WifiAccessCard from "./WifiAccessCard";
 
 interface BookingCompleteStepProps {
   passport: PassportFormData;
@@ -74,37 +74,6 @@ export default function BookingCompleteStep({
     [bookingReference, passport, transfer, destination.name]
   );
 
-  // WiFi接続用QRの標準ペイロード（カメラでスキャン→ワンタップ接続）。
-  const wifiQrPayload = useMemo(() => buildWifiQrPayload(GUEST_WIFI), []);
-  const [passwordCopied, setPasswordCopied] = useState(false);
-
-  // Android判定。Androidはパスワードコピー＋WiFi設定起動のショートカットを出す。
-  const [isAndroid, setIsAndroid] = useState(false);
-  useEffect(() => {
-    setIsAndroid(/Android/.test(navigator.userAgent || ""));
-  }, []);
-
-  // Android: パスワードを自動コピーしてから、WiFi設定画面をintentで開く。
-  // （ブラウザからWiFiへ直接接続する手段はOSに無いため、これが実用上もっともスムーズ）
-  const handleAndroidConnect = async () => {
-    await handleCopyPassword();
-    try {
-      window.location.href = "intent:#Intent;action=android.settings.WIFI_SETTINGS;end";
-    } catch {
-      // intentに対応しないブラウザでは何もしない（パスワードはコピー済み・QRも表示中）。
-    }
-  };
-
-  const handleCopyPassword = async () => {
-    try {
-      await navigator.clipboard.writeText(GUEST_WIFI.password);
-      setPasswordCopied(true);
-      window.setTimeout(() => setPasswordCopied(false), 2000);
-    } catch {
-      // クリップボードが使えない環境では何もしない（パスワードは画面に表示済み）。
-    }
-  };
-
   const departureLabel =
     transfer.suggestedDepartureTime ?? transfer.preferredDepartureTime ?? (transfer.flightTime || "—");
 
@@ -127,6 +96,8 @@ export default function BookingCompleteStep({
         <h1 className="mt-1 text-xl font-bold">{t.complete.title}</h1>
         <p className="mt-2 text-sm text-slate-500">{t.complete.description}</p>
       </header>
+
+      <WifiAccessCard labels={t.wifi} className="mb-5" />
 
       {/* デジタル乗車券 */}
       <div className="overflow-hidden rounded-2xl border border-brand-100 shadow-lg shadow-brand-700/20">
@@ -222,69 +193,6 @@ export default function BookingCompleteStep({
             <QRCodeSVG value={qrPayload} size={148} includeMargin />
             <p className="text-xs text-slate-400">{t.complete.qrHint}</p>
           </div>
-        </div>
-      </div>
-
-      {/* スマートWiFi接続カード（パスポート登録・送迎予約が完了したこの画面で表示） */}
-      <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2 bg-slate-900 px-5 py-3 text-white">
-          <Wifi className="h-4 w-4 text-emerald-300" />
-          <div>
-            <p className="text-sm font-bold">{t.wifi.title}</p>
-            <p className="text-[11px] text-slate-300">{t.wifi.description}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-4 px-5 py-5">
-          {/* QRコード：カメラをかざすだけで接続でき、警告も出ない主要な方法 */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-            <QRCodeSVG value={wifiQrPayload} size={184} includeMargin />
-          </div>
-          <p className="max-w-[16rem] text-center text-sm font-medium text-slate-600">{t.wifi.scanHint}</p>
-
-          {/* ネットワーク名・パスワード＋コピー */}
-          <div className="w-full rounded-xl bg-slate-50 px-4 py-3">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
-              <span className="text-xs text-slate-400">{t.wifi.networkNameLabel}</span>
-              <span className="text-sm font-semibold text-slate-700">{GUEST_WIFI.ssid}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 pt-2.5">
-              <span className="text-xs text-slate-400">{t.wifi.passwordLabel}</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-slate-700">{GUEST_WIFI.password}</span>
-                <button
-                  type="button"
-                  onClick={handleCopyPassword}
-                  aria-label={t.wifi.copyPassword}
-                  className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition active:scale-[0.97] ${
-                    passwordCopied
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-600"
-                      : "border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-600"
-                  }`}
-                >
-                  {passwordCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {passwordCopied ? t.wifi.copied : t.wifi.copyPassword}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Android: パスワードをコピーしてWiFi設定を開く（警告は出ない）。それ以外は同端末接続の案内。 */}
-          {isAndroid ? (
-            <div className="w-full">
-              <button
-                type="button"
-                onClick={handleAndroidConnect}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-600/25 transition active:scale-[0.99]"
-              >
-                {passwordCopied ? <Check className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
-                {t.wifi.androidConnect}
-              </button>
-              <p className="mt-2 text-center text-[11px] text-slate-400">{t.wifi.androidHint}</p>
-            </div>
-          ) : (
-            <p className="text-center text-[11px] text-slate-400">{t.wifi.sameDeviceHint}</p>
-          )}
         </div>
       </div>
 

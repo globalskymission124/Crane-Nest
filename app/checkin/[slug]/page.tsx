@@ -14,6 +14,20 @@ import {
 } from "@/lib/stays/checkin";
 import { useStaysSession } from "@/lib/stays/auth";
 import { supabase } from "@/lib/supabase";
+import WifiAccessCard, { type WifiAccessCardLabels } from "@/components/guest/WifiAccessCard";
+
+const CHECKIN_WIFI_LABELS: WifiAccessCardLabels = {
+  title: "Guest WiFi / ゲスト用WiFi",
+  description: "Available after registration / 登録後すぐに利用できます。",
+  networkNameLabel: "Network / ネットワーク名",
+  passwordLabel: "Password / パスワード",
+  copyPassword: "Copy",
+  copied: "Copied",
+  scanHint: "Scan this QR code with your phone camera to connect. / カメラでQRコードを読み取るだけで接続できます。",
+  sameDeviceHint: "On this phone, tap Copy, then open Wi-Fi settings and choose Crane Nest_Guest.",
+  androidConnect: "Copy password & open Wi-Fi settings",
+  androidHint: "Password copied. Select Crane Nest_Guest and paste it in.",
+};
 
 interface SavedPassport {
   full_name: string;
@@ -44,6 +58,10 @@ export default function GuestCheckinPage({ params }: { params: { slug: string } 
   useEffect(() => {
     fetchCheckinPageBySlug(params.slug).then((p) => setPage(p && p.is_active ? p : null));
   }, [params.slug]);
+
+  useEffect(() => {
+    if (done) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [done]);
 
   // ログイン済みでプロフィールにパスポート保存済みなら「ワンタップチェックイン」を提示
   useEffect(() => {
@@ -152,13 +170,16 @@ export default function GuestCheckinPage({ params }: { params: { slug: string } 
 
   if (done)
     return (
-      <div className="mx-auto max-w-md px-5 py-20 text-center">
-        <CheckCircle2 className="mx-auto mb-3 h-14 w-14 text-emerald-500" />
-        <h1 className="text-xl font-extrabold text-slate-800">Registration complete!</h1>
-        <p className="mt-1 text-sm text-slate-500">登録が完了しました。ご協力ありがとうございます。</p>
-        <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-          Your information has been securely sent to your host. Enjoy your stay!
-        </p>
+      <div className="min-h-screen bg-slate-50 px-5 py-8">
+        <div className="mx-auto max-w-md text-center">
+          <CheckCircle2 className="mx-auto mb-3 h-14 w-14 text-emerald-500" />
+          <h1 className="text-xl font-extrabold text-slate-800">Registration complete!</h1>
+          <p className="mt-1 text-sm text-slate-500">登録が完了しました。ご協力ありがとうございます。</p>
+          <p className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-500 shadow-sm">
+            Your information has been securely sent to your host. Enjoy your stay!
+          </p>
+          <WifiAccessCard labels={CHECKIN_WIFI_LABELS} className="mt-5" />
+        </div>
       </div>
     );
 
