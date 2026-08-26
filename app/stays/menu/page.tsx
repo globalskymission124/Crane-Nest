@@ -8,6 +8,7 @@ import {
   Gift,
   Heart,
   Home,
+  IdCard,
   KeyRound,
   LogIn,
   LogOut,
@@ -25,6 +26,7 @@ import { logout, useStaysSession } from "@/lib/stays/auth";
 
 const primaryItems = [
   { href: "/stays/profile", label: "アカウント設定", sub: "プロフィールと本人確認", icon: Settings },
+  { href: "/stays/travel-card", label: "Travel Card", sub: "旅先で提示・コピー", icon: IdCard },
   { href: "/stays/trips", label: "旅程", sub: "予約と支払い", icon: Luggage },
   { href: "/stays/wishlist", label: "お気に入り", sub: "保存した宿", icon: Heart },
   { href: "/stays/messages", label: "メッセージ", sub: "ホストとの会話", icon: MessageSquare },

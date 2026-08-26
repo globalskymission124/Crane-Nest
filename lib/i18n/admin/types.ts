@@ -171,6 +171,7 @@ export interface AdminDictionary {
     showingCount: (n: number) => string;
     downloadButton: string;
     creating: string;
+    travelCardPreviewButton: string;
     helpText: string;
     emptyForMonth: string;
     noPhoto: string;

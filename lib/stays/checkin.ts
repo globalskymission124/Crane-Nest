@@ -2,6 +2,11 @@
 // オーナー別パスポート登録（チェックイン）ページのデータアクセス
 // =========================================================
 import { supabase } from "@/lib/supabase";
+import { resizeImage } from "@/lib/stays/image";
+
+const PASSPORT_MAX_PX = 1280;
+const PASSPORT_JPEG_QUALITY = 0.82;
+const PASSPORT_BUCKET = "host-passports";
 
 export interface CheckinPage {
   id: string;
@@ -82,13 +87,18 @@ export async function fetchCheckinGuests(hostId: string): Promise<CheckinGuest[]
 
 // パスポート画像アップロード
 export async function uploadHostPassport(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("画像ファイルを選択してください / Please choose an image file");
+  }
+
+  const compressed = await resizeImage(file, PASSPORT_MAX_PX, PASSPORT_JPEG_QUALITY);
   const path = `${crypto.randomUUID()}.jpg`;
-  const { error } = await supabase.storage.from("host-passports").upload(path, file, {
+  const { error } = await supabase.storage.from(PASSPORT_BUCKET).upload(path, compressed, {
     cacheControl: "3600",
-    contentType: file.type || "image/jpeg",
+    contentType: "image/jpeg",
   });
   if (error) throw error;
-  const { data } = supabase.storage.from("host-passports").getPublicUrl(path);
+  const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
   return data.publicUrl;
 }
 

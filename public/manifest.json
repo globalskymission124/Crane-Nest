@@ -24,6 +24,7 @@
     }
   ],
   "shortcuts": [
+    { "name": "Travel Card", "short_name": "Travel Card", "description": "Show passport, WiFi and stay info", "url": "/stays/travel-card" },
     { "name": "宿を探す", "url": "/stays" },
     { "name": "旅程", "url": "/stays/trips" },
     { "name": "送迎予約", "url": "/" },

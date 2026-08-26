@@ -214,6 +214,8 @@ export interface StaysUser {
   avatar_url: string | null;
   is_suspended: boolean;
   passport_number?: string | null;
+  nationality?: string | null;
+  passport_image_url?: string | null;
   phone?: string | null;
   referral_code?: string | null;
   referred_by?: string | null;

@@ -33,7 +33,7 @@ export default function AppBottomNav() {
     { href: "/stays/wishlist", label: labels.wishlist, icon: Heart },
     { href: "/stays/trips", label: labels.trips, icon: Luggage },
     { href: "/stays/messages", label: labels.messages, icon: MessageSquare },
-    { href: "/stays/menu", label: labels.menu, icon: Menu, related: ["/stays/profile", "/stays/login"] },
+    { href: "/stays/menu", label: labels.menu, icon: Menu, related: ["/stays/profile", "/stays/login", "/stays/travel-card"] },
   ];
 
   return (

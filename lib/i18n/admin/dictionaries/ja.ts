@@ -182,8 +182,9 @@ const ja: AdminDictionary = {
     showingCount: (n) => `表示中: ${n}件`,
     downloadButton: "一覧表＋写真をまとめてダウンロード（ZIP）",
     creating: "作成中...",
+    travelCardPreviewButton: "Travel Card確認",
     helpText:
-      "ダウンロードされるZIPには、誰がいつ宿泊したかが一目でわかる一覧表（CSV・HTML）と、宿泊予定日・氏名・パスポート番号をファイル名に含めたパスポート写真が同梱されます。一覧表からパスポート写真へリンクされているため、情報と写真をすぐに照合できます。",
+      "各行のTravel Card確認から、ゲストに表示されるJAPAN TRAVEL CARDを同じレイアウトで確認できます。ダウンロードされるZIPには、誰がいつ宿泊したかが一目でわかる一覧表（CSV・HTML）と、宿泊予定日・氏名・パスポート番号をファイル名に含めたパスポート写真が同梱されます。",
     emptyForMonth: "この月の宿泊記録はまだありません。",
     noPhoto: "写真なし",
     stayDateLabel: "宿泊予定日",

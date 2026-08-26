@@ -10,7 +10,7 @@
 // =========================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, Clock, Download, Hash, ImageOff, Loader2, MapPin, Phone, Users, X } from "lucide-react";
+import { Calendar, Clock, Download, ExternalLink, Hash, IdCard, ImageOff, Loader2, MapPin, Phone, Users, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
@@ -214,6 +214,14 @@ function monthKey(value: string | null): string {
 
 function recordMonthKey(record: GuestRecord): string {
   return monthKey(record.recordDate ?? record.createdAt);
+}
+
+function buildTravelCardPreviewHref(record: GuestRecord): string {
+  const params = new URLSearchParams({
+    previewSource: record.source,
+    previewId: record.recordId,
+  });
+  return `/stays/travel-card?${params.toString()}`;
 }
 
 function formatDateLabel(isoString: string | null, undecided: string): string {
@@ -614,6 +622,16 @@ export default function GuestRecordsManager() {
                   <Hash className="h-3.5 w-3.5" />
                   {detailRecord.passportNumber}
                 </p>
+                <a
+                  href={buildTravelCardPreviewHref(detailRecord)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  <IdCard className="h-4 w-4" />
+                  {t.records.travelCardPreviewButton}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
               </div>
 
               {/* グリッド詳細 */}
@@ -784,63 +802,79 @@ export default function GuestRecordsManager() {
           </p>
         ) : (
           filteredRecords.map((record) => (
-            <button
+            <div
               key={`${record.source}-${record.recordId}`}
-              type="button"
-              onClick={() => setDetailRecord(record)}
-              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-brand-300 hover:shadow-sm active:scale-[0.99]"
+              className="flex w-full items-stretch overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:border-brand-300 hover:shadow-sm"
             >
-              {record.passportImageUrl ? (
-                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={record.passportImageUrl}
-                    alt={t.records.passportPhotoAlt(record.fullName)}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-300">
-                  <ImageOff className="h-5 w-5" />
-                  <span className="text-[10px]">{t.records.noPhoto}</span>
-                </div>
-              )}
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                    {record.sourceLabel}
-                  </span>
-                  <p className="truncate text-sm font-semibold text-slate-800">{record.fullName}</p>
-                  <p className="text-xs text-slate-400">{record.passportNumber}</p>
-                  {record.guests.length > 1 && (
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
-                      <Users className="h-3 w-3" />
-                      +{record.guests.length - 1}
-                    </span>
-                  )}
-                </div>
-                {(record.roomNumber || record.destinationName || record.checkinPageTitle) && (
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {record.roomNumber ? `${t.records.roomLabel}: ${record.roomNumber}` : ""}
-                    {record.roomNumber && record.destinationName ? "・" : ""}
-                    {record.destinationName ? `${t.records.destinationLabel}: ${record.destinationName}` : ""}
-                    {!record.roomNumber && !record.destinationName && record.checkinPageTitle
-                      ? `${t.records.checkinPageLabel}: ${record.checkinPageTitle}`
-                      : ""}
-                  </p>
+              <button
+                type="button"
+                onClick={() => setDetailRecord(record)}
+                className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3 text-left active:scale-[0.99]"
+              >
+                {record.passportImageUrl ? (
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={record.passportImageUrl}
+                      alt={t.records.passportPhotoAlt(record.fullName)}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-300">
+                    <ImageOff className="h-5 w-5" />
+                    <span className="text-[10px]">{t.records.noPhoto}</span>
+                  </div>
                 )}
-                <p className="mt-0.5 text-xs font-medium text-brand-600">
-                  {record.source === "transfer" ? t.records.transferDateLabel : t.records.checkinDateLabel}:{" "}
-                  {formatDateLabel(record.recordDate, t.records.undecided)}
-                  {record.departureTime ? `・${t.records.departureTimeLabel}: ${record.departureTime}` : ""}
-                </p>
-                <p className="mt-0.5 text-[11px] text-slate-400">
-                  {t.records.bookingDateTimeLabel}: {formatDateTimeLabel(record.createdAt)}
-                  {record.phoneNumber ? `・${t.records.phoneLabel}: ${record.phoneNumber}` : ""}
-                </p>
-              </div>
-            </button>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                      {record.sourceLabel}
+                    </span>
+                    <p className="truncate text-sm font-semibold text-slate-800">{record.fullName}</p>
+                    <p className="text-xs text-slate-400">{record.passportNumber}</p>
+                    {record.guests.length > 1 && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700">
+                        <Users className="h-3 w-3" />
+                        +{record.guests.length - 1}
+                      </span>
+                    )}
+                  </div>
+                  {(record.roomNumber || record.destinationName || record.checkinPageTitle) && (
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {record.roomNumber ? `${t.records.roomLabel}: ${record.roomNumber}` : ""}
+                      {record.roomNumber && record.destinationName ? "・" : ""}
+                      {record.destinationName ? `${t.records.destinationLabel}: ${record.destinationName}` : ""}
+                      {!record.roomNumber && !record.destinationName && record.checkinPageTitle
+                        ? `${t.records.checkinPageLabel}: ${record.checkinPageTitle}`
+                        : ""}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-xs font-medium text-brand-600">
+                    {record.source === "transfer" ? t.records.transferDateLabel : t.records.checkinDateLabel}:{" "}
+                    {formatDateLabel(record.recordDate, t.records.undecided)}
+                    {record.departureTime ? `・${t.records.departureTimeLabel}: ${record.departureTime}` : ""}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {t.records.bookingDateTimeLabel}: {formatDateTimeLabel(record.createdAt)}
+                    {record.phoneNumber ? `・${t.records.phoneLabel}: ${record.phoneNumber}` : ""}
+                  </p>
+                </div>
+              </button>
+
+              <a
+                href={buildTravelCardPreviewHref(record)}
+                target="_blank"
+                rel="noreferrer"
+                title={t.records.travelCardPreviewButton}
+                className="my-3 mr-3 flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-slate-900 hover:bg-slate-950 hover:text-white sm:w-auto sm:px-3"
+              >
+                <IdCard className="h-4 w-4" />
+                <span className="hidden text-xs font-black sm:inline">{t.records.travelCardPreviewButton}</span>
+                <ExternalLink className="hidden h-3.5 w-3.5 sm:block" />
+              </a>
+            </div>
           ))
         )}
       </div>

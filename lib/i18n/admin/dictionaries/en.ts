@@ -182,8 +182,9 @@ const en: AdminDictionary = {
     showingCount: (n) => `Showing ${n}`,
     downloadButton: "Download summary + photos (ZIP)",
     creating: "Preparing...",
+    travelCardPreviewButton: "Preview Travel Card",
     helpText:
-      "The downloaded ZIP includes an at-a-glance summary table (CSV and HTML) plus passport photos whose filenames include the planned stay date, name, and passport number. The summary table links directly to each passport photo so you can cross-check details and photos quickly.",
+      "Use each row's Travel Card button to preview the exact JAPAN TRAVEL CARD layout guests will see. The downloaded ZIP includes an at-a-glance summary table (CSV and HTML) plus passport photos whose filenames include the planned stay date, name, and passport number.",
     emptyForMonth: "No guest records for this month yet.",
     noPhoto: "No photo",
     stayDateLabel: "Planned stay date",

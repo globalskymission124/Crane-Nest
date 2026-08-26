@@ -7,7 +7,7 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, BadgeCheck, Camera, Coins, Gift, KeyRound, ScanLine, ShieldAlert, UserCircle2 } from "lucide-react";
+import { ArrowRight, ArrowUpDown, BadgeCheck, Camera, Coins, Gift, IdCard, KeyRound, ScanLine, ShieldAlert, UserCircle2 } from "lucide-react";
 import { useRef } from "react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { updateProfile, setPassword, useStaysSession } from "@/lib/stays/auth";
@@ -249,9 +249,19 @@ function ProfileBody() {
       </div>
 
       {session.passport_number && (
-        <div className="mb-4 flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-          <BadgeCheck className="h-4 w-4 text-emerald-600" />
-          パスポート登録済み: <span className="font-mono font-semibold">{session.passport_number}</span>
+        <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <BadgeCheck className="h-4 w-4 text-emerald-600" />
+            パスポート登録済み: <span className="font-mono font-semibold">{session.passport_number}</span>
+          </div>
+          <Link
+            href="/stays/travel-card"
+            className="flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white"
+          >
+            <IdCard className="h-4 w-4 text-amber-200" />
+            Travel Card
+            <ArrowRight className="h-4 w-4 text-amber-200" />
+          </Link>
         </div>
       )}
 

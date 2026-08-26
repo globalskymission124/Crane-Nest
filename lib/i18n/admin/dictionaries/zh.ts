@@ -182,8 +182,9 @@ const zh: AdminDictionary = {
     showingCount: (n) => `当前显示：${n}件`,
     downloadButton: "打包下载汇总表与照片（ZIP）",
     creating: "生成中...",
+    travelCardPreviewButton: "查看Travel Card",
     helpText:
-      "下载的ZIP包含一目了然的住宿汇总表（CSV、HTML），以及文件名中包含预计住宿日期、姓名、护照号码的护照照片。汇总表中已附上指向护照照片的链接，可快速核对信息与照片。",
+      "可从每行的Travel Card按钮查看住客实际看到的JAPAN TRAVEL CARD版式。下载的ZIP包含一目了然的住宿汇总表（CSV、HTML），以及文件名中包含预计住宿日期、姓名、护照号码的护照照片。",
     emptyForMonth: "该月份暂无住宿记录。",
     noPhoto: "无照片",
     stayDateLabel: "预计住宿日期",
