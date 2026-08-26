@@ -50,8 +50,35 @@ interface TransferDetailsStepProps {
   onNext: (data: TransferFormData, destination: Destination, room: Room) => void;
 }
 
+// アプリのロケールコードを Intl 用の BCP47 タグへ変換する。
+const INTL_LOCALE: Record<string, string> = {
+  ja: "ja-JP",
+  en: "en-US",
+  zh: "zh-CN",
+  ko: "ko-KR",
+  es: "es-ES",
+  fr: "fr-FR",
+};
+
+// "YYYY-MM-DD" を曜日つきの読みやすい日付に整形する（月・日の取り違え防止のため）。
+function formatReadableDate(value: string, locale: string): string {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  try {
+    return new Intl.DateTimeFormat(INTL_LOCALE[locale] ?? "en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "short",
+    }).format(date);
+  } catch {
+    return value;
+  }
+}
+
 export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsStepProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
@@ -63,7 +90,16 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   // 関西空港選択時のみ使用するターミナル（"1" | "2"）。それ以外の目的地では null。
   const [terminal, setTerminal] = useState<string | null>(null);
 
-  const [transferDate, setTransferDate] = useState<string>(() => localDateString(1));
+  // 初期値は空にして、ゲストに必ず「チェックアウト日」を選ばせる（明日のまま誤送信を防ぐ）。
+  const [transferDate, setTransferDate] = useState<string>("");
+  // 選んだ日付がチェックアウト日で間違いない、という明示的な確認。
+  const [dateConfirmed, setDateConfirmed] = useState(false);
+
+  // 日付を変えたら確認チェックはリセットする。
+  const chooseTransferDate = (value: string) => {
+    setTransferDate(value);
+    setDateConfirmed(false);
+  };
 
   const [flightTime, setFlightTime] = useState<string>("");
   const [preferredDepartureTime, setPreferredDepartureTime] = useState<string>("");
@@ -155,7 +191,12 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   const terminalSatisfied = !showTerminalSelector || terminal !== null;
   // フライト時刻は任意。希望出発時刻は送迎手配に必須で、朝10時までのみ対応。
   const canProceed =
-    roomId !== null && destinationId !== null && validPreferredDepartureTime && terminalSatisfied;
+    roomId !== null &&
+    destinationId !== null &&
+    validPreferredDepartureTime &&
+    terminalSatisfied &&
+    transferDate !== "" &&
+    dateConfirmed;
 
   const handleSubmit = () => {
     if (!canProceed || !selectedDestination || !selectedRoom) return;
@@ -196,17 +237,24 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
             <Calendar className="h-4 w-4 text-brand-500" />
             <h2 className="text-sm font-semibold text-slate-700">{t.transfer.transferDateLabel}</h2>
           </div>
+
+          {/* チェックアウト日に合わせるよう促す警告 */}
+          <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+            {t.transfer.transferDateWarn}
+          </p>
+
           <div className="flex gap-2">
             <input
               type="date"
               value={transferDate}
               min={localDateString(0)}
-              onChange={(e) => setTransferDate(e.target.value)}
+              max={localDateString(30)}
+              onChange={(e) => chooseTransferDate(e.target.value)}
               className="flex-1 rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
             />
             <button
               type="button"
-              onClick={() => setTransferDate(localDateString(1))}
+              onClick={() => chooseTransferDate(localDateString(1))}
               className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
                 transferDate === localDateString(1)
                   ? "border-brand-500 bg-brand-50 text-brand-700"
@@ -217,6 +265,24 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
             </button>
           </div>
           <p className="mt-1.5 text-xs text-slate-400">{t.transfer.transferDateNote}</p>
+
+          {/* 日付を選んだら、曜日つきの読みやすい表記＋必須の確認チェックを表示 */}
+          {transferDate && (
+            <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <input
+                type="checkbox"
+                checked={dateConfirmed}
+                onChange={(e) => setDateConfirmed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+              />
+              <span className="text-sm leading-5 text-slate-700">
+                <span className="block font-bold text-slate-900">{formatReadableDate(transferDate, locale)}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {t.transfer.transferDateConfirm(formatReadableDate(transferDate, locale))}
+                </span>
+              </span>
+            </label>
+          )}
         </section>
 
         {/* お部屋（写真付きカード） */}

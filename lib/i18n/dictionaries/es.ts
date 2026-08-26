@@ -30,6 +30,8 @@ const es: Dictionary = {
     description: "Introduce los datos necesarios para tu traslado.",
     transferDateLabel: "Fecha del traslado",
     transferDateNote: "Selecciona la fecha en que deseas el traslado.",
+    transferDateWarn: "⚠️ Selecciona la fecha de salida (check-out) como fecha del traslado. Revisa bien el mes y el día.",
+    transferDateConfirm: (date) => `Confirmo que mi fecha de salida es ${date}`,
     roomLabel: "Selecciona tu habitación",
     roomLoading: "Cargando habitaciones...",
     destinationLabel: "Destino",

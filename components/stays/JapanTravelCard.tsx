@@ -330,7 +330,7 @@ function EmergencyContactsCard({ lang }: { lang: CardLang }) {
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="bg-slate-950 px-5 py-3.5 text-white">
+      <div className="bg-[#0b1e46] px-5 py-3.5 text-white">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600/90">
             <ShieldAlert className="h-5 w-5" />
@@ -491,7 +491,7 @@ export default function JapanTravelCard({ data }: Props) {
             aria-pressed={active}
             className={`rounded-md px-2.5 py-1.5 text-xs font-bold transition ${
               active
-                ? "bg-slate-950 text-white"
+                ? "bg-[#0b1e46] text-white"
                 : "border border-slate-300 bg-white text-slate-600 hover:border-slate-500"
             }`}
           >
@@ -503,12 +503,22 @@ export default function JapanTravelCard({ data }: Props) {
   );
 
   return (
-    <div className={screenshotMode ? "fixed inset-0 z-50 overflow-y-auto bg-[#f8f5ef] px-3 py-4 sm:px-8 sm:py-8" : "mx-auto max-w-5xl"}>
+    <div className={screenshotMode ? "fixed inset-0 z-50 overflow-y-auto bg-[#eef4fb] px-3 py-4 sm:px-8 sm:py-8" : "mx-auto max-w-5xl"}>
+      {/* Crane Feather ブランドのヒーローバナー（全モード共通） */}
+      <div className="mb-4 overflow-hidden rounded-xl border border-blue-100 shadow-sm">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/travel-card-hero.jpg"
+          alt="Crane Feather International — Japan Travel Card"
+          className="w-full object-cover"
+        />
+      </div>
+
       {screenshotMode && (
         <button
           type="button"
           onClick={closeScreenshotMode}
-          className="fixed right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-slate-950 text-white shadow-lg"
+          className="fixed right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#0b1e46] text-white shadow-lg"
           aria-label={c.closeScreenshot}
         >
           <X className="h-5 w-5" />
@@ -520,11 +530,11 @@ export default function JapanTravelCard({ data }: Props) {
       {!presentation && !screenshotMode && (
         <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-red-700">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-blue-700">
               <Sparkles className="h-4 w-4" />
               {c.companion}
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">JAPAN TRAVEL CARD</h1>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-[#0b1e46] sm:text-3xl">JAPAN TRAVEL CARD</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -554,7 +564,7 @@ export default function JapanTravelCard({ data }: Props) {
             <button
               type="button"
               onClick={openPresentation}
-              className="flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-black text-white shadow-sm"
+              className="flex items-center gap-2 rounded-lg bg-[#0b1e46] px-4 py-2 text-sm font-black text-white shadow-sm"
             >
               <Hotel className="h-4 w-4" />
               {c.showToHotel}
@@ -582,16 +592,16 @@ export default function JapanTravelCard({ data }: Props) {
 
       <section className={screenshotMode ? "mx-auto grid max-w-4xl gap-4" : "grid gap-4 lg:grid-cols-[1.1fr_0.9fr]"}>
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
-          <div className="relative bg-slate-950 px-5 py-5 text-white sm:px-7 sm:py-7">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-600 via-amber-400 to-emerald-500" />
+          <div className="relative bg-[#0b1e46] px-5 py-5 text-white sm:px-7 sm:py-7">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-700 via-sky-400 to-blue-500" />
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-amber-200">Japan Travel Card</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-200">Japan Travel Card</p>
                 <p className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{profile.name}</p>
                 <p className="mt-2 text-sm font-semibold text-slate-300">{valueOrDash(profile.nationality)}</p>
               </div>
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
-                <IdCard className="h-9 w-9 text-amber-200" />
+                <IdCard className="h-9 w-9 text-sky-200" />
               </div>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-2 text-sm">
@@ -637,7 +647,7 @@ export default function JapanTravelCard({ data }: Props) {
                 <button
                   type="button"
                   onClick={() => (revealed ? copyText(hotelFormText, onCopied, c.hotelFormLabel) : setRevealed(true))}
-                  className="flex items-center gap-2 rounded-lg bg-red-700 px-4 py-2 text-sm font-black text-white shadow-sm"
+                  className="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white shadow-sm"
                 >
                   <Copy className="h-4 w-4" />
                   {revealed ? c.copyForHotel : c.revealToCopy}
@@ -701,7 +711,7 @@ export default function JapanTravelCard({ data }: Props) {
 
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <p className="mb-4 flex items-center gap-2 text-sm font-black text-slate-900">
-              <Wifi className="h-5 w-5 text-red-700" />
+              <Wifi className="h-5 w-5 text-blue-700" />
               {c.wifiTitle}
             </p>
             <div className="grid grid-cols-[116px_1fr] gap-4">

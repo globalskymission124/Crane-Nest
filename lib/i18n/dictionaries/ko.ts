@@ -29,6 +29,8 @@ const ko: Dictionary = {
     description: "픽업 예약에 필요한 정보를 입력합니다.",
     transferDateLabel: "픽업 희망 날짜",
     transferDateNote: "픽업을 원하시는 날짜를 선택해 주세요.",
+    transferDateWarn: "⚠️ 픽업 날짜를 체크아웃 날짜에 맞춰 주세요. 월·일을 꼭 확인하세요.",
+    transferDateConfirm: (date) => `체크아웃 날짜가 ${date} 인 것을 확인했습니다`,
     roomLabel: "객실을 선택해 주세요",
     roomLoading: "객실 정보를 불러오는 중...",
     destinationLabel: "목적지",

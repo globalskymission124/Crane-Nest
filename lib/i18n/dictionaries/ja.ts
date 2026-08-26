@@ -30,6 +30,8 @@ const ja: Dictionary = {
     description: "送迎予約に必要な情報を入力します。",
     transferDateLabel: "送迎ご希望日",
     transferDateNote: "送迎をご希望される日付を選択してください。",
+    transferDateWarn: "⚠️ 送迎日は「チェックアウト日」に合わせてください。月・日をよくご確認ください。",
+    transferDateConfirm: (date) => `${date} にチェックアウト予定で間違いありません`,
     roomLabel: "お部屋を選択",
     roomLoading: "お部屋を読み込み中...",
     destinationLabel: "行き先",

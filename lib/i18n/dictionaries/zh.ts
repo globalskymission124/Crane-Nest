@@ -30,6 +30,8 @@ const zh: Dictionary = {
     description: "请输入接送预约所需的信息。",
     transferDateLabel: "接送日期",
     transferDateNote: "请选择您希望的接送日期。",
+    transferDateWarn: "⚠️ 请将接送日期设为您的退房日期，并仔细核对月份和日期。",
+    transferDateConfirm: (date) => `我确认退房日期为 ${date}`,
     roomLabel: "选择房间",
     roomLoading: "正在加载房间...",
     destinationLabel: "目的地",

@@ -46,6 +46,8 @@ export interface Dictionary {
     description: string;
     transferDateLabel: string;
     transferDateNote: string;
+    transferDateWarn: string;
+    transferDateConfirm: (date: string) => string;
     roomLabel: string;
     roomLoading: string;
     destinationLabel: string;
