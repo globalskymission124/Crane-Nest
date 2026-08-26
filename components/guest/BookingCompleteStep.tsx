@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowRight, CheckCircle2, IdCard, Image as ImageIcon, Luggage, Users } from "lucide-react";
+import { CheckCircle2, Image as ImageIcon, Luggage, Users } from "lucide-react";
 import type { Destination, PassportFormData, Room, TransferFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
+import { GUEST_WIFI } from "@/lib/guestWifi";
+import type { JapanTravelCardData } from "@/lib/stays/travelCard";
+import JapanTravelCard from "@/components/stays/JapanTravelCard";
 import LanguageSwitcher from "./LanguageSwitcher";
 import WifiAccessCard from "./WifiAccessCard";
 
@@ -83,6 +85,36 @@ export default function BookingCompleteStep({
 
   const total = luggageTotal(transfer);
 
+  // パスポート登録が完了した時点のデータからトラベルカードをその場で組み立てる。
+  // 自動サインイン済みのため別ページへ移動しなくても本人情報を表示できる。
+  // 詳細な国籍などは /stays/travel-card 再訪時に stays_users から補完される。
+  const travelCardData: JapanTravelCardData = useMemo(
+    () => ({
+      profile: {
+        name: passport.fullName,
+        email: null,
+        phone: passport.phoneNumber || null,
+        nationality: null,
+        passportNumber: passport.passportNumber,
+        passportImageUrl: passport.passportImageUrl,
+        avatarUrl: null,
+      },
+      latestTransfer: {
+        bookingReference,
+        roomNumber: transfer.roomNumber,
+        destinationName: destination.name,
+        transferDate: transfer.transferDate,
+        departureTime:
+          transfer.suggestedDepartureTime ?? (transfer.preferredDepartureTime || transfer.flightTime || null),
+        passengers: transfer.passengerCount,
+        luggageTotal: total,
+      },
+      wifi: GUEST_WIFI,
+      generatedAt: new Date().toISOString(),
+    }),
+    [passport, transfer, destination, bookingReference, total]
+  );
+
   return (
     <div className="flex h-full flex-col px-5 py-6">
       <div className="mb-2 flex justify-end">
@@ -100,21 +132,10 @@ export default function BookingCompleteStep({
 
       <WifiAccessCard labels={t.wifi} className="mb-5" />
 
-      <Link
-        href="/stays/travel-card"
-        className="mb-5 flex items-center justify-between rounded-lg border border-red-100 bg-gradient-to-r from-slate-950 to-slate-800 px-4 py-3.5 text-white shadow-lg shadow-slate-950/15"
-      >
-        <span className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-            <IdCard className="h-5 w-5 text-amber-200" />
-          </span>
-          <span>
-            <span className="block text-sm font-black">JAPAN TRAVEL CARD</span>
-            <span className="block text-[11px] font-semibold text-slate-300">Passport, WiFi and stay info</span>
-          </span>
-        </span>
-        <ArrowRight className="h-5 w-5 text-amber-200" />
-      </Link>
+      {/* パスポート登録完了と同時に JAPAN TRAVEL CARD を自動表示（タップ不要）。 */}
+      <div className="mb-5">
+        <JapanTravelCard data={travelCardData} />
+      </div>
 
       {/* デジタル乗車券 */}
       <div className="overflow-hidden rounded-2xl border border-brand-100 shadow-lg shadow-brand-700/20">
