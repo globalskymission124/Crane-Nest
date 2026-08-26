@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import PassportUploadStep from "@/components/guest/PassportUploadStep";
 import TransferDetailsStep from "@/components/guest/TransferDetailsStep";
 import BookingCompleteStep from "@/components/guest/BookingCompleteStep";
@@ -9,13 +9,7 @@ import type { Destination, PassportFormData, Room, TransferFormData } from "@/li
 import { submitBooking } from "@/lib/guestBooking";
 import { autoSignInWithPassport } from "@/lib/stays/auth";
 
-type GuestStep = "passport" | "details" | "submitting" | "complete";
-
-// Supabaseへの保存に失敗した場合のフォールバック予約番号（デモ表示用）
-function generateFallbackBookingReference() {
-  const random = Math.floor(1000 + Math.random() * 9000);
-  return `TRF-${random}`;
-}
+type GuestStep = "passport" | "details" | "submitting" | "submitError" | "complete";
 
 function notifyTransferBooking(transferRequestId: string) {
   fetch("/api/transfer/booking-alert", {
@@ -34,6 +28,7 @@ export default function GuestFlowPage() {
   const [destination, setDestination] = useState<Destination | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [bookingReference, setBookingReference] = useState<string>("");
+  const [submitError, setSubmitError] = useState<string>("");
 
   const handlePassportNext = (data: PassportFormData) => {
     setPassport(data);
@@ -48,15 +43,23 @@ export default function GuestFlowPage() {
     setTransfer(data);
     setDestination(resolvedDestination);
     setRoom(resolvedRoom);
+    setSubmitError("");
     setStep("submitting");
 
     // パスポート写真・宿泊者情報・送迎リクエストをSupabaseへ保存する。
     // 管理画面で「誰がいつ宿泊したか」をパスポート写真とリンクして確認・ダウンロードできるようにするため。
-    // 保存に失敗してもゲスト側の体験は止めず、デモ用の予約番号で完了画面へ進める。
-    const result = passport ? await submitBooking(passport, data) : null;
-    setBookingReference(result?.bookingReference ?? generateFallbackBookingReference());
-    setStep("complete");
-    if (result?.transferRequestId) notifyTransferBooking(result.transferRequestId);
+    // 保存できなかった予約は送迎看板に出ないため、完了画面には進めず理由を表示する。
+    try {
+      if (!passport) throw new Error("パスポート情報が見つかりません。最初からやり直してください。");
+      const result = await submitBooking(passport, data);
+      setBookingReference(result.bookingReference);
+      setStep("complete");
+      notifyTransferBooking(result.transferRequestId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "予約情報の保存に失敗しました。";
+      setSubmitError(message);
+      setStep("submitError");
+    }
   };
 
   switch (step) {
@@ -71,6 +74,29 @@ export default function GuestFlowPage() {
         <div className="flex h-full min-h-[480px] flex-col items-center justify-center gap-3 px-5 py-6 text-slate-400">
           <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
           <p className="text-sm">予約内容を送信しています...</p>
+        </div>
+      );
+
+    case "submitError":
+      return (
+        <div className="flex h-full min-h-[480px] flex-col justify-center px-5 py-6">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-5 text-rose-700">
+            <div className="mb-3 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              <h1 className="text-base font-bold">予約情報を保存できませんでした</h1>
+            </div>
+            <p className="text-sm leading-6">
+              このまま完了すると管理画面の送迎看板に表示されません。通信状況を確認して、もう一度送信してください。
+            </p>
+            <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs text-rose-600">{submitError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("details")}
+            className="mt-5 w-full rounded-xl bg-slate-900 py-3.5 text-sm font-semibold text-white transition active:scale-[0.99]"
+          >
+            入力画面に戻る
+          </button>
         </div>
       );
 

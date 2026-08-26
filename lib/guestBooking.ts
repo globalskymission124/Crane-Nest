@@ -9,8 +9,8 @@ import type { GuestEntry, PassportFormData, TransferFormData } from "./types";
 // 管理画面で「誰がいつ宿泊したか」をパスポート写真とリンクして
 // 確認・ダウンロードできるようにするため、実データとして永続化する。
 //
-// 失敗時は例外を投げず null を返す（ゲスト側の体験を止めないため）。
-// 失敗の詳細は呼び出し側でログ出力やフォールバック表示に利用できる。
+// 失敗時は例外を投げ、ゲスト側で完了画面に進めない。
+// 保存に失敗した予約は管理画面の送迎看板に表示されないため。
 // =========================================================
 
 const PASSPORT_BUCKET = "passport-photos";
@@ -66,7 +66,6 @@ async function uploadPassportPhoto(previewUrl: string): Promise<string | null> {
     }
 
     const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
-    console.log("[passport upload] publicUrl:", data.publicUrl);
     return data.publicUrl;
   } catch {
     return null;
@@ -78,43 +77,80 @@ interface SubmitBookingResult {
   transferRequestId: string;
 }
 
-// 1名分のパスポート情報を guests テーブルへ upsert し、guest.id を返す。
+function bookingSaveError(label: string, error: unknown): Error {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String((error as { message?: unknown }).message)
+      : "原因不明のエラー";
+  return new Error(`${label}に失敗しました: ${message}`);
+}
+
+// 1名分のパスポート情報を guests テーブルへ保存し、guest.id を返す。
 //  - 写真があれば先に Storage へアップロードしてURLを取得
-//  - 同一パスポート番号は既存行を更新して再利用（upsert）
+//  - 同一パスポート番号は既存行を再利用
 //  - 新しい写真がある場合のみ passport_image_url を更新（nullで既存を上書きしない）
-//  - 失敗時は null を返す（呼び出し側で代表者は必須・同行者はスキップ扱い）
-async function upsertGuestEntry(entry: GuestEntry): Promise<string | null> {
+//  - 入力不足なら null、DB保存失敗なら例外を投げる
+async function saveGuestEntry(entry: GuestEntry): Promise<string | null> {
   if (!entry.passportNumber?.trim() || !entry.fullName?.trim()) return null;
 
+  const passportNumber = entry.passportNumber.trim().toUpperCase();
   const uploadedImageUrl = entry.passportImageUrl
     ? await uploadPassportPhoto(entry.passportImageUrl)
     : null;
 
   const guestPayload: Record<string, unknown> = {
-    passport_number: entry.passportNumber,
-    full_name: entry.fullName,
+    passport_number: passportNumber,
+    full_name: entry.fullName.trim(),
     phone_number: entry.phoneNumber || null,
   };
   if (uploadedImageUrl) {
     guestPayload.passport_image_url = uploadedImageUrl;
   }
 
+  const { data: existingGuest, error: lookupError } = await supabase
+    .from("guests")
+    .select("id")
+    .eq("passport_number", passportNumber)
+    .maybeSingle();
+
+  if (lookupError) throw bookingSaveError("既存パスポート情報の確認", lookupError);
+
+  if (existingGuest?.id) {
+    const { error: updateError } = await supabase
+      .from("guests")
+      .update(guestPayload)
+      .eq("id", existingGuest.id);
+
+    // update権限が未適用の環境でも、既存ゲストIDを使えば送迎予約自体は保存できる。
+    if (updateError) {
+      console.warn("[booking] guest update skipped:", updateError.message, updateError);
+    }
+
+    return existingGuest.id as string;
+  }
+
   const { data: guestRow, error: guestError } = await supabase
     .from("guests")
-    .upsert(guestPayload, { onConflict: "passport_number" })
+    .insert(guestPayload)
     .select("id")
     .single();
 
-  if (guestError || !guestRow) return null;
+  if (guestError) throw bookingSaveError("パスポート情報の保存", guestError);
+  if (!guestRow) throw new Error("パスポート情報を保存しましたが、IDを取得できませんでした。");
   return guestRow.id as string;
 }
 
 export async function submitBooking(
   passport: PassportFormData,
   transfer: TransferFormData
-): Promise<SubmitBookingResult | null> {
+): Promise<SubmitBookingResult> {
   try {
-    if (!isWithinTransferServiceHours(transfer.preferredDepartureTime)) return null;
+    if (!isWithinTransferServiceHours(transfer.preferredDepartureTime)) {
+      throw new Error("希望出発時刻は00:00〜10:00の間で選択してください。");
+    }
+    if (!transfer.destinationId) {
+      throw new Error("目的地を選択してください。");
+    }
 
     // 代表者（1人目）＋同行者（2人目以降）をまとめて処理する。
     const primaryEntry: GuestEntry = {
@@ -126,14 +162,14 @@ export async function submitBooking(
     const companionEntries = passport.companions ?? [];
 
     // 代表者は必須。ここで失敗したら予約自体を中断する。
-    const primaryGuestId = await upsertGuestEntry(primaryEntry);
-    if (!primaryGuestId) return null;
+    const primaryGuestId = await saveGuestEntry(primaryEntry);
+    if (!primaryGuestId) throw new Error("代表者のパスポート情報を保存できませんでした。");
 
     // 同行者を順次 upsert。個別に失敗しても予約は止めず、成功分だけリンクする。
     // 重複パスポート（代表者と同一・同行者同士の重複）は1件に名寄せする。
     const linkedGuestIds = new Set<string>([primaryGuestId]);
     for (const companion of companionEntries) {
-      const companionGuestId = await upsertGuestEntry(companion);
+      const companionGuestId = await saveGuestEntry(companion);
       if (companionGuestId) linkedGuestIds.add(companionGuestId);
     }
 
@@ -161,7 +197,8 @@ export async function submitBooking(
       .select("id")
       .single();
 
-    if (transferError || !transferRow) return null;
+    if (transferError) throw bookingSaveError("送迎予約の保存", transferError);
+    if (!transferRow) throw new Error("送迎予約を保存しましたが、予約IDを取得できませんでした。");
 
     // 予約に紐づく全ゲスト（代表者＋同行者）を中間テーブルへ登録する。
     // 失敗してもゲストの完了体験は止めない（管理画面側の表示は代表者にフォールバック）。
@@ -179,8 +216,9 @@ export async function submitBooking(
       bookingReference: `TRF-${transferRow.id.slice(0, 8).toUpperCase()}`,
       transferRequestId: transferRow.id,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    console.error("[booking] submit failed:", error);
+    throw error instanceof Error ? error : new Error("予約情報の保存に失敗しました。");
   }
 }
 

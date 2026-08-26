@@ -10,34 +10,49 @@
 // =========================================================
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, ImageOff, Loader2, Users, X, Phone, MapPin, Calendar, Hash, Clock } from "lucide-react";
+import { Calendar, Clock, Download, Hash, ImageOff, Loader2, MapPin, Phone, Users, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
+
+type GuestRecordSource = "transfer" | "checkin";
 
 // 1予約に紐づく1名分（代表者・同行者共通）
 interface GuestPerson {
   fullName: string;
   passportNumber: string;
+  nationality: string | null;
   phoneNumber: string | null;
+  email: string | null;
   passportImageUrl: string | null;
   isPrimary: boolean;
 }
 
 interface GuestRecord {
-  transferId: string;
-  createdAt: string; // 予約日時（ISO）
+  recordId: string;
+  source: GuestRecordSource;
+  sourceLabel: string;
+  createdAt: string; // 登録日時（ISO）
+  recordDate: string | null; // 月別絞り込みに使う日付（送迎日 or C/I日）
   transferDate: string | null; // 送迎日（YYYY-MM-DD）
-  stayDate: string | null; // 送迎予定日（ISO、日付部分のみ使用）
+  checkinDate: string | null; // QRチェックイン日（YYYY-MM-DD）
+  departureTime: string | null;
+  flightTime: string | null;
+  passengerCount: number | null;
+  luggageTotal: number | null;
+  status: string | null;
+  checkinPageTitle: string | null;
   // 代表者の情報（既存の一覧・モーダル表示との後方互換のため保持）
   fullName: string;
   passportNumber: string;
+  nationality: string | null;
   phoneNumber: string | null;
+  email: string | null;
   passportImageUrl: string | null;
   // 予約に含まれる全ゲスト（代表者を先頭に、同行者が続く）
   guests: GuestPerson[];
-  roomNumber: string;
-  destinationName: string;
+  roomNumber: string | null;
+  destinationName: string | null;
 }
 
 interface RawGuest {
@@ -47,21 +62,40 @@ interface RawGuest {
   passport_image_url: string | null;
 }
 
-interface RawRow {
+interface RawTransferRow {
   id: string;
   created_at: string;
   room_number: string;
   transfer_date: string | null;
   flight_time: string | null;
+  preferred_departure_time: string | null;
   suggested_departure_time: string | null;
-  // 単一FK（代表者）。旧データや中間テーブル未登録時のフォールバック用。
   guests: RawGuest | RawGuest[] | null;
-  // 中間テーブル経由の全ゲスト（代表者＋同行者）。
-  transfer_request_guests?: {
-    is_primary: boolean;
-    guests: RawGuest | RawGuest[] | null;
-  }[] | null;
+  passenger_count: number | null;
+  luggage_large: number | null;
+  luggage_small: number | null;
+  luggage_special: number | null;
+  status: string | null;
   destinations: { name: string } | { name: string }[] | null;
+}
+
+interface RawTransferLink {
+  transfer_request_id: string;
+  is_primary: boolean;
+  guests: RawGuest | RawGuest[] | null;
+}
+
+interface RawCheckinRow {
+  id: string;
+  created_at: string;
+  full_name: string;
+  passport_number: string;
+  nationality: string | null;
+  phone: string | null;
+  email: string | null;
+  checkin_date: string | null;
+  passport_image_url: string | null;
+  stays_checkin_pages: { title: string } | { title: string }[] | null;
 }
 
 type LoadState = "loading" | "ready" | "error";
@@ -75,20 +109,33 @@ function toPerson(guest: RawGuest, isPrimary: boolean, t: AdminDictionary): Gues
   return {
     fullName: guest.full_name ?? t.records.unregisteredName,
     passportNumber: guest.passport_number ?? "—",
+    nationality: null,
     phoneNumber: guest.phone_number ?? null,
+    email: null,
     passportImageUrl: guest.passport_image_url ?? null,
     isPrimary,
   };
 }
 
-function toRecord(row: RawRow, t: AdminDictionary): GuestRecord {
+function toCheckinPerson(row: RawCheckinRow, t: AdminDictionary): GuestPerson {
+  return {
+    fullName: row.full_name ?? t.records.unregisteredName,
+    passportNumber: row.passport_number ?? "—",
+    nationality: row.nationality ?? null,
+    phoneNumber: row.phone ?? null,
+    email: row.email ?? null,
+    passportImageUrl: row.passport_image_url ?? null,
+    isPrimary: true,
+  };
+}
+
+function toTransferRecord(row: RawTransferRow, links: RawTransferLink[] | undefined, t: AdminDictionary): GuestRecord {
   const destination = pickRecord(row.destinations);
 
   // 中間テーブルがあれば全ゲストを展開（代表者を先頭に並べ替え）。
   // 無ければ従来どおり単一FKの guests を代表者1名として扱う（旧データ互換）。
   let people: GuestPerson[] = [];
-  const links = row.transfer_request_guests ?? [];
-  if (links.length > 0) {
+  if (links && links.length > 0) {
     people = links
       .map((link) => {
         const g = pickRecord(link.guests);
@@ -105,13 +152,24 @@ function toRecord(row: RawRow, t: AdminDictionary): GuestRecord {
   const primary = people[0];
 
   return {
-    transferId: row.id,
+    recordId: row.id,
+    source: "transfer",
+    sourceLabel: t.records.transferSourceLabel,
     createdAt: row.created_at,
+    recordDate: row.transfer_date ?? row.flight_time ?? row.suggested_departure_time ?? null,
     transferDate: row.transfer_date ?? null,
-    stayDate: row.flight_time ?? row.suggested_departure_time ?? null,
+    checkinDate: null,
+    departureTime: row.preferred_departure_time ?? formatTimeLabel(row.suggested_departure_time),
+    flightTime: formatTimeLabel(row.flight_time),
+    passengerCount: row.passenger_count ?? null,
+    luggageTotal: (row.luggage_large ?? 0) + (row.luggage_small ?? 0) + (row.luggage_special ?? 0),
+    status: row.status ?? null,
+    checkinPageTitle: null,
     fullName: primary?.fullName ?? t.records.unregisteredName,
     passportNumber: primary?.passportNumber ?? "—",
+    nationality: primary?.nationality ?? null,
     phoneNumber: primary?.phoneNumber ?? null,
+    email: primary?.email ?? null,
     passportImageUrl: primary?.passportImageUrl ?? null,
     guests: people,
     roomNumber: row.room_number,
@@ -119,13 +177,48 @@ function toRecord(row: RawRow, t: AdminDictionary): GuestRecord {
   };
 }
 
+function toCheckinRecord(row: RawCheckinRow, t: AdminDictionary): GuestRecord {
+  const person = toCheckinPerson(row, t);
+  const page = pickRecord(row.stays_checkin_pages);
+
+  return {
+    recordId: row.id,
+    source: "checkin",
+    sourceLabel: t.records.checkinSourceLabel,
+    createdAt: row.created_at,
+    recordDate: row.checkin_date ?? row.created_at,
+    transferDate: null,
+    checkinDate: row.checkin_date ?? null,
+    departureTime: null,
+    flightTime: null,
+    passengerCount: null,
+    luggageTotal: null,
+    status: null,
+    checkinPageTitle: page?.title ?? null,
+    fullName: person.fullName,
+    passportNumber: person.passportNumber,
+    nationality: person.nationality,
+    phoneNumber: person.phoneNumber,
+    email: person.email,
+    passportImageUrl: person.passportImageUrl,
+    guests: [person],
+    roomNumber: null,
+    destinationName: null,
+  };
+}
+
 // "2026-06" 形式のキーを返す（月単位の絞り込み・グルーピング用）
-function monthKey(isoString: string): string {
-  return isoString.slice(0, 7);
+function monthKey(value: string | null): string {
+  return (value || "").slice(0, 7);
+}
+
+function recordMonthKey(record: GuestRecord): string {
+  return monthKey(record.recordDate ?? record.createdAt);
 }
 
 function formatDateLabel(isoString: string | null, undecided: string): string {
   if (!isoString) return undecided;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoString)) return isoString;
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return undecided;
   return date.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -141,6 +234,16 @@ function formatDateTimeLabel(isoString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatTimeLabel(value: string | null): string | null {
+  if (!value) return null;
+  const time = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (time) return `${time[1].padStart(2, "0")}:${time[2]}`;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
 function monthLabel(key: string, monthFormat: (year: string, month: number) => string): string {
@@ -159,6 +262,76 @@ function fileExtensionFromUrl(url: string): string {
   return match ? match[1].toLowerCase() : "jpg";
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function nonEmptyCell(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const text = String(value).trim();
+  return text || "—";
+}
+
+function contactCell(person: GuestPerson): string {
+  const parts = [person.phoneNumber, person.email].filter((value): value is string => Boolean(value?.trim()));
+  return parts.length > 0 ? parts.join(" / ") : "—";
+}
+
+async function fetchTransferRecords(t: AdminDictionary): Promise<GuestRecord[]> {
+  const { data, error } = await supabase
+    .from("transfer_requests")
+    .select(
+      `id, created_at, room_number, transfer_date, flight_time, preferred_departure_time, suggested_departure_time,
+       passenger_count, luggage_large, luggage_small, luggage_special, status,
+       guests ( full_name, passport_number, phone_number, passport_image_url ),
+       destinations ( name )`
+    )
+    .order("created_at", { ascending: false });
+
+  if (error || !data) throw error ?? new Error("transfer_requests returned no data");
+
+  const rows = data as unknown as RawTransferRow[];
+  const ids = rows.map((row) => row.id);
+  const linksByTransfer = new Map<string, RawTransferLink[]>();
+
+  if (ids.length > 0) {
+    const { data: linkData, error: linkError } = await supabase
+      .from("transfer_request_guests")
+      .select("transfer_request_id, is_primary, guests ( full_name, passport_number, phone_number, passport_image_url )")
+      .in("transfer_request_id", ids);
+
+    if (!linkError && linkData) {
+      for (const link of linkData as unknown as RawTransferLink[]) {
+        const existing = linksByTransfer.get(link.transfer_request_id) ?? [];
+        existing.push(link);
+        linksByTransfer.set(link.transfer_request_id, existing);
+      }
+    } else if (linkError) {
+      console.warn("[records] transfer_request_guests could not be loaded:", linkError.message, linkError);
+    }
+  }
+
+  return rows.map((row) => toTransferRecord(row, linksByTransfer.get(row.id), t));
+}
+
+async function fetchCheckinRecords(t: AdminDictionary): Promise<GuestRecord[]> {
+  const { data, error } = await supabase
+    .from("stays_checkin_guests")
+    .select(
+      `id, created_at, full_name, passport_number, nationality, phone, email, checkin_date, passport_image_url,
+       stays_checkin_pages ( title )`
+    )
+    .order("created_at", { ascending: false });
+
+  if (error || !data) throw error ?? new Error("stays_checkin_guests returned no data");
+  return (data as unknown as RawCheckinRow[]).map((row) => toCheckinRecord(row, t));
+}
+
 export default function GuestRecordsManager() {
   const { t } = useAdminTranslation();
   const [records, setRecords] = useState<GuestRecord[]>([]);
@@ -172,27 +345,24 @@ export default function GuestRecordsManager() {
     let cancelled = false;
 
     async function load() {
-      const { data, error } = await supabase
-        .from("transfer_requests")
-        .select(
-          `id, created_at, room_number, transfer_date, flight_time, suggested_departure_time,
-           guests ( full_name, passport_number, phone_number, passport_image_url ),
-           transfer_request_guests ( is_primary, guests ( full_name, passport_number, phone_number, passport_image_url ) ),
-           destinations ( name )`
-        )
-        .order("created_at", { ascending: false });
+      try {
+        const [transferRecords, checkinRecords] = await Promise.all([
+          fetchTransferRecords(t),
+          fetchCheckinRecords(t),
+        ]);
+        if (cancelled) return;
 
-      if (cancelled) return;
-
-      if (error || !data) {
+        const mapped = [...transferRecords, ...checkinRecords].sort((a, b) =>
+          b.createdAt.localeCompare(a.createdAt)
+        );
+        setRecords(mapped);
+        setSelectedMonth((current) => current || (mapped[0] ? recordMonthKey(mapped[0]) : ""));
+        setState("ready");
+      } catch (error) {
+        console.error("[records] load failed:", error);
+        if (cancelled) return;
         setState("error");
-        return;
       }
-
-      const mapped = (data as unknown as RawRow[]).map((row) => toRecord(row, t));
-      setRecords(mapped);
-      setSelectedMonth((current) => current || (mapped[0] ? monthKey(mapped[0].createdAt) : ""));
-      setState("ready");
     }
 
     load();
@@ -202,13 +372,13 @@ export default function GuestRecordsManager() {
   }, []);
 
   const availableMonths = useMemo(() => {
-    const set = new Set(records.map((record) => monthKey(record.createdAt)));
+    const set = new Set(records.map(recordMonthKey).filter(Boolean));
     return Array.from(set).sort((a, b) => (a < b ? 1 : -1));
   }, [records]);
 
   const filteredRecords = useMemo(() => {
     if (!selectedMonth) return records;
-    return records.filter((record) => monthKey(record.createdAt) === selectedMonth);
+    return records.filter((record) => recordMonthKey(record) === selectedMonth);
   }, [records, selectedMonth]);
 
   const handleDownload = async () => {
@@ -224,13 +394,14 @@ export default function GuestRecordsManager() {
 
       // ---- 一覧表（誰がいつ宿泊したか一目でわかるサマリー） ----
       const summaryHeader = t.records.summaryHeaders;
+      const photoColumnIndex = summaryHeader.length - 1;
 
       const usedNames = new Set<string>();
       const summaryRows: string[][] = [];
       const photoEntries: { fileName: string; url: string }[] = [];
 
       for (const record of filteredRecords) {
-        const dateLabel = formatDateLabel(record.stayDate, t.records.undecided);
+        const dateLabel = formatDateLabel(record.recordDate, t.records.undecided);
 
         // 予約に含まれる全ゲスト（代表者＋同行者）を1名1行で書き出す。
         const people = record.guests.length > 0
@@ -238,7 +409,9 @@ export default function GuestRecordsManager() {
           : [{
               fullName: record.fullName,
               passportNumber: record.passportNumber,
+              nationality: record.nationality,
               phoneNumber: record.phoneNumber,
+              email: record.email,
               passportImageUrl: record.passportImageUrl,
               isPrimary: true,
             } as GuestPerson];
@@ -262,12 +435,19 @@ export default function GuestRecordsManager() {
           }
 
           summaryRows.push([
+            record.sourceLabel,
             formatDateTimeLabel(record.createdAt),
+            dateLabel,
             person.fullName,
             person.passportNumber,
-            person.phoneNumber ?? "—",
-            record.roomNumber,
-            record.destinationName,
+            nonEmptyCell(person.nationality),
+            contactCell(person),
+            nonEmptyCell(record.roomNumber),
+            nonEmptyCell(record.destinationName),
+            nonEmptyCell(record.departureTime),
+            nonEmptyCell(record.passengerCount),
+            nonEmptyCell(record.luggageTotal),
+            nonEmptyCell(record.status ?? record.checkinPageTitle),
             photoFileName || t.records.noPhotoCell,
           ]);
         }
@@ -284,17 +464,18 @@ export default function GuestRecordsManager() {
         .map(
           (row) => `
             <tr>
-              <td>${row[0]}</td>
-              <td><strong>${row[1]}</strong></td>
-              <td>${row[2]}</td>
-              <td>${row[3]}</td>
-              <td>${row[4]}</td>
-              <td>${row[5]}</td>
-              <td>${
-                row[6] !== t.records.noPhotoCell
-                  ? `<a href="${t.records.photoFolderName}/${encodeURIComponent(row[6])}">${row[6]}</a>`
-                  : t.records.noPhotoCell
-              }</td>
+              ${row
+                .map((cell, index) => {
+                  if (index === photoColumnIndex) {
+                    return `<td>${
+                      cell !== t.records.noPhotoCell
+                        ? `<a href="${escapeHtml(t.records.photoFolderName)}/${encodeURIComponent(cell)}">${escapeHtml(cell)}</a>`
+                        : escapeHtml(t.records.noPhotoCell)
+                    }</td>`;
+                  }
+                  return `<td>${index === 3 ? `<strong>${escapeHtml(cell)}</strong>` : escapeHtml(cell)}</td>`;
+                })
+                .join("")}
             </tr>`
         )
         .join("");
@@ -303,7 +484,7 @@ export default function GuestRecordsManager() {
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<title>${t.records.htmlTitle(monthName)}</title>
+<title>${escapeHtml(t.records.htmlTitle(monthName))}</title>
 <style>
   body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif; padding: 24px; color: #1e293b; }
   h1 { font-size: 18px; margin-bottom: 4px; }
@@ -316,11 +497,11 @@ export default function GuestRecordsManager() {
 </style>
 </head>
 <body>
-  <h1>${t.records.htmlHeading(monthName)}</h1>
-  <p class="note">${t.records.htmlNote}</p>
+  <h1>${escapeHtml(t.records.htmlHeading(monthName))}</h1>
+  <p class="note">${escapeHtml(t.records.htmlNote)}</p>
   <table>
     <thead>
-      <tr>${summaryHeader.map((h) => `<th>${h}</th>`).join("")}</tr>
+      <tr>${summaryHeader.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr>
     </thead>
     <tbody>${htmlRows}</tbody>
   </table>
@@ -418,6 +599,16 @@ export default function GuestRecordsManager() {
             <div className="p-5 flex flex-col gap-4">
               {/* 名前 + パスポート番号 */}
               <div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                    {detailRecord.sourceLabel}
+                  </span>
+                  {detailRecord.status && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                      {detailRecord.status}
+                    </span>
+                  )}
+                </div>
                 <h2 className="text-lg font-bold text-slate-900">{detailRecord.fullName}</h2>
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
                   <Hash className="h-3.5 w-3.5" />
@@ -427,18 +618,54 @@ export default function GuestRecordsManager() {
 
               {/* グリッド詳細 */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.roomLabel}</span>
-                  <span className="text-sm font-semibold text-slate-800">{detailRecord.roomNumber}</span>
-                </div>
-                <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.destinationLabel}</span>
-                  <span className="text-sm font-semibold text-slate-800">{detailRecord.destinationName}</span>
-                </div>
-                {detailRecord.transferDate && (
+                {detailRecord.recordDate && (
                   <div className="flex flex-col gap-0.5 rounded-xl bg-brand-50 px-3 py-2.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-400">{t.records.transferDateLabel}</span>
-                    <span className="text-sm font-bold text-brand-700">{detailRecord.transferDate}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-400">
+                      {detailRecord.source === "transfer" ? t.records.transferDateLabel : t.records.checkinDateLabel}
+                    </span>
+                    <span className="flex items-center gap-1 text-sm font-bold text-brand-700">
+                      <Calendar className="h-3 w-3" />
+                      {formatDateLabel(detailRecord.recordDate, t.records.undecided)}
+                    </span>
+                  </div>
+                )}
+                {detailRecord.roomNumber && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.roomLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.roomNumber}</span>
+                  </div>
+                )}
+                {detailRecord.destinationName && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.destinationLabel}</span>
+                    <span className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+                      <MapPin className="h-3 w-3" />
+                      {detailRecord.destinationName}
+                    </span>
+                  </div>
+                )}
+                {detailRecord.departureTime && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.departureTimeLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.departureTime}</span>
+                  </div>
+                )}
+                {detailRecord.passengerCount !== null && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.passengersLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.passengerCount}</span>
+                  </div>
+                )}
+                {detailRecord.luggageTotal !== null && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.luggageLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.luggageTotal}</span>
+                  </div>
+                )}
+                {detailRecord.nationality && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.nationalityLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.nationality}</span>
                   </div>
                 )}
                 {detailRecord.phoneNumber && (
@@ -448,6 +675,12 @@ export default function GuestRecordsManager() {
                       <Phone className="h-3 w-3" />
                       {detailRecord.phoneNumber}
                     </span>
+                  </div>
+                )}
+                {detailRecord.checkinPageTitle && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.checkinPageLabel}</span>
+                    <span className="text-sm font-semibold text-slate-800">{detailRecord.checkinPageTitle}</span>
                   </div>
                 )}
               </div>
@@ -511,7 +744,7 @@ export default function GuestRecordsManager() {
                 <option key={key} value={key}>
                   {t.records.monthOption(
                     monthLabel(key, t.records.monthFormat),
-                    records.filter((r) => monthKey(r.createdAt) === key).length
+                    records.filter((r) => recordMonthKey(r) === key).length
                   )}
                 </option>
               ))}
@@ -552,7 +785,7 @@ export default function GuestRecordsManager() {
         ) : (
           filteredRecords.map((record) => (
             <button
-              key={record.transferId}
+              key={`${record.source}-${record.recordId}`}
               type="button"
               onClick={() => setDetailRecord(record)}
               className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-brand-300 hover:shadow-sm active:scale-[0.99]"
@@ -575,6 +808,9 @@ export default function GuestRecordsManager() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                    {record.sourceLabel}
+                  </span>
                   <p className="truncate text-sm font-semibold text-slate-800">{record.fullName}</p>
                   <p className="text-xs text-slate-400">{record.passportNumber}</p>
                   {record.guests.length > 1 && (
@@ -584,14 +820,21 @@ export default function GuestRecordsManager() {
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {t.records.roomLabel}: {record.roomNumber}・{t.records.destinationLabel}: {record.destinationName}
-                </p>
-                {record.transferDate && (
-                  <p className="mt-0.5 text-xs font-medium text-brand-600">
-                    {t.records.transferDateLabel}: {record.transferDate}
+                {(record.roomNumber || record.destinationName || record.checkinPageTitle) && (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {record.roomNumber ? `${t.records.roomLabel}: ${record.roomNumber}` : ""}
+                    {record.roomNumber && record.destinationName ? "・" : ""}
+                    {record.destinationName ? `${t.records.destinationLabel}: ${record.destinationName}` : ""}
+                    {!record.roomNumber && !record.destinationName && record.checkinPageTitle
+                      ? `${t.records.checkinPageLabel}: ${record.checkinPageTitle}`
+                      : ""}
                   </p>
                 )}
+                <p className="mt-0.5 text-xs font-medium text-brand-600">
+                  {record.source === "transfer" ? t.records.transferDateLabel : t.records.checkinDateLabel}:{" "}
+                  {formatDateLabel(record.recordDate, t.records.undecided)}
+                  {record.departureTime ? `・${t.records.departureTimeLabel}: ${record.departureTime}` : ""}
+                </p>
                 <p className="mt-0.5 text-[11px] text-slate-400">
                   {t.records.bookingDateTimeLabel}: {formatDateTimeLabel(record.createdAt)}
                   {record.phoneNumber ? `・${t.records.phoneLabel}: ${record.phoneNumber}` : ""}
