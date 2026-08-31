@@ -46,30 +46,65 @@ async function compressImage(blob: Blob): Promise<Blob> {
   });
 }
 
-async function uploadPassportPhoto(previewUrl: string): Promise<string | null> {
-  try {
-    const response = await fetch(previewUrl);
-    const rawBlob = await response.blob();
-    // JPEG圧縮してサイズを削減
-    const blob = await compressImage(rawBlob);
-    const path = `${crypto.randomUUID()}.jpg`;
-
-    const { error: uploadError } = await supabase.storage.from(PASSPORT_BUCKET).upload(path, blob, {
-      cacheControl: "3600",
-      upsert: false,
-      contentType: "image/jpeg",
-    });
-
-    if (uploadError) {
-      console.error("[passport upload] storage upload error:", uploadError.message, uploadError);
-      return null;
-    }
-
-    const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
-    return data.publicUrl;
-  } catch {
-    return null;
+// パスポート写真を1回だけアップロードする内部関数。
+// 失敗時は例外を投げる（呼び出し側でリトライ判定するため）。
+async function uploadPassportPhotoOnce(previewUrl: string): Promise<string> {
+  const response = await fetch(previewUrl);
+  if (!response.ok) {
+    throw new Error(`プレビュー画像の取得に失敗しました (status ${response.status})`);
   }
+  const rawBlob = await response.blob();
+  // blob URLが失効している等で中身が空のケースを明示的に失敗扱いにする
+  if (!rawBlob.size) {
+    throw new Error("プレビュー画像が空です（撮り直しが必要な可能性があります）");
+  }
+
+  // JPEG圧縮してサイズを削減
+  const blob = await compressImage(rawBlob);
+  const path = `${crypto.randomUUID()}.jpg`;
+
+  const { error: uploadError } = await supabase.storage.from(PASSPORT_BUCKET).upload(path, blob, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: "image/jpeg",
+  });
+
+  if (uploadError) {
+    throw new Error(`ストレージへの保存に失敗しました: ${uploadError.message}`);
+  }
+
+  const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
+  if (!data?.publicUrl) {
+    throw new Error("公開URLの取得に失敗しました");
+  }
+  return data.publicUrl;
+}
+
+// パスポート写真をアップロードする。
+// 一時的なネットワーク不調で写真が欠落する事故を防ぐため、最大3回リトライする。
+// すべて失敗した場合は null を返し、最後のエラーを返り値の2要素目に含める。
+async function uploadPassportPhoto(
+  previewUrl: string
+): Promise<{ url: string | null; error: Error | null }> {
+  const MAX_ATTEMPTS = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const url = await uploadPassportPhotoOnce(previewUrl);
+      return { url, error: null };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[passport upload] attempt ${attempt}/${MAX_ATTEMPTS} failed:`, lastError.message);
+      // 最終試行以外は少し待って再試行（指数的バックオフ）
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
+  }
+
+  console.error("[passport upload] all attempts failed:", lastError?.message, lastError);
+  return { url: null, error: lastError };
 }
 
 interface SubmitBookingResult {
@@ -90,13 +125,32 @@ function bookingSaveError(label: string, error: unknown): Error {
 //  - 同一パスポート番号は既存行を再利用
 //  - 新しい写真がある場合のみ passport_image_url を更新（nullで既存を上書きしない）
 //  - 入力不足なら null、DB保存失敗なら例外を投げる
-async function saveGuestEntry(entry: GuestEntry): Promise<string | null> {
+//  - requirePhoto=true（代表者）で、写真があるのにアップロードに失敗した場合は
+//    予約を黙って成立させず例外を投げる（写真の取りこぼしを防ぐ）
+async function saveGuestEntry(entry: GuestEntry, requirePhoto = false): Promise<string | null> {
   if (!entry.passportNumber?.trim() || !entry.fullName?.trim()) return null;
 
   const passportNumber = entry.passportNumber.trim().toUpperCase();
-  const uploadedImageUrl = entry.passportImageUrl
-    ? await uploadPassportPhoto(entry.passportImageUrl)
-    : null;
+
+  let uploadedImageUrl: string | null = null;
+  if (entry.passportImageUrl) {
+    const { url, error } = await uploadPassportPhoto(entry.passportImageUrl);
+    uploadedImageUrl = url;
+
+    // 代表者は写真必須。リトライしても保存できなければ予約を止めて再試行を促す。
+    if (!url && requirePhoto) {
+      throw new Error(
+        "パスポート写真の保存に失敗しました。通信環境の良い場所で、もう一度お試しください。"
+      );
+    }
+    // 同行者は予約自体は止めないが、欠落は警告として残す。
+    if (!url) {
+      console.warn(
+        `[booking] companion passport photo upload failed (${passportNumber}):`,
+        error?.message
+      );
+    }
+  }
 
   const guestPayload: Record<string, unknown> = {
     passport_number: passportNumber,
@@ -162,7 +216,8 @@ export async function submitBooking(
     const companionEntries = passport.companions ?? [];
 
     // 代表者は必須。ここで失敗したら予約自体を中断する。
-    const primaryGuestId = await saveGuestEntry(primaryEntry);
+    // requirePhoto=true: 写真のアップロードに失敗した場合も中断し、再試行を促す。
+    const primaryGuestId = await saveGuestEntry(primaryEntry, true);
     if (!primaryGuestId) throw new Error("代表者のパスポート情報を保存できませんでした。");
 
     // 同行者を順次 upsert。個別に失敗しても予約は止めず、成功分だけリンクする。
