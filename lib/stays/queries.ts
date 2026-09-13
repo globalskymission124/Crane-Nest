@@ -22,7 +22,8 @@ export async function fetchListings(): Promise<Listing[]> {
     .order("created_at", { ascending: false });
   if (error) return DEMO_LISTINGS.filter((l) => l.is_published);
   if (usingPlaceholderSupabase && (!data || data.length === 0)) return DEMO_LISTINGS.filter((l) => l.is_published);
-  return (data as Listing[]) || [];
+  // 審査ステータスが pending / rejected の物件は検索結果に出さない（未設定は承認済み扱い）。
+  return ((data as Listing[]) || []).filter((l) => l.moderation_status !== "pending" && l.moderation_status !== "rejected");
 }
 
 export async function fetchAllListings(): Promise<Listing[]> {

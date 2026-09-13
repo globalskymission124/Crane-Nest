@@ -9,8 +9,10 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarCheck, CreditCard, Tag, Zap } from "lucide-react";
 import type { Addon, Booking, CalendarBlock, Coupon, Listing, PlatformSettings } from "@/lib/stays/types";
 import { formatJPY } from "@/lib/stays/types";
-import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
+import { buildBlockedNights, isRangeAvailable } from "@/lib/stays/availability";
+import AvailabilityCalendar from "@/components/stays/AvailabilityCalendar";
 import { createBooking } from "@/lib/stays/queries";
+import { fetchDailyPrices } from "@/lib/stays/host";
 import { calcQuote, couponError } from "@/lib/stays/pricing";
 import { addPoints, fetchAddons, fetchBookingsByEmail, fetchCouponByCode, fetchPlatformSettings, fetchPointsBalance, incrementCouponUse, notify, audit } from "@/lib/stays/v2";
 import { getTier, LOYALTY_LABELS, type LoyaltyTier } from "@/lib/stays/loyalty";
@@ -46,6 +48,7 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
   const [pointsBalance, setPointsBalance] = useState(0);
   const [usePoints, setUsePoints] = useState(false);
   const [tier, setTier] = useState<LoyaltyTier | null>(null);
+  const [dailyPrices, setDailyPrices] = useState<Record<string, number>>({});
 
   // ログイン済みなら名前/メールを自動入力
   useEffect(() => {
@@ -59,6 +62,12 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
   useEffect(() => {
     fetchPlatformSettings().then(setSettings);
     fetchAddons(listing.id, listing.host_id).then(setAddons);
+    // 日別料金の上書きを取得
+    fetchDailyPrices(listing.id).then((rows) => {
+      const map: Record<string, number> = {};
+      for (const r of rows) map[r.date] = r.price;
+      setDailyPrices(map);
+    });
   }, [listing.id, listing.host_id]);
 
   // ポイント残高 + 会員ランク
@@ -77,8 +86,8 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
     [addons, selectedAddons]
   );
   const quote = useMemo(
-    () => (checkIn && checkOut ? calcQuote(listing, checkIn, checkOut, coupon, settings, chosenAddons, tier?.discountPct || 0) : null),
-    [listing, checkIn, checkOut, coupon, settings, chosenAddons, tier]
+    () => (checkIn && checkOut ? calcQuote(listing, checkIn, checkOut, coupon, settings, chosenAddons, tier?.discountPct || 0, dailyPrices) : null),
+    [listing, checkIn, checkOut, coupon, settings, chosenAddons, tier, dailyPrices]
   );
   const nights = quote?.nights || 0;
   const pointsUsed = usePoints && quote ? Math.min(pointsBalance, quote.total) : 0;
@@ -203,28 +212,22 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
           </span>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-[11px] font-semibold text-slate-500">{t.checkIn}</span>
-          <input
-            type="date"
-            min={todayStr()}
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-          />
-        </label>
-        <label className="block">
-          <span className="text-[11px] font-semibold text-slate-500">{t.checkOut}</span>
-          <input
-            type="date"
-            min={checkIn || todayStr()}
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
-          />
-        </label>
+      <div className="mb-2 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-500">
+        <div>
+          {t.checkIn}
+          <div className="mt-0.5 text-sm font-bold text-slate-800">{checkIn || "—"}</div>
+        </div>
+        <div>
+          {t.checkOut}
+          <div className="mt-0.5 text-sm font-bold text-slate-800">{checkOut || "—"}</div>
+        </div>
       </div>
+      <AvailabilityCalendar
+        blockedNights={blockedNights}
+        checkIn={checkIn}
+        checkOut={checkOut}
+        onChange={(ci, co) => { setCheckIn(ci); setCheckOut(co); }}
+      />
       <label className="mt-2 block">
         <span className="text-[11px] font-semibold text-slate-500">{t.guests}</span>
         <select
@@ -385,7 +388,8 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
       >
         {submitting ? t.sending : listing.instant_book ? t.bookNow : t.requestBook}
       </button>
-      <p className="mt-2 text-center text-[11px] text-slate-400">
+      <p className="mt-2 text-center text-[11px] font-medium text-slate-500">{t.notChargedYet}</p>
+      <p className="mt-1 text-center text-[11px] text-slate-400">
         {t.policy[listing.cancellation_policy]}
       </p>
     </div>

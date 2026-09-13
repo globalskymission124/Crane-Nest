@@ -2,7 +2,7 @@
 // オーナー/管理者向けミューテーション
 // =========================================================
 import { supabase } from "@/lib/supabase";
-import type { Booking, CalendarBlock, Listing, Payout, Review } from "./types";
+import type { Booking, CalendarBlock, DailyPrice, Listing, Payout, Review } from "./types";
 
 // ---- 受取（payout）----
 // 1予約あたりのホスト受取額 = 支払総額 - ゲストサービス料 - 成約手数料
@@ -62,6 +62,19 @@ export async function deleteListing(id: string) {
   if (error) throw error;
 }
 
+// 管理者：物件の審査（承認/却下）
+export async function setListingModeration(
+  id: string,
+  status: "approved" | "pending" | "rejected",
+  note?: string
+) {
+  const { error } = await supabase
+    .from("stays_listings")
+    .update({ moderation_status: status, moderation_note: note ?? null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function addManualBlock(
   listingId: string,
   start: string,
@@ -79,6 +92,32 @@ export async function addManualBlock(
 
 export async function deleteBlock(id: string) {
   const { error } = await supabase.from("stays_calendar_blocks").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---- 日別料金の上書き ----
+export async function fetchDailyPrices(listingId: string): Promise<DailyPrice[]> {
+  const { data, error } = await supabase
+    .from("stays_daily_prices")
+    .select("*")
+    .eq("listing_id", listingId);
+  if (error) return [];
+  return (data as DailyPrice[]) || [];
+}
+
+export async function setDailyPrice(listingId: string, date: string, price: number) {
+  const { error } = await supabase
+    .from("stays_daily_prices")
+    .upsert({ listing_id: listingId, date, price }, { onConflict: "listing_id,date" });
+  if (error) throw error;
+}
+
+export async function clearDailyPrice(listingId: string, date: string) {
+  const { error } = await supabase
+    .from("stays_daily_prices")
+    .delete()
+    .eq("listing_id", listingId)
+    .eq("date", date);
   if (error) throw error;
 }
 

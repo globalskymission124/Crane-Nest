@@ -17,16 +17,10 @@ import {
 import ModeSwitchButton from "@/components/stays/ModeSwitchButton";
 import NotificationsBell from "@/components/stays/NotificationsBell";
 import { logout, useStaysSession } from "@/lib/stays/auth";
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import { averageRating, fetchAllBookings, fetchAllListings, fetchAllReviews, hostScope, ownedListings, byListingIds } from "@/lib/stays/queries";
 import { formatJPY } from "@/lib/stays/types";
 import type { Booking, Listing, Review } from "@/lib/stays/types";
-
-const actionRows = [
-  { href: "/stays/profile", label: "アカウント設定", icon: Settings },
-  { href: "/host/listings", label: "出租资源", icon: BookOpen },
-  { href: "/host/checkin", label: "チェックインQR", icon: KeyRound },
-  { href: "/site/ja", label: "获取帮助", icon: CircleHelp },
-] as const;
 
 function isThisMonth(date?: string) {
   if (!date) return false;
@@ -35,9 +29,16 @@ function isThisMonth(date?: string) {
 
 export default function HostMenuPage() {
   const { session } = useStaysSession();
+  const { p } = useHostPagesT();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const actionRows = [
+    { href: "/stays/profile", label: p.menu.accountSettings, icon: Settings },
+    { href: "/host/listings", label: p.menu.myListings, icon: BookOpen },
+    { href: "/host/checkin", label: p.menu.checkinQR, icon: KeyRound },
+    { href: "/site/ja", label: p.menu.getHelp, icon: CircleHelp },
+  ] as const;
 
   useEffect(() => {
     let alive = true;
@@ -74,12 +75,12 @@ export default function HostMenuPage() {
     <div className="mx-auto max-w-2xl pb-24">
       <div className="mb-8 flex items-center justify-between pt-2">
         <div>
-          <h1 className="text-5xl font-black text-slate-950 sm:text-3xl">菜单</h1>
-          <p className="mt-2 text-sm font-semibold text-slate-500">オーナーモード</p>
+          <h1 className="text-5xl font-black text-slate-950 sm:text-3xl">{p.menu.title}</h1>
+          <p className="mt-2 text-sm font-semibold text-slate-500">{p.menu.ownerMode}</p>
         </div>
         <div className="flex items-center gap-2">
           <NotificationsBell />
-          <Link href="/stays/profile" aria-label="プロフィール" className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-100">
+          <Link href="/stays/profile" aria-label={p.menu.profile} className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-100">
             {session?.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={session.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -94,8 +95,8 @@ export default function HostMenuPage() {
 
       <div className="grid grid-cols-2 gap-3">
         <Link href="/host/analytics" className="min-h-56 rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <span className="block text-lg font-black text-slate-950">収入</span>
-          <span className="mt-2 block text-sm font-bold text-slate-500">本月收入 {formatJPY(stats.monthRevenue)}</span>
+          <span className="block text-lg font-black text-slate-950">{p.menu.income}</span>
+          <span className="mt-2 block text-sm font-bold text-slate-500">{p.menu.monthIncome} {formatJPY(stats.monthRevenue)}</span>
           <span className="mt-20 flex h-16 items-end gap-2">
             {[58, 32, 48, 64, 46, 28].map((height, index) => (
               <span
@@ -108,10 +109,10 @@ export default function HostMenuPage() {
         </Link>
 
         <Link href="/host/analytics" className="min-h-56 rounded-[1.4rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <span className="block text-lg font-black text-slate-950">分析洞察</span>
+          <span className="block text-lg font-black text-slate-950">{p.menu.insights}</span>
           <span className="mt-2 flex items-center gap-1 text-sm font-bold text-slate-500">
             <Star className="h-4 w-4 fill-slate-500 text-slate-500" />
-            {stats.rating > 0 ? stats.rating.toFixed(2) : "0.00"} · {stats.reviewCount} 条评价
+            {stats.rating > 0 ? stats.rating.toFixed(2) : "0.00"} · {stats.reviewCount} {p.menu.reviewsUnit}
           </span>
           <span className="mt-20 flex items-end">
             {listings.slice(0, 3).map((listing, index) => (
@@ -141,8 +142,8 @@ export default function HostMenuPage() {
           <Plus className="h-7 w-7 text-rose-600" />
         </span>
         <span>
-          <span className="block text-lg font-black">创建新项目</span>
-          <span className="mt-1 block text-sm font-semibold text-slate-500">发布房源、体验或服务，拓展多元收入。</span>
+          <span className="block text-lg font-black">{p.menu.createNew}</span>
+          <span className="mt-1 block text-sm font-semibold text-slate-500">{p.menu.createNewDesc}</span>
         </span>
       </Link>
 
@@ -164,7 +165,7 @@ export default function HostMenuPage() {
       >
         <span className="flex items-center gap-4 text-base font-black">
           <ShieldCheck className="h-6 w-6" />
-          オーナーバックエンドを開く
+          {p.menu.openBackend}
         </span>
         <BarChart3 className="h-6 w-6" />
       </Link>
@@ -175,7 +176,7 @@ export default function HostMenuPage() {
         className="mt-5 flex w-full items-center gap-4 rounded-[1.4rem] border border-slate-200 bg-white px-5 py-4 text-left text-base font-bold text-slate-800"
       >
         <LogOut className="h-6 w-6 text-slate-700" />
-        ログアウト
+        {p.menu.logout}
       </button>
 
       <ModeSwitchButton from="host" to="guest" href="/stays/menu" />

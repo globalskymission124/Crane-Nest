@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchReports } from "@/lib/stays/v2";
 import { LayoutDashboard, MapPin, Image as ImageIcon, Palette, BedDouble, FileDown, Star, BarChart3, Users, Flag, BadgeJapaneseYen, Globe, LayoutGrid, Droplets, X } from "lucide-react";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
@@ -75,6 +76,16 @@ export default function AdminNav() {
   const pathname = usePathname();
   const { t, locale } = useAdminTranslation();
   const navItems = buildNavItems(t, locale);
+  const [openReports, setOpenReports] = useState(0);
+
+  // 未対応の通報件数（open / in_review）をナビにバッジ表示
+  useEffect(() => {
+    fetchReports()
+      .then((rs) => setOpenReports(rs.filter((r) => r.status === "open" || r.status === "in_review").length))
+      .catch(() => {});
+  }, [pathname]);
+
+  const badgeFor = (href: string) => (href === "/admin/reports" ? openReports : 0);
 
   return (
     <>
@@ -83,11 +94,12 @@ export default function AdminNav() {
         <div className="mx-auto flex max-w-6xl items-center gap-1.5 overflow-x-auto px-4 py-2.5">
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = isActivePath(pathname, href);
+            const badge = badgeFor(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+                className={`relative flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
                   active
                     ? "bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm shadow-brand-600/30"
                     : "text-slate-500 hover:bg-brand-50 hover:text-brand-700"
@@ -95,6 +107,9 @@ export default function AdminNav() {
               >
                 <Icon className="h-4 w-4" />
                 {label}
+                {badge > 0 && (
+                  <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{badge}</span>
+                )}
               </Link>
             );
           })}
@@ -102,7 +117,7 @@ export default function AdminNav() {
       </nav>
 
       {/* ── モバイル用ボトムナビ（sm未満）: 主要4タブ + メニュー ── */}
-      <MobileNav navItems={navItems} pathname={pathname} />
+      <MobileNav navItems={navItems} pathname={pathname} badgeFor={badgeFor} hasHiddenBadge={openReports > 0} />
     </>
   );
 }
@@ -111,9 +126,13 @@ export default function AdminNav() {
 function MobileNav({
   navItems,
   pathname,
+  badgeFor,
+  hasHiddenBadge,
 }: {
   navItems: ReturnType<typeof buildNavItems>;
   pathname: string;
+  badgeFor: (href: string) => number;
+  hasHiddenBadge: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const primary = navItems.slice(0, 4);
@@ -141,7 +160,7 @@ function MobileNav({
                     key={href}
                     href={href}
                     onClick={() => setOpen(false)}
-                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition ${
+                    className={`relative flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition ${
                       active
                         ? "border-brand-600 bg-brand-50 text-brand-700"
                         : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -149,6 +168,9 @@ function MobileNav({
                   >
                     <Icon className={`h-6 w-6 ${active ? "text-brand-600" : "text-slate-400"}`} />
                     <span className="text-[11px] font-bold leading-tight">{label}</span>
+                    {badgeFor(href) > 0 && (
+                      <span className="absolute right-2 top-2 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{badgeFor(href)}</span>
+                    )}
                   </Link>
                 );
               })}
@@ -177,9 +199,10 @@ function MobileNav({
         <button
           onClick={() => setOpen(true)}
           aria-label="メニュー"
-          className={`flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-semibold ${open ? "text-brand-600" : "text-slate-400"}`}
+          className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-semibold ${open ? "text-brand-600" : "text-slate-400"}`}
         >
           <LayoutGrid className="h-5 w-5" />
+          {hasHiddenBadge && <span className="absolute right-[28%] top-1.5 h-2 w-2 rounded-full bg-rose-500" />}
           <span className="leading-none">メニュー</span>
         </button>
       </nav>

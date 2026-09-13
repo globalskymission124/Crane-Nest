@@ -3,17 +3,19 @@
 // 高度な検索フィルター（価格帯・タイプ・アメニティ・評価・即時予約・並び替え）
 import { SlidersHorizontal, X, Zap } from "lucide-react";
 import { useState } from "react";
-import { ALL_AMENITIES, PROPERTY_TYPE_LABELS } from "@/lib/stays/types";
+import { ALL_AMENITIES, ALL_ROOM_TYPES, PROPERTY_TYPE_LABELS } from "@/lib/stays/types";
 import { useStaysT } from "@/lib/stays/i18n";
-import type { PropertyType } from "@/lib/stays/types";
+import type { PropertyType, RoomType } from "@/lib/stays/types";
 
 export interface Filters {
   priceMin: number | null;
   priceMax: number | null;
   propertyTypes: PropertyType[];
+  roomTypes: RoomType[];
   amenities: string[];
   minRating: number;
   instantOnly: boolean;
+  petsOk: boolean;
   sort: "recommended" | "price_asc" | "price_desc" | "rating";
 }
 
@@ -21,9 +23,11 @@ export const DEFAULT_FILTERS: Filters = {
   priceMin: null,
   priceMax: null,
   propertyTypes: [],
+  roomTypes: [],
   amenities: [],
   minRating: 0,
   instantOnly: false,
+  petsOk: false,
   sort: "recommended",
 };
 
@@ -31,9 +35,11 @@ export function countActiveFilters(f: Filters): number {
   let n = 0;
   if (f.priceMin != null || f.priceMax != null) n++;
   if (f.propertyTypes.length) n++;
+  if (f.roomTypes.length) n++;
   if (f.amenities.length) n++;
   if (f.minRating > 0) n++;
   if (f.instantOnly) n++;
+  if (f.petsOk) n++;
   return n;
 }
 
@@ -131,6 +137,26 @@ export default function SearchFilters({
             })}
           </div>
 
+          <p className="mt-3 text-xs font-semibold text-slate-500">{t.roomTypeFilter}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {ALL_ROOM_TYPES.map((rt) => {
+              const on = filters.roomTypes.includes(rt);
+              return (
+                <button
+                  key={rt}
+                  onClick={() =>
+                    set({ roomTypes: on ? filters.roomTypes.filter((x) => x !== rt) : [...filters.roomTypes, rt] })
+                  }
+                  className={`rounded-full border px-2.5 py-1 text-xs ${
+                    on ? "border-brand-600 bg-brand-50 font-semibold text-brand-700" : "border-slate-200 text-slate-500"
+                  }`}
+                >
+                  {t.roomType[rt]}
+                </button>
+              );
+            })}
+          </div>
+
           <p className="mt-3 text-xs font-semibold text-slate-500">{t.amenities}</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {ALL_AMENITIES.map((a) => {
@@ -165,14 +191,24 @@ export default function SearchFilters({
                 <option value={4.5}>4.5+</option>
               </select>
             </label>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-600">
-              <input
-                type="checkbox"
-                checked={filters.instantOnly}
-                onChange={(e) => set({ instantOnly: e.target.checked })}
-              />
-              <Zap className="h-3.5 w-3.5 text-amber-500" /> {t.instantOnly}
-            </label>
+            <div className="flex items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={filters.petsOk}
+                  onChange={(e) => set({ petsOk: e.target.checked })}
+                />
+                {t.petsOk}
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={filters.instantOnly}
+                  onChange={(e) => set({ instantOnly: e.target.checked })}
+                />
+                <Zap className="h-3.5 w-3.5 text-amber-500" /> {t.instantOnly}
+              </label>
+            </div>
           </div>
         </div>
       )}

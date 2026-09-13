@@ -3,26 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, CalendarClock, Home, LayoutGrid, ListChecks, MessageSquare, QrCode, Sparkles, Tag, Wallet } from "lucide-react";
-
-const items = [
-  { href: "/host", label: "予約", icon: ListChecks },
-  { href: "/host/analytics", label: "分析", icon: BarChart3 },
-  { href: "/host/payouts", label: "受取", icon: Wallet },
-  { href: "/host/listings", label: "物件", icon: Home },
-  { href: "/host/experiences", label: "体験", icon: Sparkles },
-  { href: "/host/checkin", label: "パスポート登録", icon: QrCode },
-  { href: "/host/promotions", label: "クーポン", icon: Tag },
-  { href: "/host/calendar", label: "カレンダー同期", icon: CalendarClock },
-  { href: "/host/messages", label: "メッセージ", icon: MessageSquare },
-] as const;
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 
 export default function HostNav() {
   const pathname = usePathname();
+  const { p } = useHostPagesT();
+
+  const items = [
+    { href: "/host", label: p.nav.bookings, icon: ListChecks },
+    { href: "/host/analytics", label: p.nav.analytics, icon: BarChart3 },
+    { href: "/host/payouts", label: p.nav.payouts, icon: Wallet },
+    { href: "/host/listings", label: p.nav.listings, icon: Home },
+    { href: "/host/experiences", label: p.nav.experiences, icon: Sparkles },
+    { href: "/host/checkin", label: p.nav.passport, icon: QrCode },
+    { href: "/host/promotions", label: p.nav.coupons, icon: Tag },
+    { href: "/host/calendar", label: p.nav.calendar, icon: CalendarClock },
+    { href: "/host/messages", label: p.nav.messages, icon: MessageSquare },
+  ] as const;
+
   const primary = [
-    { href: "/host", label: "今日必看", icon: ListChecks },
-    { href: "/host/calendar", label: "日历", icon: CalendarClock },
-    { href: "/host/listings", label: "房源", icon: Home },
-    { href: "/host/messages", label: "消息", icon: MessageSquare },
+    { href: "/host", label: p.nav.today, icon: ListChecks },
+    { href: "/host/calendar", label: p.nav.calendar, icon: CalendarClock },
+    { href: "/host/listings", label: p.nav.listings, icon: Home },
+    { href: "/host/messages", label: p.nav.messages, icon: MessageSquare },
   ] as const;
 
   const isActive = (href: string) => (href === "/host" ? pathname === "/host" : pathname.startsWith(href));
@@ -70,10 +73,10 @@ export default function HostNav() {
           className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[11px] font-semibold ${
             isActive("/host/menu") ? "text-rose-600" : "text-slate-500"
           }`}
-          aria-label="メニュー"
+          aria-label={p.nav.menu}
         >
           <LayoutGrid className="h-6 w-6" />
-          <span className="w-full truncate text-center leading-none">菜单</span>
+          <span className="w-full truncate text-center leading-none">{p.nav.menu}</span>
         </Link>
       </nav>
     </>

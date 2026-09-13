@@ -10,6 +10,7 @@ import AuthGuard from "@/components/stays/AuthGuard";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
 import { fetchAllBookings, fetchAllListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
 import { fetchAllPayments, monthlyStats } from "@/lib/stays/v2";
+import { setListingModeration } from "@/lib/stays/host";
 import { formatJPY } from "@/lib/stays/types";
 import type { Booking, Listing, Payment, Review } from "@/lib/stays/types";
 
@@ -57,6 +58,18 @@ function AdminStaysBody() {
       .slice(0, 5);
   }, [active, listings]);
 
+  const pendingListings = useMemo(() => listings.filter((l) => l.moderation_status === "pending"), [listings]);
+
+  async function moderate(id: string, status: "approved" | "rejected") {
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, moderation_status: status } : l)));
+    try {
+      await setListingModeration(id, status);
+    } catch {
+      // 失敗時は再取得で整合
+      setListings(await fetchAllListings());
+    }
+  }
+
   if (loading) return <p className="py-20 text-center text-slate-400">読み込み中…</p>;
 
   return (
@@ -64,6 +77,30 @@ function AdminStaysBody() {
       <h1 className="mb-5 flex items-center gap-2 text-2xl font-extrabold">
         <BarChart3 className="h-6 w-6 text-brand-600" /> 宿泊プラットフォーム分析
       </h1>
+
+      {/* 物件の審査（承認待ち） */}
+      {pendingListings.length > 0 && (
+        <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-amber-800">
+            審査待ちの物件
+            <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">{pendingListings.length}</span>
+          </h2>
+          <div className="grid gap-2">
+            {pendingListings.map((l) => (
+              <div key={l.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-800">{l.title || "（無題）"}</p>
+                  <p className="text-xs text-slate-500">{l.city}・{formatJPY(l.price_per_night)}/泊</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => moderate(l.id, "approved")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">承認</button>
+                  <button onClick={() => moderate(l.id, "rejected")} className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600">却下</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="流通総額 (GMV)" value={formatJPY(gmv)} sub={`有効予約 ${active.length}件`} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />

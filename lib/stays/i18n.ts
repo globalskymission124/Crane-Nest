@@ -6,7 +6,7 @@
 // 繁体字（台湾/香港）・簡体字・日本語を切替可能。
 // =========================================================
 import { useEffect, useState } from "react";
-import type { CancellationPolicy, PropertyType } from "./types";
+import type { CancellationPolicy, ExperienceCategory, Highlight, PropertyType, RoomType } from "./types";
 
 export type StaysLang = "en" | "tw" | "zh" | "ja";
 const KEY = "stays_lang";
@@ -38,6 +38,7 @@ interface Dict {
   instantBook: string; bookNow: string; requestBook: string; sending: string;
   unavailable: string; minNightsWarn: string; usePoints: string; ptBalance: string; ptEarn: string;
   bookedInstant: string; bookedRequest: string; pendingApproval: string; payNow: string; payLater: string;
+  notChargedYet: string; clearDates: string; selectDates: string;
   // 詳細
   about: string; amenitiesTitle: string; location: string; noLocation: string; backToList: string;
   hostLabel: string; reviewsAnchor: string; policyTitle: string; weeklyOff: string; monthlyOff: string;
@@ -50,10 +51,19 @@ interface Dict {
   // 競合いいとこ取り機能
   loyaltyDiscount: string; guestFavorite: string; recentBooked7d: string; almostFull: string;
   verifiedStay: string; availableForDates: string;
+  // 部屋タイプ / ハウスルール / ハイライト（詳細ページ・検索で使用）
+  roomTypeTitle: string; roomTypeFilter: string;
+  houseRulesTitle: string; checkinTimeLabel: string; checkoutTimeLabel: string; quietHoursLabel: string;
+  ruleAllowed: string; ruleNotAllowed: string;
+  rulePets: string; ruleSmoking: string; ruleEvents: string; ruleChildren: string; petsOk: string;
+  highlightsTitle: string; showAllAmenities: string; amenitiesModalTitle: string; close: string; allPhotos: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
   policy: Record<CancellationPolicy, string>;
+  roomType: Record<RoomType, string>;
+  highlight: Record<Highlight, string>;
+  expCategory: Record<ExperienceCategory, string>;
 }
 
 const en: Dict = {
@@ -74,6 +84,7 @@ const en: Dict = {
   unavailable: "These dates are not available.", minNightsWarn: "Minimum stay is", usePoints: "Use points (balance", ptBalance: "pt)", ptEarn: "pt back on this booking",
   bookedInstant: "Your booking is confirmed!", bookedRequest: "Booking request sent!", pendingApproval: "(awaiting approval)",
   payNow: "Pay now", payLater: "You can also pay later from Trips",
+  notChargedYet: "You won't be charged yet", clearDates: "Clear", selectDates: "Select dates",
   about: "About this place", amenitiesTitle: "Amenities", location: "Location", noLocation: "No location registered.", backToList: "Back to list",
   hostLabel: "Host", reviewsAnchor: "Write a review", policyTitle: "Cancellation policy",
   weeklyOff: "% off for 7+ nights", monthlyOff: "% off for 28+ nights",
@@ -88,9 +99,17 @@ const en: Dict = {
   loggedInAs: "Logged in as",
   loyaltyDiscount: "Loyalty discount", guestFavorite: "Guest favorite", recentBooked7d: "bookings in the past 7 days",
   almostFull: "In high demand — few dates left", verifiedStay: "Verified stay", availableForDates: "Showing stays available for your dates",
-  amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", tv: "TV", elevator: "Elevator", bathtub: "Bathtub", pool: "Pool", workspace: "Workspace" },
-  ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin" },
+  roomTypeTitle: "Room type", roomTypeFilter: "Room type",
+  houseRulesTitle: "House rules", checkinTimeLabel: "Check-in", checkoutTimeLabel: "Checkout", quietHoursLabel: "Quiet hours",
+  ruleAllowed: "Allowed", ruleNotAllowed: "Not allowed",
+  rulePets: "Pets", ruleSmoking: "Smoking", ruleEvents: "Parties / events", ruleChildren: "Children", petsOk: "Pets allowed",
+  highlightsTitle: "Highlights", showAllAmenities: "Show all amenities", amenitiesModalTitle: "What this place offers", close: "Close", allPhotos: "Show all photos",
+  amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", heating: "Heating", tv: "TV", elevator: "Elevator", hair_dryer: "Hair dryer", iron: "Iron", bathtub: "Bathtub", pool: "Pool", hot_tub: "Hot tub / onsen", workspace: "Workspace", bbq: "BBQ", ev_charger: "EV charger", self_checkin: "Self check-in", breakfast: "Breakfast", smoke_alarm: "Smoke alarm", co_alarm: "Carbon monoxide alarm", fire_extinguisher: "Fire extinguisher", first_aid: "First aid kit" },
+  ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin", ryokan: "Ryokan", minshuku: "Minshuku", loft: "Loft", condo: "Condo", townhouse: "Townhouse", bnb: "B&B" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
+  roomType: { entire: "Entire place", private: "Private room", shared: "Shared room" },
+  highlight: { peaceful: "Peaceful", unique: "Unique", family: "Family-friendly", stylish: "Stylish", central: "Central location", spacious: "Spacious" },
+  expCategory: { food: "Food", culture: "Culture", nature: "Nature & outdoors", nightlife: "Nightlife", workshop: "Workshop", tour: "Tours & walks", other: "Other" },
 };
 
 const ja: Dict = {
@@ -111,6 +130,7 @@ const ja: Dict = {
   unavailable: "選択した期間は予約できません。", minNightsWarn: "最低泊数:", usePoints: "ポイントを使う（残高", ptBalance: "pt）", ptEarn: "pt 還元",
   bookedInstant: "予約が確定しました！", bookedRequest: "予約リクエストを送信しました！", pendingApproval: "（承認待ち）",
   payNow: "今すぐ支払う", payLater: "後から「旅程」でもお支払いできます",
+  notChargedYet: "この時点ではまだ請求されません", clearDates: "クリア", selectDates: "日付を選択",
   about: "この宿について", amenitiesTitle: "アメニティ", location: "場所", noLocation: "位置情報は登録されていません。", backToList: "一覧に戻る",
   hostLabel: "ホスト", reviewsAnchor: "レビューを書く", policyTitle: "キャンセルポリシー",
   weeklyOff: "%OFF（7泊以上）", monthlyOff: "%OFF（28泊以上）",
@@ -125,9 +145,17 @@ const ja: Dict = {
   loggedInAs: "ログイン中:",
   loyaltyDiscount: "会員割引", guestFavorite: "ゲスト絶賛", recentBooked7d: "件の予約（直近7日）",
   almostFull: "人気：空きわずか", verifiedStay: "宿泊確認済み", availableForDates: "選択日程で空きのある宿のみ表示中",
-  amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", tv: "テレビ", elevator: "エレベーター", bathtub: "バスタブ", pool: "プール", workspace: "ワークスペース" },
-  ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ" },
+  roomTypeTitle: "部屋タイプ", roomTypeFilter: "部屋タイプ",
+  houseRulesTitle: "ハウスルール", checkinTimeLabel: "チェックイン", checkoutTimeLabel: "チェックアウト", quietHoursLabel: "静粛時間",
+  ruleAllowed: "可", ruleNotAllowed: "不可",
+  rulePets: "ペット", ruleSmoking: "喫煙", ruleEvents: "パーティー・イベント", ruleChildren: "子供", petsOk: "ペット可",
+  highlightsTitle: "この宿のハイライト", showAllAmenities: "すべてのアメニティを見る", amenitiesModalTitle: "この宿の設備・アメニティ", close: "閉じる", allPhotos: "すべての写真を見る",
+  amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", heating: "暖房", tv: "テレビ", elevator: "エレベーター", hair_dryer: "ドライヤー", iron: "アイロン", bathtub: "バスタブ", pool: "プール", hot_tub: "ジャグジー・温泉", workspace: "ワークスペース", bbq: "バーベキュー設備", ev_charger: "EV充電器", self_checkin: "セルフチェックイン", breakfast: "朝食", smoke_alarm: "煙感知器", co_alarm: "一酸化炭素警報器", fire_extinguisher: "消火器", first_aid: "救急箱" },
+  ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ", ryokan: "旅館", minshuku: "民宿", loft: "ロフト", condo: "分譲マンション", townhouse: "タウンハウス", bnb: "B&B" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
+  roomType: { entire: "まるまる貸切", private: "個室", shared: "相部屋" },
+  highlight: { peaceful: "静かで落ち着く", unique: "個性的・ユニーク", family: "ファミリー向け", stylish: "スタイリッシュ", central: "中心地・好立地", spacious: "広々" },
+  expCategory: { food: "グルメ・食体験", culture: "文化・伝統", nature: "自然・アウトドア", nightlife: "ナイトライフ", workshop: "ワークショップ", tour: "ツアー・散策", other: "その他" },
 };
 
 const tw: Dict = {
@@ -148,6 +176,7 @@ const tw: Dict = {
   unavailable: "所選日期無法預訂。", minNightsWarn: "最少入住晚數:", usePoints: "使用點數（餘額", ptBalance: "pt）", ptEarn: "pt 回饋",
   bookedInstant: "預訂已確認！", bookedRequest: "預訂申請已送出！", pendingApproval: "（等待房東確認）",
   payNow: "立即付款", payLater: "也可以稍後在「行程」中付款",
+  notChargedYet: "此時尚不會收費", clearDates: "清除", selectDates: "選擇日期",
   about: "關於此住宿", amenitiesTitle: "設施", location: "位置", noLocation: "尚未登錄位置資訊。", backToList: "返回列表",
   hostLabel: "房東", reviewsAnchor: "撰寫評價", policyTitle: "取消政策",
   weeklyOff: "% OFF（7晚以上）", monthlyOff: "% OFF（28晚以上）",
@@ -162,9 +191,17 @@ const tw: Dict = {
   loggedInAs: "登入中:",
   loyaltyDiscount: "會員折扣", guestFavorite: "旅客好評", recentBooked7d: "筆預訂（過去7天）",
   almostFull: "熱門：可訂日期不多", verifiedStay: "已驗證入住", availableForDates: "僅顯示所選日期有空房的住宿",
-  amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", tv: "電視", elevator: "電梯", bathtub: "浴缸", pool: "泳池", workspace: "工作空間" },
-  ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋" },
+  roomTypeTitle: "房型", roomTypeFilter: "房型",
+  houseRulesTitle: "住宿規則", checkinTimeLabel: "入住時間", checkoutTimeLabel: "退房時間", quietHoursLabel: "安靜時段",
+  ruleAllowed: "可", ruleNotAllowed: "不可",
+  rulePets: "寵物", ruleSmoking: "吸菸", ruleEvents: "派對・活動", ruleChildren: "兒童", petsOk: "可攜寵物",
+  highlightsTitle: "住宿亮點", showAllAmenities: "顯示所有設施", amenitiesModalTitle: "此住宿提供的設施", close: "關閉", allPhotos: "顯示所有照片",
+  amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", heating: "暖氣", tv: "電視", elevator: "電梯", hair_dryer: "吹風機", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・溫泉", workspace: "工作空間", bbq: "烤肉設備", ev_charger: "電動車充電", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "煙霧偵測器", co_alarm: "一氧化碳警報器", fire_extinguisher: "滅火器", first_aid: "急救箱" },
+  ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋", ryokan: "旅館", minshuku: "民宿(和式)", loft: "閣樓", condo: "住宅大樓", townhouse: "連棟住宅", bnb: "B&B" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
+  roomType: { entire: "獨立空間", private: "獨立房間", shared: "共用房間" },
+  highlight: { peaceful: "安靜舒適", unique: "獨特個性", family: "適合家庭", stylish: "時尚設計", central: "地點便利", spacious: "空間寬敞" },
+  expCategory: { food: "美食體驗", culture: "文化・傳統", nature: "自然・戶外", nightlife: "夜生活", workshop: "工作坊", tour: "導覽・散步", other: "其他" },
 };
 
 const zh: Dict = {
@@ -187,6 +224,7 @@ const zh: Dict = {
   ptEarn: "pt 返还",
   bookedInstant: "预订已确认！", bookedRequest: "预订申请已提交！", pendingApproval: "（等待房东确认）",
   payNow: "立即支付", payLater: "也可以稍后在「行程」中支付",
+  notChargedYet: "此时尚不会收费", clearDates: "清除", selectDates: "选择日期",
   about: "关于此住宿", amenitiesTitle: "设施", location: "位置", noLocation: "尚未登记位置信息。", backToList: "返回列表",
   hostLabel: "房东", reviewsAnchor: "写评价", policyTitle: "取消政策",
   similar: "你可能也喜欢", bedrooms: "卧室", baths: "卫浴", minNightsLabel: "最少晚数",
@@ -200,9 +238,17 @@ const zh: Dict = {
   loggedInAs: "已登录:",
   loyaltyDiscount: "会员折扣", guestFavorite: "旅客好评", recentBooked7d: "笔预订（过去7天）",
   almostFull: "热门：可订日期不多", verifiedStay: "已验证入住", availableForDates: "仅显示所选日期有空房的住宿",
-  amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", tv: "电视", elevator: "电梯", bathtub: "浴缸", pool: "泳池", workspace: "工作空间" },
-  ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋" },
+  roomTypeTitle: "房型", roomTypeFilter: "房型",
+  houseRulesTitle: "住宿规则", checkinTimeLabel: "入住时间", checkoutTimeLabel: "退房时间", quietHoursLabel: "安静时段",
+  ruleAllowed: "可", ruleNotAllowed: "不可",
+  rulePets: "宠物", ruleSmoking: "吸烟", ruleEvents: "派对・活动", ruleChildren: "儿童", petsOk: "可携宠物",
+  highlightsTitle: "住宿亮点", showAllAmenities: "显示所有设施", amenitiesModalTitle: "此住宿提供的设施", close: "关闭", allPhotos: "显示所有照片",
+  amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", heating: "暖气", tv: "电视", elevator: "电梯", hair_dryer: "吹风机", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・温泉", workspace: "工作空间", bbq: "烧烤设备", ev_charger: "电动车充电", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "烟雾探测器", co_alarm: "一氧化碳警报器", fire_extinguisher: "灭火器", first_aid: "急救箱" },
+  ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋", ryokan: "旅馆", minshuku: "民宿(和式)", loft: "阁楼", condo: "住宅公寓", townhouse: "联排住宅", bnb: "B&B" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },
+  roomType: { entire: "独立空间", private: "独立房间", shared: "共用房间" },
+  highlight: { peaceful: "安静舒适", unique: "独特个性", family: "适合家庭", stylish: "时尚设计", central: "地点便利", spacious: "空间宽敞" },
+  expCategory: { food: "美食体验", culture: "文化・传统", nature: "自然・户外", nightlife: "夜生活", workshop: "工作坊", tour: "导览・散步", other: "其他" },
 };
 
 const DICTS: Record<StaysLang, Dict> = { en, tw, zh, ja };

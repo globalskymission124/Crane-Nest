@@ -8,7 +8,30 @@ export type BlockSource = "manual" | "airbnb" | "booking";
 export type SenderRole = "guest" | "host";
 export type UserRole = "guest" | "host" | "admin";
 export type CancellationPolicy = "flexible" | "moderate" | "strict";
-export type PropertyType = "house" | "apartment" | "guesthouse" | "hotel" | "villa" | "cabin";
+export type ModerationStatus = "approved" | "pending" | "rejected";
+export type PropertyType =
+  | "house"
+  | "apartment"
+  | "guesthouse"
+  | "hotel"
+  | "villa"
+  | "cabin"
+  | "ryokan"
+  | "minshuku"
+  | "loft"
+  | "condo"
+  | "townhouse"
+  | "bnb";
+// 部屋タイプ（Airbnb と同様）: まるまる貸切 / 個室 / 相部屋
+export type RoomType = "entire" | "private" | "shared";
+// 物件のハイライト（タグ）
+export type Highlight =
+  | "peaceful"
+  | "unique"
+  | "family"
+  | "stylish"
+  | "central"
+  | "spacious";
 export type PaymentStatus = "unpaid" | "paid" | "refunded" | "partially_refunded";
 
 export interface Host {
@@ -112,12 +135,34 @@ export interface Listing {
   instant_book: boolean;
   cancellation_policy: CancellationPolicy;
   property_type: PropertyType;
+  room_type: RoomType;                    // まるまる貸切 / 個室 / 相部屋
   min_nights: number;
   weekly_discount_pct: number;
   monthly_discount_pct: number;
-  checkin_instructions?: string | null; // セルフチェックイン案内（鍵・入館手順）
+  checkin_instructions?: string | null;   // セルフチェックイン案内（鍵・入館手順）
+  // ---- ハウスルール ----
+  allow_pets?: boolean;
+  allow_smoking?: boolean;
+  allow_events?: boolean;                  // パーティー・イベント
+  allow_children?: boolean;
+  check_in_time?: string | null;           // 例: '15:00'
+  check_out_time?: string | null;          // 例: '10:00'
+  quiet_hours?: string | null;             // 例: '22:00〜08:00'
+  // ---- ハイライト（タグ）----
+  highlights?: Highlight[];
+  // ---- 審査（モデレーション）----
+  moderation_status?: ModerationStatus;
+  moderation_note?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface DailyPrice {
+  id: string;
+  listing_id: string;
+  date: string; // YYYY-MM-DD
+  price: number;
+  created_at?: string;
 }
 
 export interface CalendarBlock {
@@ -311,7 +356,40 @@ export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   hotel: "ホテル",
   villa: "ヴィラ",
   cabin: "コテージ・山小屋",
+  ryokan: "旅館",
+  minshuku: "民宿",
+  loft: "ロフト",
+  condo: "分譲マンション",
+  townhouse: "タウンハウス",
+  bnb: "B&B",
 };
+
+// 物件タイプ選択の並び順（アイコングリッド用）
+export const ALL_PROPERTY_TYPES = Object.keys(PROPERTY_TYPE_LABELS) as PropertyType[];
+
+// ---- 部屋タイプ（まるまる貸切 / 個室 / 相部屋）----
+export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
+  entire: "まるまる貸切",
+  private: "個室",
+  shared: "相部屋（共有スペース）",
+};
+export const ROOM_TYPE_DESCRIPTIONS: Record<RoomType, string> = {
+  entire: "ゲストが建物や部屋を丸ごと専有します。",
+  private: "個室は専有し、一部の共用スペースを他の人と共有します。",
+  shared: "寝室やリビングなどを他の人と共有します。",
+};
+export const ALL_ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS) as RoomType[];
+
+// ---- ハイライト（物件の魅力タグ・最大2つ推奨）----
+export const HIGHLIGHT_LABELS: Record<Highlight, string> = {
+  peaceful: "静かで落ち着く",
+  unique: "個性的・ユニーク",
+  family: "ファミリー向け",
+  stylish: "スタイリッシュ",
+  central: "中心地・好立地",
+  spacious: "広々としている",
+};
+export const ALL_HIGHLIGHTS = Object.keys(HIGHLIGHT_LABELS) as Highlight[];
 
 export interface Conversation {
   id: string;
@@ -333,17 +411,51 @@ export interface Message {
 
 // アメニティのラベル（表示用）
 export const AMENITY_LABELS: Record<string, string> = {
+  // 基本設備
   wifi: "Wi-Fi",
   kitchen: "キッチン",
   parking: "無料駐車場",
   washer: "洗濯機",
   air_conditioning: "エアコン",
+  heating: "暖房",
   tv: "テレビ",
   elevator: "エレベーター",
+  hair_dryer: "ドライヤー",
+  iron: "アイロン",
+  // 特徴・こだわり
   bathtub: "バスタブ",
   pool: "プール",
+  hot_tub: "ジャグジー・温泉",
   workspace: "ワークスペース",
+  bbq: "バーベキュー設備",
+  ev_charger: "EV充電器",
+  self_checkin: "セルフチェックイン",
+  breakfast: "朝食",
+  // 安全性
+  smoke_alarm: "煙感知器",
+  co_alarm: "一酸化炭素警報器",
+  fire_extinguisher: "消火器",
+  first_aid: "救急箱",
 };
+
+// アメニティのカテゴリ分け（Airbnb と同様に「基本／特徴／安全性」でグループ表示）
+export const AMENITY_CATEGORIES: { key: string; label: string; items: string[] }[] = [
+  {
+    key: "basic",
+    label: "基本設備",
+    items: ["wifi", "kitchen", "parking", "washer", "air_conditioning", "heating", "tv", "elevator", "hair_dryer", "iron"],
+  },
+  {
+    key: "features",
+    label: "特徴・こだわり",
+    items: ["bathtub", "pool", "hot_tub", "workspace", "bbq", "ev_charger", "self_checkin", "breakfast"],
+  },
+  {
+    key: "safety",
+    label: "安全性",
+    items: ["smoke_alarm", "co_alarm", "fire_extinguisher", "first_aid"],
+  },
+];
 
 export const ALL_AMENITIES = Object.keys(AMENITY_LABELS);
 

@@ -20,10 +20,12 @@ import {
   type CheckinPage,
 } from "@/lib/stays/checkin";
 import { useStaysSession } from "@/lib/stays/auth";
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import { audit } from "@/lib/stays/v2";
 
 export default function HostCheckinPage() {
   const { session } = useStaysSession();
+  const { p } = useHostPagesT();
   const [hostId, setHostId] = useState<string | null>(null);
   const [pages, setPages] = useState<CheckinPage[]>([]);
   const [guests, setGuests] = useState<CheckinGuest[]>([]);
@@ -99,47 +101,47 @@ export default function HostCheckinPage() {
     <div>
       <div className="mb-1 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-2xl font-extrabold">
-          <QrCode className="h-6 w-6 text-brand-600" /> パスポート登録ページ
+          <QrCode className="h-6 w-6 text-brand-600" /> {p.checkin.title}
         </h1>
         <button
           onClick={() => setEditing({ title: "Guest Check-in", welcome_message: "", require_phone: true, require_photo: true, is_active: true })}
           className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
         >
-          <Plus className="h-4 w-4" /> ページを作成
+          <Plus className="h-4 w-4" /> {p.checkin.createPage}
         </button>
       </div>
       <p className="mb-5 text-sm text-slate-500">
-        自分専用のパスポート登録ページを作り、QRポスターを印刷して宿に掲示。ゲストがスキャンして登録した情報をCSVでダウンロードできます。
+        {p.checkin.subtitle}
       </p>
 
       {editing && (
         <div className="mb-6 rounded-2xl border border-brand-200 bg-white p-5">
-          <h2 className="mb-3 font-bold">{editing.id ? "ページを編集" : "新規ページ"}</h2>
+          <h2 className="mb-3 font-bold">{editing.id ? p.checkin.editPage : p.checkin.newPage}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-slate-500">ページタイトル（ゲストに表示）
+            <label className="text-xs font-semibold text-slate-500">{p.checkin.pageTitle}
               <input value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder="Crane Nest Osaka — Check-in" className={field} />
             </label>
-            <label className="text-xs font-semibold text-slate-500">URL名（半角英数・空欄で自動生成）
+            <label className="text-xs font-semibold text-slate-500">{p.checkin.urlName}
               <input value={editing.slug || ""} onChange={(e) => setEditing({ ...editing, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="osaka-house" className={`${field} font-mono`} />
             </label>
-            <label className="sm:col-span-2 text-xs font-semibold text-slate-500">ウェルカムメッセージ（英語推奨・任意）
+            <label className="sm:col-span-2 text-xs font-semibold text-slate-500">{p.checkin.welcomeMsg}
               <textarea value={editing.welcome_message || ""} onChange={(e) => setEditing({ ...editing, welcome_message: e.target.value })} rows={2} placeholder="Welcome! Please register your passport before check-in." className={field} />
             </label>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
               <input type="checkbox" checked={editing.require_phone ?? true} onChange={(e) => setEditing({ ...editing, require_phone: e.target.checked })} />
-              電話番号を必須にする
+              {p.checkin.requirePhone}
             </label>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
               <input type="checkbox" checked={editing.require_photo ?? true} onChange={(e) => setEditing({ ...editing, require_photo: e.target.checked })} />
-              パスポート写真を必須にする
+              {p.checkin.requirePhoto}
             </label>
           </div>
           <div className="mt-4 flex gap-2">
             <button onClick={save} disabled={saving} className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              {saving ? "保存中…" : "保存"}
+              {saving ? p.common.loading : p.common.save}
             </button>
             <button onClick={() => setEditing(null)} className="rounded-lg bg-slate-100 px-5 py-2 text-sm font-semibold text-slate-600">
-              キャンセル
+              {p.common.cancel}
             </button>
           </div>
         </div>
@@ -148,35 +150,35 @@ export default function HostCheckinPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         {pages.length === 0 && !editing && (
           <p className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
-            まだページがありません。「ページを作成」から1分で作れます。
+            {p.checkin.noPages}
           </p>
         )}
-        {pages.map((p) => (
-          <div key={p.id} className={`rounded-2xl border bg-white p-5 ${p.is_active ? "border-slate-200" : "border-slate-100 opacity-60"}`}>
+        {pages.map((pg) => (
+          <div key={pg.id} className={`rounded-2xl border bg-white p-5 ${pg.is_active ? "border-slate-200" : "border-slate-100 opacity-60"}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-bold text-slate-800">{p.title}</p>
-                <p className="mt-0.5 truncate font-mono text-xs text-slate-400">/checkin/{p.slug}</p>
+                <p className="font-bold text-slate-800">{pg.title}</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-slate-400">/checkin/{pg.slug}</p>
               </div>
               <div className="shrink-0 rounded-xl border border-slate-100 p-1.5">
-                {origin && <QRCodeSVG value={`${origin}/checkin/${p.slug}`} size={72} />}
+                {origin && <QRCodeSVG value={`${origin}/checkin/${pg.slug}`} size={72} />}
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <Link href={`/checkin/${p.slug}/poster`} target="_blank" className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
-                <Printer className="h-3.5 w-3.5" /> QRポスター印刷
+              <Link href={`/checkin/${pg.slug}/poster`} target="_blank" className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                <Printer className="h-3.5 w-3.5" /> {p.checkin.posterPrint}
               </Link>
-              <Link href={`/checkin/${p.slug}`} target="_blank" className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                <ExternalLink className="h-3.5 w-3.5" /> プレビュー
+              <Link href={`/checkin/${pg.slug}`} target="_blank" className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                <ExternalLink className="h-3.5 w-3.5" /> {p.checkin.preview}
               </Link>
-              <button onClick={() => setEditing({ ...p })} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                <Pencil className="h-3.5 w-3.5" /> 編集
+              <button onClick={() => setEditing({ ...pg })} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                <Pencil className="h-3.5 w-3.5" /> {p.common.edit}
               </button>
-              <button onClick={() => toggle(p)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                {p.is_active ? <ToggleRight className="h-4 w-4 text-emerald-600" /> : <ToggleLeft className="h-4 w-4" />}
-                {p.is_active ? "公開中" : "停止中"}
+              <button onClick={() => toggle(pg)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                {pg.is_active ? <ToggleRight className="h-4 w-4 text-emerald-600" /> : <ToggleLeft className="h-4 w-4" />}
+                {pg.is_active ? p.checkin.published : p.checkin.stopped}
               </button>
-              <button onClick={() => remove(p)} className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600">
+              <button onClick={() => remove(pg)} className="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -186,26 +188,26 @@ export default function HostCheckinPage() {
 
       {/* 登録ゲスト一覧 */}
       <div className="mb-3 mt-10 flex items-center justify-between">
-        <h2 className="text-lg font-bold">登録されたゲスト（{guests.length}件）</h2>
+        <h2 className="text-lg font-bold">{p.checkin.guestsTitle}（{guests.length}）</h2>
         <button
           onClick={downloadCsv}
           disabled={guests.length === 0}
           className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
-          <Download className="h-4 w-4" /> CSVダウンロード
+          <Download className="h-4 w-4" /> {p.checkin.csvDownload}
         </button>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs text-slate-500">
             <tr>
-              <th className="px-4 py-3">登録日時</th>
-              <th className="px-4 py-3">氏名</th>
-              <th className="px-4 py-3">旅券番号</th>
-              <th className="px-4 py-3">国籍</th>
-              <th className="px-4 py-3">電話</th>
-              <th className="px-4 py-3">C/I日</th>
-              <th className="px-4 py-3">写真</th>
+              <th className="px-4 py-3">{p.checkin.thDatetime}</th>
+              <th className="px-4 py-3">{p.checkin.thName}</th>
+              <th className="px-4 py-3">{p.checkin.thPassport}</th>
+              <th className="px-4 py-3">{p.checkin.thNationality}</th>
+              <th className="px-4 py-3">{p.checkin.thPhone}</th>
+              <th className="px-4 py-3">{p.checkin.thCi}</th>
+              <th className="px-4 py-3">{p.checkin.thPhoto}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -219,13 +221,13 @@ export default function HostCheckinPage() {
                 <td className="px-4 py-2.5 text-xs">{g.checkin_date || "—"}</td>
                 <td className="px-4 py-2.5">
                   {g.passport_image_url ? (
-                    <a href={g.passport_image_url} target="_blank" className="text-xs font-semibold text-brand-600 underline">表示</a>
+                    <a href={g.passport_image_url} target="_blank" className="text-xs font-semibold text-brand-600 underline">{p.checkin.show}</a>
                   ) : "—"}
                 </td>
               </tr>
             ))}
             {guests.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">まだ登録はありません</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{p.checkin.noGuests}</td></tr>
             )}
           </tbody>
         </table>

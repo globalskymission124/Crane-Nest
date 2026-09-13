@@ -361,8 +361,10 @@ export default function StaysHomePage() {
       if (filters.priceMin != null && l.price_per_night < filters.priceMin) return false;
       if (filters.priceMax != null && l.price_per_night > filters.priceMax) return false;
       if (filters.propertyTypes.length && !filters.propertyTypes.includes(l.property_type)) return false;
+      if (filters.roomTypes.length && !filters.roomTypes.includes(l.room_type)) return false;
       if (filters.amenities.length && !filters.amenities.every((a) => l.amenities.includes(a))) return false;
       if (filters.instantOnly && !l.instant_book) return false;
+      if (filters.petsOk && !l.allow_pets) return false;
       if (filters.minRating > 0) {
         const avg = averageRating(reviewsByListing.get(l.id) || []);
         if (avg < filters.minRating) return false;

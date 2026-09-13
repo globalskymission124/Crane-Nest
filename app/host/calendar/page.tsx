@@ -10,14 +10,11 @@ import { useEffect, useState } from "react";
 import { Copy, RefreshCw, Plus, Trash2, Link2 } from "lucide-react";
 import { fetchAllListings, fetchBlocks, hostScope, ownedListings } from "@/lib/stays/queries";
 import { addManualBlock, deleteBlock, upsertListing } from "@/lib/stays/host";
+import HostCalendarEditor from "@/components/stays/HostCalendarEditor";
 import { useStaysSession } from "@/lib/stays/auth";
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import type { CalendarBlock, Listing } from "@/lib/stays/types";
 
-const SOURCE_LABEL: Record<string, string> = {
-  manual: "手動",
-  airbnb: "Airbnb",
-  booking: "サイト予約",
-};
 const SOURCE_STYLE: Record<string, string> = {
   manual: "bg-slate-100 text-slate-600",
   airbnb: "bg-rose-100 text-rose-600",
@@ -26,6 +23,7 @@ const SOURCE_STYLE: Record<string, string> = {
 
 export default function HostCalendarPage() {
   const { session } = useStaysSession();
+  const { p } = useHostPagesT();
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [blocks, setBlocks] = useState<CalendarBlock[]>([]);
@@ -64,7 +62,7 @@ export default function HostCalendarPage() {
   async function saveIcalUrl() {
     await upsertListing({ id: selectedId, airbnb_ical_url: icalUrl || null });
     setListings((prev) => prev.map((l) => (l.id === selectedId ? { ...l, airbnb_ical_url: icalUrl } : l)));
-    setSyncMsg("iCal URLを保存しました。");
+    setSyncMsg(p.calendar.urlSaved);
   }
 
   async function syncNow() {
@@ -92,7 +90,7 @@ export default function HostCalendarPage() {
 
   async function addBlock() {
     if (!newStart || !newEnd || !(newEnd > newStart)) return alert("開始日 < 終了日で入力してください");
-    await addManualBlock(selectedId, newStart, newEnd, "オーナー手動ブロック");
+    await addManualBlock(selectedId, newStart, newEnd, p.calendar.manualBlockNote);
     setNewStart("");
     setNewEnd("");
     await reloadBlocks();
@@ -105,18 +103,18 @@ export default function HostCalendarPage() {
 
   function copy(text: string) {
     navigator.clipboard?.writeText(text);
-    setSyncMsg("コピーしました。");
+    setSyncMsg(p.calendar.copied);
   }
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold">カレンダー & Airbnb同期</h1>
+      <h1 className="mb-1 text-2xl font-extrabold">{p.calendar.title}</h1>
       <p className="mb-5 text-sm text-slate-500">
-        AirbnbのiCal（.ics）と双方向で空室を同期します。
+        {p.calendar.subtitle}
       </p>
 
       <label className="mb-5 block">
-        <span className="text-xs font-semibold text-slate-500">物件を選択</span>
+        <span className="text-xs font-semibold text-slate-500">{p.calendar.selectListing}</span>
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
@@ -140,15 +138,15 @@ export default function HostCalendarPage() {
         {/* エクスポート */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-2 flex items-center gap-2 font-bold">
-            <Link2 className="h-4 w-4 text-brand-600" /> ① Airbnbへエクスポート
+            <Link2 className="h-4 w-4 text-brand-600" /> {p.calendar.exportTitle}
           </h2>
           <p className="mb-3 text-xs text-slate-500">
-            このURLをAirbnbの「カレンダーを同期 → 別のサイトを接続」に貼り付けると、当サイトの予約がAirbnbに反映されます。
+            {p.calendar.exportDesc}
           </p>
           <div className="flex items-center gap-2">
             <input readOnly value={exportUrl} className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
             <button onClick={() => copy(exportUrl)} className="flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
-              <Copy className="h-3.5 w-3.5" /> コピー
+              <Copy className="h-3.5 w-3.5" /> {p.calendar.copy}
             </button>
           </div>
         </div>
@@ -156,10 +154,10 @@ export default function HostCalendarPage() {
         {/* インポート */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-2 flex items-center gap-2 font-bold">
-            <RefreshCw className="h-4 w-4 text-rose-600" /> ② Airbnbからインポート
+            <RefreshCw className="h-4 w-4 text-rose-600" /> {p.calendar.importTitle}
           </h2>
           <p className="mb-3 text-xs text-slate-500">
-            Airbnbで発行したiCalエクスポートURL（.ics）を貼り付けて保存し、「今すぐ同期」で予約済み日を取り込みます。
+            {p.calendar.importDesc}
           </p>
           <input
             value={icalUrl}
@@ -169,37 +167,49 @@ export default function HostCalendarPage() {
           />
           <div className="mt-2 flex gap-2">
             <button onClick={saveIcalUrl} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
-              URLを保存
+              {p.calendar.saveUrl}
             </button>
             <button
               onClick={syncNow}
               disabled={syncing || !icalUrl}
               className="flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} /> 今すぐ同期
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} /> {p.calendar.syncNow}
             </button>
           </div>
         </div>
       </div>
 
+      {/* 料金・空室の日別編集カレンダー */}
+      {selectedId && (
+        <div className="mt-6">
+          <HostCalendarEditor
+            listingId={selectedId}
+            basePrice={listings.find((x) => x.id === selectedId)?.price_per_night ?? 0}
+            blocks={blocks}
+            onBlocksChanged={reloadBlocks}
+          />
+        </div>
+      )}
+
       {/* ブロック一覧 + 手動追加 */}
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-        <h2 className="mb-3 font-bold">予約不可日（ブロック）</h2>
+        <h2 className="mb-3 font-bold">{p.calendar.blocksTitle}</h2>
         <div className="mb-4 flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold text-slate-500">
-            開始
+            {p.calendar.start}
             <input type="date" value={newStart} onChange={(e) => setNewStart(e.target.value)} className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
           </label>
           <label className="text-xs font-semibold text-slate-500">
-            終了（排他）
+            {p.calendar.endExclusive}
             <input type="date" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
           </label>
           <button onClick={addBlock} className="flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white">
-            <Plus className="h-3.5 w-3.5" /> 手動ブロック追加
+            <Plus className="h-3.5 w-3.5" /> {p.calendar.addBlock}
           </button>
         </div>
         {blocks.length === 0 ? (
-          <p className="text-sm text-slate-400">ブロックはありません。</p>
+          <p className="text-sm text-slate-400">{p.calendar.noBlocks}</p>
         ) : (
           <ul className="divide-y divide-slate-100">
             {blocks.map((b) => (
@@ -207,12 +217,12 @@ export default function HostCalendarPage() {
                 <span>
                   {b.start_date} → {b.end_date}{" "}
                   <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${SOURCE_STYLE[b.source]}`}>
-                    {SOURCE_LABEL[b.source]}
+                    {b.source === "manual" ? p.calendar.srcManual : b.source === "airbnb" ? p.calendar.srcAirbnb : p.calendar.srcBooking}
                   </span>
                   {b.summary && <span className="ml-2 text-xs text-slate-400">{b.summary}</span>}
                 </span>
                 {b.source !== "booking" && (
-                  <button onClick={() => removeBlock(b.id)} className="text-slate-400 hover:text-rose-600" aria-label="削除">
+                  <button onClick={() => removeBlock(b.id)} className="text-slate-400 hover:text-rose-600" aria-label={p.common.delete}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 )}

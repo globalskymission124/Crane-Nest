@@ -9,10 +9,12 @@ import ChatBox from "@/components/stays/ChatBox";
 import { supabase } from "@/lib/supabase";
 import { fetchConversations, fetchAllListings, hostScope, ownedListings } from "@/lib/stays/queries";
 import { useStaysSession } from "@/lib/stays/auth";
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import type { Conversation, Host, Listing } from "@/lib/stays/types";
 
 export default function HostMessagesPage() {
   const { session } = useStaysSession();
+  const { p } = useHostPagesT();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
@@ -42,15 +44,15 @@ export default function HostMessagesPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-extrabold">メッセージ</h1>
-      <p className="mb-5 text-sm text-slate-500">ゲストからの問い合わせに返信します。</p>
+      <h1 className="mb-1 text-2xl font-extrabold">{p.messages.title}</h1>
+      <p className="mb-5 text-sm text-slate-500">{p.messages.subtitle}</p>
 
       {loading ? (
-        <p className="py-16 text-center text-slate-400">読み込み中…</p>
+        <p className="py-16 text-center text-slate-400">{p.common.loading}</p>
       ) : conversations.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-slate-400">
           <MessageSquare className="mx-auto mb-2 h-8 w-8" />
-          まだ会話はありません。
+          {p.messages.noConvos}
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-3">
@@ -79,7 +81,7 @@ export default function HostMessagesPage() {
                 <ChatBox conversationId={selected.id} role="host" heightClass="h-[420px]" />
               </div>
             ) : (
-              <p className="py-16 text-center text-slate-400">会話を選択してください。</p>
+              <p className="py-16 text-center text-slate-400">{p.messages.selectConvo}</p>
             )}
           </div>
         </div>

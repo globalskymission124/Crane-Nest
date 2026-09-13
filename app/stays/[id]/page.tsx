@@ -7,7 +7,7 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag, Award } from "lucide-react";
+import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag, Award, X } from "lucide-react";
 import StaysMap from "@/components/stays/StaysMap";
 import BookingWidget from "@/components/stays/BookingWidget";
 import ReviewsSection from "@/components/stays/ReviewsSection";
@@ -45,6 +45,7 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
   const [savedHere, setSavedHere] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [lightbox, setLightbox] = useState<number | null>(null);
   const [hostStats, setHostStats] = useState<HostRatingStats | null>(null);
 
   useEffect(() => {
@@ -155,6 +156,7 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
               <MapPin className="h-4 w-4" /> {listing.address || listing.city}
             </span>
             <span>{t.ptype[listing.property_type]}</span>
+            {listing.room_type && <span>{t.roomType[listing.room_type]}</span>}
             {listing.instant_book && (
               <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600">
                 <Zap className="h-3 w-3" /> {t.instantBook}
@@ -181,16 +183,29 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
         </div>
       </div>
 
-      {/* 写真ギャラリー */}
-      <div className="mt-4 overflow-hidden rounded-2xl bg-slate-100">
+      {/* 写真ギャラリー（クリックで全画面ライトボックス） */}
+      <div className="relative mt-4 overflow-hidden rounded-2xl bg-slate-100">
         <div className="aspect-[16/9] w-full">
           {listing.photos[activePhoto] ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={listing.photos[activePhoto]} alt={listing.title} className="h-full w-full object-cover" />
+            <img
+              src={listing.photos[activePhoto]}
+              alt={listing.title}
+              onClick={() => setLightbox(activePhoto)}
+              className="h-full w-full cursor-zoom-in object-cover"
+            />
           ) : (
             <div className="flex h-full items-center justify-center text-slate-300">No Image</div>
           )}
         </div>
+        {listing.photos.length > 0 && (
+          <button
+            onClick={() => setLightbox(activePhoto)}
+            className="absolute bottom-3 right-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow hover:bg-white"
+          >
+            {t.allPhotos}（{listing.photos.length}）
+          </button>
+        )}
       </div>
       {listing.photos.length > 1 && (
         <div className="mt-2 flex gap-2 overflow-x-auto">
@@ -218,6 +233,16 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
             <span className="flex items-center gap-1.5"><Bath className="h-4 w-4" /> {listing.baths} {t.baths}</span>
             {listing.min_nights > 1 && <span>{t.minNightsLabel}: {listing.min_nights}</span>}
           </div>
+
+          {Array.isArray(listing.highlights) && listing.highlights.length > 0 && (
+            <div className="-mt-3 flex flex-wrap gap-2">
+              {listing.highlights.map((h) => (
+                <span key={h} className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                  {t.highlight[h] || h}
+                </span>
+              ))}
+            </div>
+          )}
 
           {host && (
             <div className="flex items-center gap-3">
@@ -285,6 +310,21 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
             )}
           </div>
 
+          {(listing.check_in_time || listing.check_out_time || listing.quiet_hours || typeof listing.allow_pets === "boolean" || typeof listing.allow_smoking === "boolean") && (
+            <div>
+              <h2 className="mb-3 text-lg font-bold">{t.houseRulesTitle}</h2>
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 sm:grid-cols-3">
+                {listing.check_in_time && <span className="rounded-lg bg-slate-50 px-3 py-2">{t.checkinTimeLabel}: {listing.check_in_time}</span>}
+                {listing.check_out_time && <span className="rounded-lg bg-slate-50 px-3 py-2">{t.checkoutTimeLabel}: {listing.check_out_time}</span>}
+                {listing.quiet_hours && <span className="rounded-lg bg-slate-50 px-3 py-2">{t.quietHoursLabel}: {listing.quiet_hours}</span>}
+                <span className="rounded-lg bg-slate-50 px-3 py-2">{t.ruleChildren}: {listing.allow_children === false ? t.ruleNotAllowed : t.ruleAllowed}</span>
+                <span className="rounded-lg bg-slate-50 px-3 py-2">{t.rulePets}: {listing.allow_pets ? t.ruleAllowed : t.ruleNotAllowed}</span>
+                <span className="rounded-lg bg-slate-50 px-3 py-2">{t.ruleSmoking}: {listing.allow_smoking ? t.ruleAllowed : t.ruleNotAllowed}</span>
+                <span className="rounded-lg bg-slate-50 px-3 py-2">{t.ruleEvents}: {listing.allow_events ? t.ruleAllowed : t.ruleNotAllowed}</span>
+              </div>
+            </div>
+          )}
+
           <div>
             <h2 className="mb-3 text-lg font-bold">{t.location}</h2>
             {listing.lat != null && listing.lng != null ? (
@@ -326,6 +366,46 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
           </div>
         </div>
       </div>
+
+      {/* 全画面ライトボックス */}
+      {lightbox !== null && listing.photos.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label={t.close}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i === null ? 0 : (i - 1 + listing.photos.length) % listing.photos.length)); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 sm:left-6"
+            aria-label="prev"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={listing.photos[lightbox]}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[85vh] max-w-full rounded-lg object-contain"
+          />
+          <button
+            onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i === null ? 0 : (i + 1) % listing.photos.length)); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 sm:right-6"
+            aria-label="next"
+          >
+            <ArrowLeft className="h-6 w-6 rotate-180" />
+          </button>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+            {lightbox + 1} / {listing.photos.length}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

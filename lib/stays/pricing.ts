@@ -3,7 +3,7 @@
 // =========================================================
 import type { Addon, Booking, CalendarBlock, Coupon, Listing, PlatformSettings } from "./types";
 import { nightsBetween } from "./types";
-import { addDays, buildBlockedNights, todayStr } from "./availability";
+import { addDays, buildBlockedNights, nightsInRange, todayStr } from "./availability";
 
 export interface Quote {
   nights: number;
@@ -28,10 +28,18 @@ export function calcQuote(
   coupon?: Coupon | null,
   settings?: PlatformSettings | null,
   addons: Addon[] = [],
-  loyaltyPct = 0
+  loyaltyPct = 0,
+  dailyPrices?: Record<string, number> // 日別料金の上書き（未設定日は基準料金）
 ): Quote {
   const nights = nightsBetween(checkIn, checkOut);
-  const subtotal = nights * listing.price_per_night;
+  // 泊ごとの料金を合算（日別上書きがあれば優先）
+  const subtotal =
+    nights > 0
+      ? nightsInRange(checkIn, checkOut).reduce(
+          (s, d) => s + (dailyPrices?.[d] ?? listing.price_per_night),
+          0
+        )
+      : 0;
   const cleaningFee = nights > 0 ? listing.cleaning_fee : 0;
 
   let longStayDiscount = 0;

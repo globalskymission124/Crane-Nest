@@ -13,11 +13,13 @@ import { notify } from "@/lib/stays/v2";
 import { todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
-import { EXPERIENCE_CATEGORY_LABELS, formatJPY, type Experience, type Host } from "@/lib/stays/types";
+import { useStaysT } from "@/lib/stays/i18n";
+import { formatJPY, type Experience, type Host } from "@/lib/stays/types";
 
 export default function ExperienceDetailPage({ params }: { params: { id: string } }) {
   const { session } = useStaysSession();
   const { fmt } = useCurrency();
+  const { t } = useStaysT();
   const [exp, setExp] = useState<Experience | null>(null);
   const [host, setHost] = useState<Host | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,7 +125,7 @@ export default function ExperienceDetailPage({ params }: { params: { id: string 
         <div className="flex flex-col gap-5">
           <div>
             <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">
-              {EXPERIENCE_CATEGORY_LABELS[exp.category]}
+              {t.expCategory[exp.category]}
             </span>
             <h1 className="mt-2 text-2xl font-extrabold">{exp.title}</h1>
             <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">

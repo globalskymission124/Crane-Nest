@@ -9,6 +9,7 @@ import { BadgeJapaneseYen, BarChart3, CalendarCheck2, Lightbulb, Star, TrendingU
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
 import { fetchAllListings, fetchAllReviews, fetchBlocks, fetchBookings, averageRating, hostScope, ownedListings } from "@/lib/stays/queries";
 import { useStaysSession } from "@/lib/stays/auth";
+import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import { upsertListing } from "@/lib/stays/host";
 import { monthlyStats } from "@/lib/stays/v2";
 import { suggestPrice, type PriceSuggestion } from "@/lib/stays/pricing";
@@ -26,6 +27,7 @@ interface PerListing {
 
 export default function HostAnalyticsPage() {
   const { session } = useStaysSession();
+  const { p } = useHostPagesT();
   const [rows, setRows] = useState<PerListing[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,37 +95,37 @@ export default function HostAnalyticsPage() {
     }
   }
 
-  if (loading) return <p className="py-20 text-center text-slate-400">読み込み中…</p>;
+  if (loading) return <p className="py-20 text-center text-slate-400">{p.common.loading}</p>;
 
   return (
     <div>
       <h1 className="mb-5 flex items-center gap-2 text-2xl font-extrabold">
-        <BarChart3 className="h-6 w-6 text-brand-600" /> 分析ダッシュボード
+        <BarChart3 className="h-6 w-6 text-brand-600" /> {p.analytics.title}
       </h1>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="受取見込額（手数料差引後）" value={formatJPY(payout)} sub={`総流通 ${formatJPY(totalRevenue)}・手数料 ${formatJPY(totalCommission)}`} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />
-        <StatCard label="今後30日の平均稼働率" value={`${avgOcc}%`} icon={<CalendarCheck2 className="h-4 w-4 text-slate-300" />} />
-        <StatCard label="平均宿泊単価 (ADR)" value={formatJPY(adr)} icon={<TrendingUp className="h-4 w-4 text-slate-300" />} />
-        <StatCard label="レビュー平均" value={avgRating ? avgRating.toFixed(1) : "—"} sub={`${reviews.length}件`} icon={<Star className="h-4 w-4 text-slate-300" />} />
+        <StatCard label={p.analytics.scPayout} value={formatJPY(payout)} sub={`${p.analytics.scPayoutSubA} ${formatJPY(totalRevenue)}・${p.analytics.scPayoutSubB} ${formatJPY(totalCommission)}`} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />
+        <StatCard label={p.analytics.scOcc} value={`${avgOcc}%`} icon={<CalendarCheck2 className="h-4 w-4 text-slate-300" />} />
+        <StatCard label={p.analytics.scAdr} value={formatJPY(adr)} icon={<TrendingUp className="h-4 w-4 text-slate-300" />} />
+        <StatCard label={p.analytics.scRating} value={avgRating ? avgRating.toFixed(1) : "—"} sub={`${reviews.length}${p.analytics.reviewsUnit}`} icon={<Star className="h-4 w-4 text-slate-300" />} />
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-sm font-bold text-slate-700">月別売上（チェックイン月ベース）</p>
+          <p className="mb-3 text-sm font-bold text-slate-700">{p.analytics.chartRevenue}</p>
           <BarChart
-            data={monthly.map((m) => ({ label: m.month.slice(5) + "月", value: m.revenue }))}
+            data={monthly.map((m) => ({ label: m.month.slice(5) + p.analytics.monthSuffix, value: m.revenue }))}
             format={(v) => (v >= 10000 ? `${Math.round(v / 10000)}万` : v.toLocaleString())}
           />
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-sm font-bold text-slate-700">月別予約数</p>
-          <BarChart data={monthly.map((m) => ({ label: m.month.slice(5) + "月", value: m.bookings }))} />
+          <p className="mb-3 text-sm font-bold text-slate-700">{p.analytics.chartBookings}</p>
+          <BarChart data={monthly.map((m) => ({ label: m.month.slice(5) + p.analytics.monthSuffix, value: m.bookings }))} />
         </div>
       </div>
 
       <h2 className="mb-3 mt-8 flex items-center gap-2 text-lg font-bold">
-        <Lightbulb className="h-5 w-5 text-amber-500" /> スマート価格提案
+        <Lightbulb className="h-5 w-5 text-amber-500" /> {p.analytics.smartPricing}
       </h2>
       <div className="grid gap-3">
         {rows.map((r) => {
@@ -148,7 +150,7 @@ export default function HostAnalyticsPage() {
                     disabled={applying === r.listing.id}
                     className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
                   >
-                    適用
+                    {p.analytics.apply}
                   </button>
                 )}
               </div>

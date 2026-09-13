@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Clock, MapPin, Users, Sparkles } from "lucide-react";
 import { fetchExperiences } from "@/lib/stays/experiences";
 import { useCurrency } from "@/lib/stays/currency";
+import { useStaysT } from "@/lib/stays/i18n";
 import {
   EXPERIENCE_CATEGORY_LABELS,
   type Experience,
@@ -16,6 +17,7 @@ import {
 
 export default function ExperiencesPage() {
   const { fmt } = useCurrency();
+  const { t } = useStaysT();
   const [items, setItems] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<ExperienceCategory | "all">("all");
@@ -62,7 +64,7 @@ export default function ExperiencesPage() {
                 cat === c ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600"
               }`}
             >
-              {EXPERIENCE_CATEGORY_LABELS[c]}
+              {t.expCategory[c]}
             </button>
           ))}
         </div>
@@ -84,7 +86,7 @@ export default function ExperiencesPage() {
                   <div className="flex h-full w-full items-center justify-center text-sm text-slate-300">No Image</div>
                 )}
                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-700">
-                  {EXPERIENCE_CATEGORY_LABELS[e.category]}
+                  {t.expCategory[e.category]}
                 </span>
               </div>
               <div className="pt-3">
