@@ -6,19 +6,19 @@
 // → 即時予約（instant_book）は自動確定 → Stripe/モック決済
 // =========================================================
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, CreditCard, Tag, Zap } from "lucide-react";
+import { CalendarCheck, CreditCard, Eye, Flame, ShieldCheck, Tag, Zap } from "lucide-react";
 import type { Addon, Booking, CalendarBlock, Coupon, Listing, PlatformSettings } from "@/lib/stays/types";
 import { formatJPY } from "@/lib/stays/types";
-import { buildBlockedNights, isRangeAvailable } from "@/lib/stays/availability";
+import { addDays, buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import AvailabilityCalendar from "@/components/stays/AvailabilityCalendar";
 import { createBooking } from "@/lib/stays/queries";
 import { fetchDailyPrices } from "@/lib/stays/host";
-import { calcQuote, couponError } from "@/lib/stays/pricing";
+import { calcQuote, couponError, freeCancelDeadline } from "@/lib/stays/pricing";
 import { addPoints, fetchAddons, fetchBookingsByEmail, fetchCouponByCode, fetchPlatformSettings, fetchPointsBalance, incrementCouponUse, notify, audit } from "@/lib/stays/v2";
 import { getTier, LOYALTY_LABELS, type LoyaltyTier } from "@/lib/stays/loyalty";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
-import { useStaysT } from "@/lib/stays/i18n";
+import { useStaysT, fmtShortDate } from "@/lib/stays/i18n";
 
 interface Props {
   listing: Listing;
@@ -81,6 +81,29 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
   const blockedNights = useMemo(() => buildBlockedNights(blocks, bookings), [blocks, bookings]);
   const available =
     checkIn && checkOut ? isRangeAvailable(checkIn, checkOut, blockedNights) : true;
+
+  // 注目度（控えめな社会的証明）: 物件ID×当日で決まる擬似的な閲覧者数。日ごとに変わるが再描画で揺れない。
+  const viewersToday = useMemo(() => {
+    const seed = `${listing.id}|${todayStr()}`;
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return 3 + (h % 8); // 3〜10人
+  }, [listing.id]);
+  // 在庫: 今後14泊のうち9泊以上が埋まっていれば「残りわずか」
+  const scarce = useMemo(() => {
+    const start = todayStr();
+    let blocked = 0;
+    for (let i = 0; i < 14; i++) if (blockedNights.has(addDays(start, i))) blocked++;
+    return blocked >= 9;
+  }, [blockedNights]);
+  // 無料キャンセル期限: 日付選択時は期限日、未選択なら「無料キャンセル可」バッジ
+  const cxlDeadline = freeCancelDeadline(checkIn || null, listing.cancellation_policy);
+  const freeCancelText =
+    listing.cancellation_policy === "strict"
+      ? null
+      : cxlDeadline
+        ? t.freeCancelUntil.replace("{d}", fmtShortDate(cxlDeadline, lang))
+        : t.freeCancelBadge;
   const chosenAddons = useMemo(
     () => addons.filter((a) => selectedAddons.has(a.id)),
     [addons, selectedAddons]
@@ -212,6 +235,26 @@ export default function BookingWidget({ listing, blocks, bookings, onBooked }: P
           </span>
         )}
       </div>
+
+      {/* 注目度・在庫（控えめな社会的証明） */}
+      <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+        <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-slate-600">
+          <Eye className="h-3 w-3" /> {t.viewersToday.replace("{n}", String(viewersToday))}
+        </span>
+        {scarce && (
+          <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-rose-600">
+            <Flame className="h-3 w-3" /> {t.fewDatesLeft}
+          </span>
+        )}
+      </div>
+
+      {/* 無料キャンセル期限（大きく表示） */}
+      {freeCancelText && (
+        <p className="mb-3 flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          <ShieldCheck className="h-4 w-4 shrink-0" /> {freeCancelText}
+        </p>
+      )}
+
       <div className="mb-2 grid grid-cols-2 gap-2 text-[11px] font-semibold text-slate-500">
         <div>
           {t.checkIn}

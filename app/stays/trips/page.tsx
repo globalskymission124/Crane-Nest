@@ -14,6 +14,8 @@ import { updateBookingStatus } from "@/lib/stays/host";
 import { calcRefund } from "@/lib/stays/pricing";
 import { CANCELLATION_POLICY_LABELS, formatJPY } from "@/lib/stays/types";
 import type { Booking, Listing } from "@/lib/stays/types";
+import { useStaysT, fmtShortDate } from "@/lib/stays/i18n";
+import { todayStr } from "@/lib/stays/availability";
 
 const STATUS_LABEL: Record<Booking["status"], { label: string; cls: string }> = {
   pending: { label: "承認待ち", cls: "bg-amber-50 text-amber-700" },
@@ -107,11 +109,25 @@ function TripsBody() {
   if (loading) return <p className="py-20 text-center text-slate-400">読み込み中…</p>;
 
   function BookingCard({ b }: { b: Booking }) {
+    const { t, lang } = useStaysT();
     const l = listings.get(b.listing_id);
     const [showPass, setShowPass] = useState(false);
-    const [showCheckin, setShowCheckin] = useState(false);
     // セルフチェックイン: 確定済み予約で、ホストが案内を登録している場合に表示
     const hasCheckin = b.status === "confirmed" && !!l?.checkin_instructions?.trim();
+    // チェックインまでの残り日数（前日/当日リマインド用）
+    const today = todayStr();
+    const daysUntil = Math.ceil(
+      (new Date(b.check_in + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000
+    );
+    const imminent = b.status === "confirmed" && daysUntil >= 0 && daysUntil <= 1;
+    // 到着案内は、チェックインが目前なら自動的に開いておく
+    const [showCheckin, setShowCheckin] = useState(hasCheckin && imminent);
+    // 予約ステータス進捗の現在地: 0=予約確定 1=チェックイン日 2=滞在中 3=チェックアウト済み
+    const stepIdx =
+      b.status === "completed" || today >= b.check_out ? 3 : today > b.check_in ? 2 : today >= b.check_in ? 1 : 0;
+    const steps = [t.stepBooked, t.stepCheckin, t.stepStaying, t.stepDone];
+    const reminderText =
+      daysUntil === 0 ? t.arriveToday : daysUntil === 1 ? t.arriveTomorrow : t.arriveDaysLeft.replace("{n}", String(daysUntil));
     // デジタル到着パス: 確定済み予約の証明QR（オーナーが到着時に確認）
     const passPayload = `CRANE-NEST-PASS|${b.id}|${b.guest_name}|${b.check_in}|${b.check_out}|${b.guests_count}pax|${b.payment_status}`;
     const st = STATUS_LABEL[b.status];
@@ -143,6 +159,49 @@ function TripsBody() {
               {CANCELLATION_POLICY_LABELS[l.cancellation_policy]}
             </p>
           )}
+
+          {/* 予約ステータス進捗バー */}
+          {b.status !== "cancelled" && (
+            <div className="mt-3">
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">{t.tripProgress}</p>
+              <div className="flex items-center">
+                {steps.map((label, i) => (
+                  <div key={i} className="flex flex-1 items-center last:flex-none">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                          i <= stepIdx ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-400"
+                        }`}
+                      >
+                        {i < stepIdx ? "✓" : i + 1}
+                      </div>
+                      <span className={`mt-1 whitespace-nowrap text-[9px] ${i <= stepIdx ? "font-bold text-brand-700" : "text-slate-400"}`}>
+                        {label}
+                      </span>
+                    </div>
+                    {i < steps.length - 1 && (
+                      <div className={`mx-1 mb-4 h-0.5 flex-1 ${i < stepIdx ? "bg-brand-600" : "bg-slate-200"}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* チェックイン前日/当日リマインド */}
+          {imminent && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+              <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div className="min-w-0 text-xs">
+                <p className="font-bold text-amber-800">{t.arriveTitle} · {reminderText}</p>
+                <p className="mt-0.5 text-amber-700">
+                  {fmtShortDate(b.check_in, lang)} · {l?.check_in_time ? `${l.check_in_time}〜` : ""}
+                  {l?.address || ""}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="mt-2 flex flex-wrap gap-2">
             {canPay && (
               <button

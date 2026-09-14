@@ -9,6 +9,7 @@ import {
   MapPin,
   Search,
   Settings2,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Star,
@@ -20,7 +21,8 @@ import WishlistButton from "@/components/stays/WishlistButton";
 import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
-import { useStaysT } from "@/lib/stays/i18n";
+import { useStaysT, fmtShortDate } from "@/lib/stays/i18n";
+import { freeCancelDeadline } from "@/lib/stays/pricing";
 import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
 import { getRecent, type RecentItem } from "@/lib/stays/recentlyViewed";
 import { averageRating, fetchAllReviews, fetchBlocks, fetchBookings, fetchListings, hostRatingStats } from "@/lib/stays/queries";
@@ -219,6 +221,7 @@ function ListingCard({
   price,
   nights,
   isSuperhost = false,
+  checkInDate,
 }: {
   listing: Listing;
   avg: number;
@@ -229,8 +232,18 @@ function ListingCard({
   price: string;
   nights: number;
   isSuperhost?: boolean;
+  checkInDate?: string;
 }) {
+  const { t, lang } = useStaysT();
   const subtitle = `${listing.city} · ${listing.max_guests}人 · ${listing.bedrooms}寝室`;
+  // 無料キャンセル: flexible/moderate は無料枠あり。日付選択時は期限日を表示。
+  const cxlDeadline = freeCancelDeadline(checkInDate, listing.cancellation_policy);
+  const freeCancelText =
+    listing.cancellation_policy === "strict"
+      ? null
+      : cxlDeadline
+        ? t.freeCancelUntil.replace("{d}", fmtShortDate(cxlDeadline, lang))
+        : t.freeCancelBadge;
   return (
     <article className={`group relative shrink-0 ${compact ? "w-[78vw] max-w-[21rem] sm:w-auto" : ""}`}>
       <Link href={`/stays/${listing.id}`} className="block">
@@ -265,6 +278,11 @@ function ListingCard({
             <span className="font-semibold text-slate-500"> / {nights}晚</span>
           </p>
           {reviewCount > 0 && <p className="mt-0.5 text-xs font-semibold text-slate-400">{reviewCount} 条评价</p>}
+          {freeCancelText && (
+            <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+              <ShieldCheck className="h-3.5 w-3.5" /> {freeCancelText}
+            </p>
+          )}
         </div>
       </Link>
       <div className="absolute right-3 top-3 z-10">
@@ -592,6 +610,7 @@ export default function StaysHomePage() {
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
                         isSuperhost={superhostByHost.get(l.host_id) || false}
+                        checkInDate={dateIn}
                       />
                     );
                   })}
@@ -616,6 +635,7 @@ export default function StaysHomePage() {
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
                         isSuperhost={superhostByHost.get(l.host_id) || false}
+                        checkInDate={dateIn}
                       />
                     );
                   })}
@@ -641,6 +661,7 @@ export default function StaysHomePage() {
                         price={fmt(l.price_per_night * nights + l.cleaning_fee)}
                         nights={nights}
                         isSuperhost={superhostByHost.get(l.host_id) || false}
+                        checkInDate={dateIn}
                       />
                     );
                   })}

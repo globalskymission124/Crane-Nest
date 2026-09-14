@@ -1,7 +1,7 @@
 // =========================================================
 // 料金計算・キャンセル返金・スマート価格提案
 // =========================================================
-import type { Addon, Booking, CalendarBlock, Coupon, Listing, PlatformSettings } from "./types";
+import type { Addon, Booking, CalendarBlock, CancellationPolicy, Coupon, Listing, PlatformSettings } from "./types";
 import { nightsBetween } from "./types";
 import { addDays, buildBlockedNights, nightsInRange, todayStr } from "./availability";
 
@@ -123,6 +123,30 @@ export function calcRefund(booking: Booking, policy: Listing["cancellation_polic
       if (daysUntil >= 14) return Math.round(paid * 0.5);
       return 0;
   }
+}
+
+// 「無料キャンセル期限」= チェックインの何日前まで全額返金されるか。
+// calcRefund のロジックと一致させること（strict は全額返金枠が無いので null）。
+export function freeCancelDaysBefore(policy: CancellationPolicy): number | null {
+  switch (policy) {
+    case "flexible":
+      return 1; // 前日まで全額返金
+    case "moderate":
+      return 5; // 5日前まで全額返金
+    case "strict":
+      return null; // 無料キャンセル枠なし
+  }
+}
+
+// チェックイン日(YYYY-MM-DD)とポリシーから、全額返金が受けられる最終日を返す。
+// 無料枠が無い、またはチェックイン日未指定なら null。
+export function freeCancelDeadline(
+  checkIn: string | null | undefined,
+  policy: CancellationPolicy
+): string | null {
+  const days = freeCancelDaysBefore(policy);
+  if (days == null || !checkIn) return null;
+  return addDays(checkIn, -days);
 }
 
 export interface PriceSuggestion {

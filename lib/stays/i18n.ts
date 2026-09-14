@@ -63,6 +63,10 @@ interface Dict {
   saveTemplate: string; templatePrompt: string; chatInputPh: string;
   wlEmpty: string; wlFind: string; wlNewList: string; wlAll: string; wlUncat: string; wlListPrompt: string; wlDeleteList: string;
   recentlyViewed: string; shareListing: string; linkCopied: string; cxlTimeline: string; cxlFull: string; cxlHalf: string; cxlNone: string;
+  // 無料キャンセル期限・在庫/注目度・予約ステータス進捗・到着リマインド（{d}=日付, {n}=人数）
+  freeCancelBadge: string; freeCancelUntil: string; viewersToday: string; fewDatesLeft: string;
+  tripProgress: string; stepBooked: string; stepCheckin: string; stepStaying: string; stepDone: string; stepCancelled: string;
+  arriveTitle: string; arriveTomorrow: string; arriveToday: string; arriveDaysLeft: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
@@ -116,6 +120,9 @@ const en: Dict = {
   saveTemplate: "Save reply template", templatePrompt: "Save this reply as a template?", chatInputPh: "Type a message…",
   wlEmpty: "No favorites yet.", wlFind: "Find a stay", wlNewList: "+ New list", wlAll: "All", wlUncat: "Unsorted", wlListPrompt: "Name your list", wlDeleteList: "Delete this list?",
   recentlyViewed: "Recently viewed", shareListing: "Share", linkCopied: "Link copied", cxlTimeline: "Cancellation timeline", cxlFull: "Full refund", cxlHalf: "50% refund", cxlNone: "No refund",
+  freeCancelBadge: "Free cancellation", freeCancelUntil: "Free cancellation until {d}", viewersToday: "{n} people viewing today", fewDatesLeft: "Only a few dates left",
+  tripProgress: "Booking status", stepBooked: "Booked", stepCheckin: "Check-in", stepStaying: "Staying", stepDone: "Completed", stepCancelled: "Cancelled",
+  arriveTitle: "Check-in coming up", arriveTomorrow: "Check-in is tomorrow", arriveToday: "Check-in is today", arriveDaysLeft: "{n} days until check-in",
   amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", heating: "Heating", tv: "TV", elevator: "Elevator", hair_dryer: "Hair dryer", iron: "Iron", bathtub: "Bathtub", pool: "Pool", hot_tub: "Hot tub / onsen", workspace: "Workspace", bbq: "BBQ", ev_charger: "EV charger", self_checkin: "Self check-in", breakfast: "Breakfast", smoke_alarm: "Smoke alarm", co_alarm: "Carbon monoxide alarm", fire_extinguisher: "Fire extinguisher", first_aid: "First aid kit" },
   ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin", ryokan: "Ryokan", minshuku: "Minshuku", loft: "Loft", condo: "Condo", townhouse: "Townhouse", bnb: "B&B" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
@@ -168,6 +175,9 @@ const ja: Dict = {
   saveTemplate: "定型文に保存", templatePrompt: "この返信を定型文として保存しますか？", chatInputPh: "メッセージを入力…",
   wlEmpty: "お気に入りはまだありません。", wlFind: "宿を探す", wlNewList: "＋新しいリスト", wlAll: "すべて", wlUncat: "未分類", wlListPrompt: "リスト名を入力", wlDeleteList: "このリストを削除しますか？",
   recentlyViewed: "最近見た宿", shareListing: "共有", linkCopied: "リンクをコピーしました", cxlTimeline: "キャンセル返金の目安", cxlFull: "全額返金", cxlHalf: "50%返金", cxlNone: "返金なし",
+  freeCancelBadge: "無料キャンセル可", freeCancelUntil: "{d}まで無料キャンセル", viewersToday: "本日{n}人が閲覧中", fewDatesLeft: "空室残りわずか",
+  tripProgress: "予約ステータス", stepBooked: "予約確定", stepCheckin: "チェックイン日", stepStaying: "滞在中", stepDone: "チェックアウト済み", stepCancelled: "キャンセル",
+  arriveTitle: "まもなくチェックイン", arriveTomorrow: "明日チェックインです", arriveToday: "本日チェックインです", arriveDaysLeft: "チェックインまであと{n}日",
   amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", heating: "暖房", tv: "テレビ", elevator: "エレベーター", hair_dryer: "ドライヤー", iron: "アイロン", bathtub: "バスタブ", pool: "プール", hot_tub: "ジャグジー・温泉", workspace: "ワークスペース", bbq: "バーベキュー設備", ev_charger: "EV充電器", self_checkin: "セルフチェックイン", breakfast: "朝食", smoke_alarm: "煙感知器", co_alarm: "一酸化炭素警報器", fire_extinguisher: "消火器", first_aid: "救急箱" },
   ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ", ryokan: "旅館", minshuku: "民宿", loft: "ロフト", condo: "分譲マンション", townhouse: "タウンハウス", bnb: "B&B" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
@@ -220,6 +230,9 @@ const tw: Dict = {
   saveTemplate: "儲存範本", templatePrompt: "將此回覆儲存為範本？", chatInputPh: "輸入訊息…",
   wlEmpty: "尚無收藏。", wlFind: "尋找住宿", wlNewList: "＋新清單", wlAll: "全部", wlUncat: "未分類", wlListPrompt: "輸入清單名稱", wlDeleteList: "刪除此清單？",
   recentlyViewed: "最近瀏覽", shareListing: "分享", linkCopied: "已複製連結", cxlTimeline: "取消退款時程", cxlFull: "全額退款", cxlHalf: "退款50%", cxlNone: "不退款",
+  freeCancelBadge: "可免費取消", freeCancelUntil: "{d}前可免費取消", viewersToday: "今日{n}人正在瀏覽", fewDatesLeft: "空房所剩不多",
+  tripProgress: "預訂狀態", stepBooked: "已預訂", stepCheckin: "入住日", stepStaying: "入住中", stepDone: "已退房", stepCancelled: "已取消",
+  arriveTitle: "即將入住", arriveTomorrow: "明天入住", arriveToday: "今天入住", arriveDaysLeft: "距離入住還有{n}天",
   amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", heating: "暖氣", tv: "電視", elevator: "電梯", hair_dryer: "吹風機", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・溫泉", workspace: "工作空間", bbq: "烤肉設備", ev_charger: "電動車充電", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "煙霧偵測器", co_alarm: "一氧化碳警報器", fire_extinguisher: "滅火器", first_aid: "急救箱" },
   ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋", ryokan: "旅館", minshuku: "民宿(和式)", loft: "閣樓", condo: "住宅大樓", townhouse: "連棟住宅", bnb: "B&B" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
@@ -273,6 +286,9 @@ const zh: Dict = {
   saveTemplate: "保存范本", templatePrompt: "将此回复保存为范本？", chatInputPh: "输入消息…",
   wlEmpty: "尚无收藏。", wlFind: "寻找住宿", wlNewList: "＋新清单", wlAll: "全部", wlUncat: "未分类", wlListPrompt: "输入清单名称", wlDeleteList: "删除此清单？",
   recentlyViewed: "最近浏览", shareListing: "分享", linkCopied: "已复制链接", cxlTimeline: "取消退款时程", cxlFull: "全额退款", cxlHalf: "退款50%", cxlNone: "不退款",
+  freeCancelBadge: "可免费取消", freeCancelUntil: "{d}前可免费取消", viewersToday: "今日{n}人正在浏览", fewDatesLeft: "空房所剩不多",
+  tripProgress: "预订状态", stepBooked: "已预订", stepCheckin: "入住日", stepStaying: "入住中", stepDone: "已退房", stepCancelled: "已取消",
+  arriveTitle: "即将入住", arriveTomorrow: "明天入住", arriveToday: "今天入住", arriveDaysLeft: "距离入住还有{n}天",
   amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", heating: "暖气", tv: "电视", elevator: "电梯", hair_dryer: "吹风机", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・温泉", workspace: "工作空间", bbq: "烧烤设备", ev_charger: "电动车充电", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "烟雾探测器", co_alarm: "一氧化碳警报器", fire_extinguisher: "灭火器", first_aid: "急救箱" },
   ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋", ryokan: "旅馆", minshuku: "民宿(和式)", loft: "阁楼", condo: "住宅公寓", townhouse: "联排住宅", bnb: "B&B" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },
@@ -298,6 +314,17 @@ export function getStaysLang(): StaysLang {
 export function setStaysLang(l: StaysLang) {
   localStorage.setItem(KEY, l);
   window.dispatchEvent(new Event("stays-lang"));
+}
+
+// YYYY-MM-DD をロケールに合わせた短い日付表記に整形（例: ja/zh/tw → 9月20日, en → Sep 20）
+export function fmtShortDate(dateStr: string, lang: StaysLang): string {
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  if (lang === "en") {
+    const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+    return `${mon} ${d.getDate()}`;
+  }
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 export function useStaysT(): { t: Dict; lang: StaysLang } {
