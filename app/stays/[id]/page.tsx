@@ -7,7 +7,7 @@
 // =========================================================
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag, Award, X } from "lucide-react";
+import { ArrowLeft, MapPin, Users, BedDouble, Bath, Star, Zap, ShieldCheck, Flag, Award, X, Share2, Check } from "lucide-react";
 import StaysMap from "@/components/stays/StaysMap";
 import BookingWidget from "@/components/stays/BookingWidget";
 import ReviewsSection from "@/components/stays/ReviewsSection";
@@ -29,6 +29,7 @@ import {
   type HostRatingStats,
 } from "@/lib/stays/queries";
 import { createReport, fetchWishlist, similarListings } from "@/lib/stays/v2";
+import { addRecent } from "@/lib/stays/recentlyViewed";
 import { addDays, buildBlockedNights, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useStaysT } from "@/lib/stays/i18n";
@@ -48,6 +49,20 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
   const [activePhoto, setActivePhoto] = useState(0);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [hostStats, setHostStats] = useState<HostRatingStats | null>(null);
+  const [shared, setShared] = useState(false);
+
+  // 最近見た宿として記録
+  useEffect(() => {
+    if (listing) addRecent({ id: listing.id, title: listing.title, photo: listing.photos[0], city: listing.city, price: listing.price_per_night });
+  }, [listing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function share() {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    try {
+      if (navigator.share) await navigator.share({ title: listing?.title, url });
+      else { await navigator.clipboard.writeText(url); setShared(true); setTimeout(() => setShared(false), 2000); }
+    } catch { /* cancelled */ }
+  }
 
   useEffect(() => {
     (async () => {
@@ -177,6 +192,10 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <button onClick={share} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow hover:bg-slate-50">
+            {shared ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+            <span className="hidden sm:inline">{shared ? t.linkCopied : t.shareListing}</span>
+          </button>
           <WishlistButton listingId={listing.id} saved={savedHere} onChange={setSavedHere} className="border border-slate-200" />
           <button onClick={report} aria-label="通報" className="rounded-full border border-slate-200 bg-white p-2 shadow hover:bg-slate-50">
             <Flag className="h-4 w-4 text-slate-400" />
@@ -302,6 +321,20 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
             <p className="text-sm text-slate-600">
               {t.policy[listing.cancellation_policy]}
             </p>
+            {/* 返金タイムライン（視覚化） */}
+            <div className="mt-3">
+              <p className="mb-1 text-xs font-semibold text-slate-500">{t.cxlTimeline}</p>
+              <div className="flex overflow-hidden rounded-full text-center text-[10px] font-bold text-white">
+                {(listing.cancellation_policy === "flexible"
+                  ? [{ w: 85, c: "bg-emerald-500", l: t.cxlFull }, { w: 15, c: "bg-slate-300", l: t.cxlNone }]
+                  : listing.cancellation_policy === "moderate"
+                    ? [{ w: 50, c: "bg-emerald-500", l: t.cxlFull }, { w: 35, c: "bg-amber-500", l: t.cxlHalf }, { w: 15, c: "bg-slate-300", l: t.cxlNone }]
+                    : [{ w: 45, c: "bg-amber-500", l: t.cxlHalf }, { w: 55, c: "bg-slate-300", l: t.cxlNone }]
+                ).map((seg, i) => (
+                  <div key={i} className={`${seg.c} py-1`} style={{ width: `${seg.w}%` }} title={seg.l}>{seg.l}</div>
+                ))}
+              </div>
+            </div>
             {(listing.weekly_discount_pct > 0 || listing.monthly_discount_pct > 0) && (
               <p className="mt-1 text-xs text-emerald-600">
                 {listing.weekly_discount_pct > 0 && `${listing.weekly_discount_pct}${t.weeklyOff}`}

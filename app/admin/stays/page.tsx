@@ -277,6 +277,23 @@ function AdminStaysBody() {
         <StatCard label={s.reviews} value={`${reviews.length}${s.unit}`} sub={`${s.avgLabel} ${averageRating(reviews).toFixed(1)}`} icon={<CalendarCheck2 className="h-4 w-4 text-slate-300" />} />
       </div>
 
+      {/* 予約ステータス内訳 */}
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+        <p className="mb-2 text-sm font-bold text-slate-700">{s.sbTitle}</p>
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["confirmed", s.sbConfirmed, "bg-emerald-100 text-emerald-700"],
+            ["pending", s.sbPending, "bg-amber-100 text-amber-700"],
+            ["completed", s.sbCompleted, "bg-blue-100 text-blue-700"],
+            ["cancelled", s.sbCancelled, "bg-slate-100 text-slate-500"],
+          ] as const).map(([st, label, cls]) => (
+            <span key={st} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${cls}`}>
+              {label}: {bookings.filter((b) => b.status === st).length}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <p className="mb-3 text-sm font-bold text-slate-700">{s.monthlyGmv}</p>

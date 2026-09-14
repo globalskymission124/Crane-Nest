@@ -62,6 +62,7 @@ interface Dict {
   mapTitle: string; mapDesc: string; searchThisArea: string; secPopular: string; secKansai: string; secKyoto: string; flexWeekend: string;
   saveTemplate: string; templatePrompt: string; chatInputPh: string;
   wlEmpty: string; wlFind: string; wlNewList: string; wlAll: string; wlUncat: string; wlListPrompt: string; wlDeleteList: string;
+  recentlyViewed: string; shareListing: string; linkCopied: string; cxlTimeline: string; cxlFull: string; cxlHalf: string; cxlNone: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
@@ -114,6 +115,7 @@ const en: Dict = {
   mapTitle: "Map & prices", mapDesc: "Results sync to the map — compare distance to the airport, Namba and Kyoto.", searchThisArea: "Search this area", secPopular: "Popular stays", secKansai: "Around Kansai Airport & Osaka", secKyoto: "Stays in Kyoto", flexWeekend: "This weekend",
   saveTemplate: "Save reply template", templatePrompt: "Save this reply as a template?", chatInputPh: "Type a message…",
   wlEmpty: "No favorites yet.", wlFind: "Find a stay", wlNewList: "+ New list", wlAll: "All", wlUncat: "Unsorted", wlListPrompt: "Name your list", wlDeleteList: "Delete this list?",
+  recentlyViewed: "Recently viewed", shareListing: "Share", linkCopied: "Link copied", cxlTimeline: "Cancellation timeline", cxlFull: "Full refund", cxlHalf: "50% refund", cxlNone: "No refund",
   amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", heating: "Heating", tv: "TV", elevator: "Elevator", hair_dryer: "Hair dryer", iron: "Iron", bathtub: "Bathtub", pool: "Pool", hot_tub: "Hot tub / onsen", workspace: "Workspace", bbq: "BBQ", ev_charger: "EV charger", self_checkin: "Self check-in", breakfast: "Breakfast", smoke_alarm: "Smoke alarm", co_alarm: "Carbon monoxide alarm", fire_extinguisher: "Fire extinguisher", first_aid: "First aid kit" },
   ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin", ryokan: "Ryokan", minshuku: "Minshuku", loft: "Loft", condo: "Condo", townhouse: "Townhouse", bnb: "B&B" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
@@ -165,6 +167,7 @@ const ja: Dict = {
   mapTitle: "地図と価格", mapDesc: "検索結果は地図に連動します。空港・難波・京都からの距離を比較できます。", searchThisArea: "この地域を検索", secPopular: "人気の宿", secKansai: "関空・大阪周辺", secKyoto: "京都の宿", flexWeekend: "今週末",
   saveTemplate: "定型文に保存", templatePrompt: "この返信を定型文として保存しますか？", chatInputPh: "メッセージを入力…",
   wlEmpty: "お気に入りはまだありません。", wlFind: "宿を探す", wlNewList: "＋新しいリスト", wlAll: "すべて", wlUncat: "未分類", wlListPrompt: "リスト名を入力", wlDeleteList: "このリストを削除しますか？",
+  recentlyViewed: "最近見た宿", shareListing: "共有", linkCopied: "リンクをコピーしました", cxlTimeline: "キャンセル返金の目安", cxlFull: "全額返金", cxlHalf: "50%返金", cxlNone: "返金なし",
   amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", heating: "暖房", tv: "テレビ", elevator: "エレベーター", hair_dryer: "ドライヤー", iron: "アイロン", bathtub: "バスタブ", pool: "プール", hot_tub: "ジャグジー・温泉", workspace: "ワークスペース", bbq: "バーベキュー設備", ev_charger: "EV充電器", self_checkin: "セルフチェックイン", breakfast: "朝食", smoke_alarm: "煙感知器", co_alarm: "一酸化炭素警報器", fire_extinguisher: "消火器", first_aid: "救急箱" },
   ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ", ryokan: "旅館", minshuku: "民宿", loft: "ロフト", condo: "分譲マンション", townhouse: "タウンハウス", bnb: "B&B" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
@@ -216,6 +219,7 @@ const tw: Dict = {
   mapTitle: "地圖與價格", mapDesc: "搜尋結果會同步至地圖，方便比較機場、難波、京都的距離。", searchThisArea: "搜尋此區域", secPopular: "熱門房源", secKansai: "關西機場與大阪周邊", secKyoto: "京都房源", flexWeekend: "本週末",
   saveTemplate: "儲存範本", templatePrompt: "將此回覆儲存為範本？", chatInputPh: "輸入訊息…",
   wlEmpty: "尚無收藏。", wlFind: "尋找住宿", wlNewList: "＋新清單", wlAll: "全部", wlUncat: "未分類", wlListPrompt: "輸入清單名稱", wlDeleteList: "刪除此清單？",
+  recentlyViewed: "最近瀏覽", shareListing: "分享", linkCopied: "已複製連結", cxlTimeline: "取消退款時程", cxlFull: "全額退款", cxlHalf: "退款50%", cxlNone: "不退款",
   amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", heating: "暖氣", tv: "電視", elevator: "電梯", hair_dryer: "吹風機", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・溫泉", workspace: "工作空間", bbq: "烤肉設備", ev_charger: "電動車充電", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "煙霧偵測器", co_alarm: "一氧化碳警報器", fire_extinguisher: "滅火器", first_aid: "急救箱" },
   ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋", ryokan: "旅館", minshuku: "民宿(和式)", loft: "閣樓", condo: "住宅大樓", townhouse: "連棟住宅", bnb: "B&B" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
@@ -268,6 +272,7 @@ const zh: Dict = {
   mapTitle: "地图与价格", mapDesc: "搜索结果会同步到地图，便于比较机场、难波、京都的距离。", searchThisArea: "搜索此区域", secPopular: "热门房源", secKansai: "关西机场与大阪周边", secKyoto: "京都房源", flexWeekend: "本周末",
   saveTemplate: "保存范本", templatePrompt: "将此回复保存为范本？", chatInputPh: "输入消息…",
   wlEmpty: "尚无收藏。", wlFind: "寻找住宿", wlNewList: "＋新清单", wlAll: "全部", wlUncat: "未分类", wlListPrompt: "输入清单名称", wlDeleteList: "删除此清单？",
+  recentlyViewed: "最近浏览", shareListing: "分享", linkCopied: "已复制链接", cxlTimeline: "取消退款时程", cxlFull: "全额退款", cxlHalf: "退款50%", cxlNone: "不退款",
   amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", heating: "暖气", tv: "电视", elevator: "电梯", hair_dryer: "吹风机", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・温泉", workspace: "工作空间", bbq: "烧烤设备", ev_charger: "电动车充电", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "烟雾探测器", co_alarm: "一氧化碳警报器", fire_extinguisher: "灭火器", first_aid: "急救箱" },
   ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋", ryokan: "旅馆", minshuku: "民宿(和式)", loft: "阁楼", condo: "住宅公寓", townhouse: "联排住宅", bnb: "B&B" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },

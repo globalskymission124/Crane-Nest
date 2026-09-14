@@ -251,6 +251,7 @@ const en: AdminDictionary = {
     hostRankTitle: "Host performance", hrHost: "Host", hrRevenue: "Revenue", hrRating: "Rating", hrCancel: "Cancel rate", hrBookings: "Bookings",
     couponTitle: "Coupon performance", cpCode: "Code", cpUses: "Uses", cpDiscount: "Total discount", cpRevenue: "Revenue impact", cpNone: "No coupons",
     refundTitle: "Refund management", rfProperty: "Property", rfGuest: "Guest", rfPaid: "Paid", rfAction: "Refund", rfConfirm: "Refund the full amount?", rfNone: "No refundable payments", rfDone: "Refunded",
+    sbTitle: "Booking status breakdown", sbConfirmed: "Confirmed", sbPending: "Pending", sbCompleted: "Completed", sbCancelled: "Cancelled",
   },
 
   languageSwitcher: {

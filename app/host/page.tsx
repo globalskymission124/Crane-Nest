@@ -5,7 +5,7 @@
 // =========================================================
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, Check, X, Clock, QrCode, Rocket, Tag } from "lucide-react";
+import { BarChart3, Check, X, Clock, QrCode, Rocket, Tag, Download } from "lucide-react";
 import { fetchAllBookings, fetchAllListings, hostScope, ownedListings, byListingIds } from "@/lib/stays/queries";
 import { updateBookingStatus } from "@/lib/stays/host";
 import { notify, audit } from "@/lib/stays/v2";
@@ -74,15 +74,37 @@ export default function HostBookingsPage() {
   const today = new Date().toISOString().slice(0, 10);
   const pendingCount = bookings.filter((b) => b.status === "pending").length;
   const todayCheckins = bookings.filter((b) => b.status === "confirmed" && b.check_in === today);
+  const todayCheckouts = bookings.filter((b) => (b.status === "confirmed" || b.status === "completed") && b.check_out === today);
   const unpaidConfirmed = bookings.filter((b) => b.status === "confirmed" && b.payment_status === "unpaid").length;
+
+  function exportCsv() {
+    const header = ["property", "guest", "email", "check_in", "check_out", "guests", "total", "status", "payment"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = filtered.map((b) => [
+      listingMap.get(b.listing_id)?.title || "", b.guest_name, b.guest_email, b.check_in, b.check_out,
+      b.guests_count, b.total_price, b.status, b.payment_status,
+    ].map(esc).join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `bookings-${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   return (
     <div>
-      <h1 className="mb-1 text-4xl font-black text-slate-950 sm:text-2xl">{filtered.length}{t.d_orders_suffix}</h1>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h1 className="text-4xl font-black text-slate-950 sm:text-2xl">{filtered.length}{t.d_orders_suffix}</h1>
+        <button onClick={exportCsv} className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200">
+          <Download className="h-3.5 w-3.5" /> {t.d_export_csv}
+        </button>
+      </div>
       <p className="mb-4 text-sm font-semibold text-slate-500">{t.d_subtitle}</p>
 
       {/* 今日のサマリー */}
-      <div className="mb-4 grid grid-cols-3 gap-3">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <button onClick={() => setFilter("pending")} className={`rounded-2xl border p-4 text-left transition hover:shadow-md ${pendingCount > 0 ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
           <p className="text-2xl font-extrabold text-slate-900">{pendingCount}</p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{t.d_pending}{pendingCount > 0 && ` ${t.d_need_action}`}</p>
@@ -90,6 +112,10 @@ export default function HostBookingsPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <p className="text-2xl font-extrabold text-slate-900">{todayCheckins.length}</p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{t.d_today_checkin}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-2xl font-extrabold text-slate-900">{todayCheckouts.length}</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">{t.d_today_checkout}</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <p className="text-2xl font-extrabold text-slate-900">{unpaidConfirmed}</p>

@@ -251,6 +251,7 @@ const ja: AdminDictionary = {
     hostRankTitle: "ホスト別成績", hrHost: "ホスト", hrRevenue: "売上", hrRating: "評価", hrCancel: "キャンセル率", hrBookings: "予約数",
     couponTitle: "クーポン効果", cpCode: "コード", cpUses: "利用数", cpDiscount: "割引総額", cpRevenue: "売上寄与", cpNone: "クーポンはありません",
     refundTitle: "返金管理", rfProperty: "物件", rfGuest: "ゲスト", rfPaid: "支払額", rfAction: "返金", rfConfirm: "全額返金しますか？", rfNone: "返金可能な決済はありません", rfDone: "返金済み",
+    sbTitle: "予約ステータス内訳", sbConfirmed: "確定", sbPending: "承認待ち", sbCompleted: "完了", sbCancelled: "キャンセル",
   },
 
   languageSwitcher: {

@@ -22,6 +22,7 @@ import { useStaysSession } from "@/lib/stays/auth";
 import { useCurrency } from "@/lib/stays/currency";
 import { useStaysT } from "@/lib/stays/i18n";
 import { fetchWishlist, isFeatured } from "@/lib/stays/v2";
+import { getRecent, type RecentItem } from "@/lib/stays/recentlyViewed";
 import { averageRating, fetchAllReviews, fetchBlocks, fetchBookings, fetchListings, hostRatingStats } from "@/lib/stays/queries";
 import { DEMO_LISTINGS, DEMO_REVIEWS } from "@/lib/stays/demoData";
 import type { Listing, Review } from "@/lib/stays/types";
@@ -290,6 +291,8 @@ export default function StaysHomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchByMap, setSearchByMap] = useState(false);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+  const [recent, setRecent] = useState<RecentItem[]>([]);
+  useEffect(() => { setRecent(getRecent()); }, []);
 
   // 今週末（次の土・日）をセット
   function setThisWeekend() {
@@ -534,6 +537,26 @@ export default function StaysHomePage() {
           <p className="mb-5 inline-flex rounded-full bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700">
             {t.availableForDates}
           </p>
+        )}
+
+        {recent.length > 0 && (
+          <section className="mb-8">
+            <h2 className="mb-3 text-lg font-black text-slate-950">{t.recentlyViewed}</h2>
+            <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+              {recent.map((r) => (
+                <Link key={r.id} href={`/stays/${r.id}`} className="w-40 shrink-0">
+                  <div className="aspect-square overflow-hidden rounded-2xl bg-slate-100">
+                    {r.photo && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.photo} alt={r.title} className="h-full w-full object-cover" />
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-1 text-sm font-semibold text-slate-800">{r.title}</p>
+                  <p className="text-xs text-slate-500">{fmt(r.price)} {t.perNight}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
 
         {loading ? (

@@ -228,5 +228,6 @@ export interface AdminDictionary {
     hostRankTitle: string; hrHost: string; hrRevenue: string; hrRating: string; hrCancel: string; hrBookings: string;
     couponTitle: string; cpCode: string; cpUses: string; cpDiscount: string; cpRevenue: string; cpNone: string;
     refundTitle: string; rfProperty: string; rfGuest: string; rfPaid: string; rfAction: string; rfConfirm: string; rfNone: string; rfDone: string;
+    sbTitle: string; sbConfirmed: string; sbPending: string; sbCompleted: string; sbCancelled: string;
   };
 }

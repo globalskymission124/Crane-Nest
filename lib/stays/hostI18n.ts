@@ -43,7 +43,7 @@ interface HostDict {
   publish_now: string; publish_now_d: string; draft_t: string; draft_d: string;
   // ダッシュボード
   d_orders_suffix: string; d_subtitle: string; d_pending: string; d_need_action: string;
-  d_today_checkin: string; d_confirmed_unpaid: string;
+  d_today_checkin: string; d_today_checkout: string; d_confirmed_unpaid: string; d_export_csv: string;
   qa_passport: string; qa_sales: string; qa_coupon: string; qa_boost: string;
   f_all: string; st_pending: string; st_confirmed: string; st_cancelled: string; st_completed: string;
   th_property: string; th_guest: string; th_dates: string; th_guests: string; th_price: string; th_status: string; th_actions: string;
@@ -102,7 +102,7 @@ const ja: HostDict = {
   publish_now: "今すぐ公開する", publish_now_d: "検索結果に表示され、予約を受け付けます。",
   draft_t: "今は公開しない（下書き）", draft_d: "あとから物件管理で公開できます。",
   d_orders_suffix: "件の予約", d_subtitle: "今日必見：承認待ち・チェックイン・未払いをすぐ確認できます。",
-  d_pending: "承認待ち", d_need_action: "←要対応", d_today_checkin: "本日チェックイン", d_confirmed_unpaid: "確定・未払い",
+  d_pending: "承認待ち", d_need_action: "←要対応", d_today_checkin: "本日チェックイン", d_today_checkout: "本日チェックアウト", d_confirmed_unpaid: "確定・未払い", d_export_csv: "CSV書き出し",
   qa_passport: "パスポートQR", qa_sales: "売上を見る", qa_coupon: "クーポン発行", qa_boost: "掲載ブースト",
   f_all: "すべて", st_pending: "承認待ち", st_confirmed: "確定", st_cancelled: "キャンセル", st_completed: "完了",
   th_property: "物件", th_guest: "ゲスト", th_dates: "日程", th_guests: "人数", th_price: "料金", th_status: "状態", th_actions: "操作",
@@ -159,7 +159,7 @@ const en: HostDict = {
   publish_now: "Publish now", publish_now_d: "Appears in search and accepts bookings.",
   draft_t: "Don't publish yet (draft)", draft_d: "You can publish later from Listings.",
   d_orders_suffix: " bookings", d_subtitle: "Today at a glance: pending approvals, check-ins, and unpaid bookings.",
-  d_pending: "Pending", d_need_action: "← action needed", d_today_checkin: "Check-ins today", d_confirmed_unpaid: "Confirmed · unpaid",
+  d_pending: "Pending", d_need_action: "← action needed", d_today_checkin: "Check-ins today", d_today_checkout: "Check-outs today", d_confirmed_unpaid: "Confirmed · unpaid", d_export_csv: "Export CSV",
   qa_passport: "Passport QR", qa_sales: "View revenue", qa_coupon: "Create coupon", qa_boost: "Boost listing",
   f_all: "All", st_pending: "Pending", st_confirmed: "Confirmed", st_cancelled: "Cancelled", st_completed: "Completed",
   th_property: "Property", th_guest: "Guest", th_dates: "Dates", th_guests: "Guests", th_price: "Price", th_status: "Status", th_actions: "Actions",
@@ -216,7 +216,7 @@ const tw: HostDict = {
   publish_now: "立即發佈", publish_now_d: "顯示於搜尋結果並接受預訂。",
   draft_t: "暫不發佈（草稿）", draft_d: "之後可於房源管理發佈。",
   d_orders_suffix: " 筆預訂", d_subtitle: "今日重點：待審核、入住、未付款一目瞭然。",
-  d_pending: "待審核", d_need_action: "←需處理", d_today_checkin: "今日入住", d_confirmed_unpaid: "已確認・未付款",
+  d_pending: "待審核", d_need_action: "←需處理", d_today_checkin: "今日入住", d_today_checkout: "今日退房", d_confirmed_unpaid: "已確認・未付款", d_export_csv: "匯出CSV",
   qa_passport: "護照QR", qa_sales: "查看營收", qa_coupon: "發放優惠碼", qa_boost: "房源加值曝光",
   f_all: "全部", st_pending: "待審核", st_confirmed: "已確認", st_cancelled: "已取消", st_completed: "已完成",
   th_property: "房源", th_guest: "訪客", th_dates: "日期", th_guests: "人數", th_price: "價格", th_status: "狀態", th_actions: "操作",
@@ -273,7 +273,7 @@ const zh: HostDict = {
   publish_now: "立即发布", publish_now_d: "显示于搜索结果并接受预订。",
   draft_t: "暂不发布（草稿）", draft_d: "之后可于房源管理发布。",
   d_orders_suffix: " 笔预订", d_subtitle: "今日重点：待审核、入住、未付款一目了然。",
-  d_pending: "待审核", d_need_action: "←需处理", d_today_checkin: "今日入住", d_confirmed_unpaid: "已确认・未付款",
+  d_pending: "待审核", d_need_action: "←需处理", d_today_checkin: "今日入住", d_today_checkout: "今日退房", d_confirmed_unpaid: "已确认・未付款", d_export_csv: "导出CSV",
   qa_passport: "护照QR", qa_sales: "查看营收", qa_coupon: "发放优惠码", qa_boost: "房源加值曝光",
   f_all: "全部", st_pending: "待审核", st_confirmed: "已确认", st_cancelled: "已取消", st_completed: "已完成",
   th_property: "房源", th_guest: "访客", th_dates: "日期", th_guests: "人数", th_price: "价格", th_status: "状态", th_actions: "操作",

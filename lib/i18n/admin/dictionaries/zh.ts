@@ -251,6 +251,7 @@ const zh: AdminDictionary = {
     hostRankTitle: "房东成绩", hrHost: "房东", hrRevenue: "营收", hrRating: "评分", hrCancel: "取消率", hrBookings: "预订数",
     couponTitle: "优惠码效果", cpCode: "代码", cpUses: "使用数", cpDiscount: "折扣总额", cpRevenue: "营收贡献", cpNone: "暂无优惠码",
     refundTitle: "退款管理", rfProperty: "房源", rfGuest: "访客", rfPaid: "支付额", rfAction: "退款", rfConfirm: "要全额退款吗？", rfNone: "暂无可退款的支付", rfDone: "已退款",
+    sbTitle: "预订状态明细", sbConfirmed: "已确认", sbPending: "待审核", sbCompleted: "已完成", sbCancelled: "已取消",
   },
 
   languageSwitcher: {
