@@ -245,6 +245,8 @@ const zh: AdminDictionary = {
     monthlyGmv: "各月GMV", monthlyBookings: "各月预订数", monthSuffix: "月",
     topTitle: "营收最高房源", thProperty: "房源", thArea: "地区", thBookings: "预订数", thRevenue: "营收", noData: "暂无数据",
     modTitle: "待审核的房源", approve: "核准", reject: "拒绝", untitled: "（无标题）", perNight: "/晚", loading: "加载中…",
+    periodAll: "全部期间", periodThisMonth: "本月", periodLastMonth: "上月", exportCsv: "导出CSV",
+    auditTitle: "操作日志", auditActor: "执行者", auditAction: "操作", auditTarget: "对象", auditDetail: "详情", auditTime: "时间", auditEmpty: "暂无日志",
   },
 
   languageSwitcher: {

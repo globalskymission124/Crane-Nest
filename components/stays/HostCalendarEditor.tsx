@@ -1,9 +1,9 @@
 "use client";
 
 // =========================================================
-// オーナー：料金・空室の日別編集カレンダー
-//  各日の料金上書き（stays_daily_prices）と手動ブロック（1泊）を
-//  月グリッドから直接編集する。多言語対応。
+// オーナー：料金・空室の日別／期間まとめて編集カレンダー
+//  各日または期間（2回クリックで範囲選択）に対して
+//  料金の上書き（stays_daily_prices）と手動ブロックを編集する。多言語対応。
 // =========================================================
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -40,7 +40,8 @@ export default function HostCalendarEditor({
     const d = new Date(today + "T00:00:00");
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selStart, setSelStart] = useState<string | null>(null);
+  const [selEnd, setSelEnd] = useState<string | null>(null);
   const [priceInput, setPriceInput] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -52,10 +53,10 @@ export default function HostCalendarEditor({
   }
   useEffect(() => {
     if (listingId) loadPrices();
-    setSelected(null);
+    setSelStart(null);
+    setSelEnd(null);
   }, [listingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 手動ブロック: 日付 -> ブロックID（削除用）/ その他ブロック（予約・Airbnb）は編集不可
   const { manualByNight, otherBlocked } = useMemo(() => {
     const manual: Record<string, string> = {};
     const other = new Set<string>();
@@ -80,38 +81,71 @@ export default function HostCalendarEditor({
   const cells: (string | null)[] = [];
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(ymd(year, month, d));
-  const atCurrentMonth = year === new Date(today + "T00:00:00").getFullYear() && month === new Date(today + "T00:00:00").getMonth();
+  const todayDate = new Date(today + "T00:00:00");
+  const atCurrentMonth = year === todayDate.getFullYear() && month === todayDate.getMonth();
+
+  // 選択中の日（範囲）
+  const selDays = useMemo(() => {
+    if (!selStart) return [] as string[];
+    const end = selEnd || selStart;
+    return nightsInRange(selStart, addDays(end, 1));
+  }, [selStart, selEnd]);
+  const inSel = (d: string) => selDays.includes(d);
 
   function pick(d: string) {
     if (d < today) return;
-    setSelected(d);
-    setPriceInput(String(prices[d] ?? basePrice));
+    if (!selStart || (selStart && selEnd)) {
+      setSelStart(d);
+      setSelEnd(null);
+      setPriceInput(String(prices[d] ?? basePrice));
+    } else if (d < selStart) {
+      setSelStart(d);
+      setSelEnd(null);
+      setPriceInput(String(prices[d] ?? basePrice));
+    } else {
+      setSelEnd(d);
+    }
   }
 
+  const selHasOther = selDays.some((d) => otherBlocked.has(d));
+  const selAllManual = selDays.length > 0 && selDays.every((d) => manualByNight[d]);
+
   async function savePrice() {
-    if (!selected) return;
+    if (selDays.length === 0) return;
     const v = Number(priceInput);
     if (!(v >= 0)) return;
     setBusy(true);
-    try { await setDailyPrice(listingId, selected, Math.round(v)); await loadPrices(); } finally { setBusy(false); }
+    try {
+      for (const d of selDays) await setDailyPrice(listingId, d, Math.round(v));
+      await loadPrices();
+    } finally { setBusy(false); }
   }
   async function resetPrice() {
-    if (!selected) return;
-    setBusy(true);
-    try { await clearDailyPrice(listingId, selected); await loadPrices(); setPriceInput(String(basePrice)); } finally { setBusy(false); }
-  }
-  async function toggleBlock() {
-    if (!selected) return;
+    if (selDays.length === 0) return;
     setBusy(true);
     try {
-      if (manualByNight[selected]) {
-        await deleteBlock(manualByNight[selected]);
-      } else if (!otherBlocked.has(selected)) {
-        await addManualBlock(listingId, selected, addDays(selected, 1), p.calendar.manualBlockNote);
+      for (const d of selDays) await clearDailyPrice(listingId, d);
+      await loadPrices();
+      setPriceInput(String(basePrice));
+    } finally { setBusy(false); }
+  }
+  async function toggleBlock() {
+    if (selDays.length === 0 || selHasOther) return;
+    setBusy(true);
+    try {
+      if (selAllManual) {
+        // 範囲に重なる手動ブロックを削除
+        const ids = new Set(selDays.map((d) => manualByNight[d]).filter(Boolean));
+        for (const id of ids) await deleteBlock(id);
+      } else {
+        const end = selEnd || selStart!;
+        await addManualBlock(listingId, selStart!, addDays(end, 1), p.calendar.manualBlockNote);
       }
       await onBlocksChanged();
     } finally { setBusy(false); }
   }
+
+  const rangeLabel = selStart ? (selEnd && selEnd !== selStart ? `${selStart} 〜 ${selEnd}・${selDays.length}${p.calendar.daysUnit}` : selStart) : "";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -140,7 +174,7 @@ export default function HostCalendarEditor({
           const isOther = otherBlocked.has(d);
           const blocked = isManual || isOther;
           const override = prices[d];
-          const isSel = selected === d;
+          const sel = inSel(d);
           return (
             <button
               key={d}
@@ -150,7 +184,7 @@ export default function HostCalendarEditor({
               className={[
                 "flex aspect-square flex-col items-center justify-center rounded-lg border text-xs transition",
                 past ? "cursor-not-allowed border-transparent text-slate-300" : "border-slate-200 hover:border-brand-400",
-                isSel ? "ring-2 ring-brand-500" : "",
+                sel ? "bg-brand-50 ring-2 ring-brand-500" : "",
                 blocked ? "bg-slate-100 text-slate-400" : "",
               ].join(" ")}
             >
@@ -165,33 +199,27 @@ export default function HostCalendarEditor({
         })}
       </div>
 
-      {selected && (
+      {selStart && (
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="mb-2 text-sm font-bold text-slate-700">{selected}</p>
-          {otherBlocked.has(selected) ? (
+          <p className="mb-2 text-sm font-bold text-slate-700">
+            <span className="mr-1 text-xs font-normal text-slate-400">{p.calendar.selectedRange}:</span>{rangeLabel}
+          </p>
+          {selHasOther ? (
             <p className="text-xs text-slate-500">{p.calendar.srcBooking} / {p.calendar.srcAirbnb}</p>
           ) : (
             <div className="flex flex-wrap items-end gap-2">
               <label className="text-xs font-semibold text-slate-500">
                 {p.calendar.priceOverride}
-                <input
-                  type="number"
-                  min={0}
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  className="mt-1 block w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                />
+                <input type="number" min={0} value={priceInput} onChange={(e) => setPriceInput(e.target.value)} className="mt-1 block w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm" />
               </label>
               <button type="button" onClick={savePrice} disabled={busy} className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : p.calendar.savePrice}
               </button>
-              {prices[selected] != null && (
-                <button type="button" onClick={resetPrice} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
-                  {p.calendar.clearOverride}
-                </button>
-              )}
-              <button type="button" onClick={toggleBlock} disabled={busy} className={`rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50 ${manualByNight[selected] ? "border border-slate-200 bg-white text-slate-600" : "bg-rose-600 text-white"}`}>
-                {manualByNight[selected] ? p.calendar.unblockDay : p.calendar.blockDay}
+              <button type="button" onClick={resetPrice} disabled={busy} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">
+                {p.calendar.clearOverride}
+              </button>
+              <button type="button" onClick={toggleBlock} disabled={busy} className={`rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50 ${selAllManual ? "border border-slate-200 bg-white text-slate-600" : "bg-rose-600 text-white"}`}>
+                {selAllManual ? p.calendar.unblockDay : p.calendar.blockDay}
               </button>
             </div>
           )}

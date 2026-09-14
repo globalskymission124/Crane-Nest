@@ -222,5 +222,7 @@ export interface AdminDictionary {
     monthlyGmv: string; monthlyBookings: string; monthSuffix: string;
     topTitle: string; thProperty: string; thArea: string; thBookings: string; thRevenue: string; noData: string;
     modTitle: string; approve: string; reject: string; untitled: string; perNight: string; loading: string;
+    periodAll: string; periodThisMonth: string; periodLastMonth: string; exportCsv: string;
+    auditTitle: string; auditActor: string; auditAction: string; auditTarget: string; auditDetail: string; auditTime: string; auditEmpty: string;
   };
 }

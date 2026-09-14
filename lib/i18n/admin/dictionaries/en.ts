@@ -245,6 +245,8 @@ const en: AdminDictionary = {
     monthlyGmv: "Monthly GMV", monthlyBookings: "Monthly bookings", monthSuffix: "",
     topTitle: "Top listings by revenue", thProperty: "Property", thArea: "Area", thBookings: "Bookings", thRevenue: "Revenue", noData: "No data",
     modTitle: "Listings awaiting review", approve: "Approve", reject: "Reject", untitled: "(Untitled)", perNight: "/night", loading: "Loading…",
+    periodAll: "All time", periodThisMonth: "This month", periodLastMonth: "Last month", exportCsv: "Export CSV",
+    auditTitle: "Audit log", auditActor: "Actor", auditAction: "Action", auditTarget: "Target", auditDetail: "Detail", auditTime: "Time", auditEmpty: "No logs",
   },
 
   languageSwitcher: {

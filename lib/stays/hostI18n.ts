@@ -54,7 +54,7 @@ interface HostDict {
   card_edit: string; card_publish: string; card_unpublish: string; card_boost: string; card_boosting: string;
   card_draft_badge: string; no_image: string;
   // 下書き自動保存
-  draft_found: string; draft_continue: string; draft_discard: string; card_pending: string;
+  draft_found: string; draft_continue: string; draft_discard: string; card_pending: string; card_completeness: string;
 }
 
 const ja: HostDict = {
@@ -110,7 +110,7 @@ const ja: HostDict = {
   pay_unpaid: "未払い", pay_paid: "支払済", pay_refunded: "返金済", pay_partial: "一部返金",
   no_bookings: "予約はありません。", guests_count_unit: "名",
   card_edit: "編集", card_publish: "公開", card_unpublish: "非公開", card_boost: "ブースト", card_boosting: "PR中",
-  card_draft_badge: "非公開", no_image: "画像なし",
+  card_draft_badge: "非公開", no_image: "画像なし", card_completeness: "完成度",
   draft_found: "入力途中の物件があります。", draft_continue: "続きから再開", draft_discard: "破棄", card_pending: "審査中",
 };
 
@@ -167,7 +167,7 @@ const en: HostDict = {
   pay_unpaid: "Unpaid", pay_paid: "Paid", pay_refunded: "Refunded", pay_partial: "Partial refund",
   no_bookings: "No bookings.", guests_count_unit: "guests",
   card_edit: "Edit", card_publish: "Publish", card_unpublish: "Unpublish", card_boost: "Boost", card_boosting: "Promoted",
-  card_draft_badge: "Draft", no_image: "No image",
+  card_draft_badge: "Draft", no_image: "No image", card_completeness: "Completeness",
   draft_found: "You have a listing in progress.", draft_continue: "Resume", draft_discard: "Discard", card_pending: "In review",
 };
 
@@ -224,7 +224,7 @@ const tw: HostDict = {
   pay_unpaid: "未付款", pay_paid: "已付款", pay_refunded: "已退款", pay_partial: "部分退款",
   no_bookings: "沒有預訂。", guests_count_unit: "人",
   card_edit: "編輯", card_publish: "發佈", card_unpublish: "下架", card_boost: "曝光", card_boosting: "曝光中",
-  card_draft_badge: "未發佈", no_image: "無圖片",
+  card_draft_badge: "未發佈", no_image: "無圖片", card_completeness: "完成度",
   draft_found: "有尚未完成的房源。", draft_continue: "繼續編輯", draft_discard: "捨棄", card_pending: "審核中",
 };
 
@@ -281,7 +281,7 @@ const zh: HostDict = {
   pay_unpaid: "未付款", pay_paid: "已付款", pay_refunded: "已退款", pay_partial: "部分退款",
   no_bookings: "没有预订。", guests_count_unit: "人",
   card_edit: "编辑", card_publish: "发布", card_unpublish: "下架", card_boost: "曝光", card_boosting: "曝光中",
-  card_draft_badge: "未发布", no_image: "无图片",
+  card_draft_badge: "未发布", no_image: "无图片", card_completeness: "完成度",
   draft_found: "有尚未完成的房源。", draft_continue: "继续编辑", draft_discard: "舍弃", card_pending: "审核中",
 };
 

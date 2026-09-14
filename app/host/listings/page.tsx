@@ -63,6 +63,21 @@ const STEP_SEQUENCE: StepId[] = PHASES.flat();
 const field = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
 const DRAFT_KEY = "crane_listing_draft"; // 新規物件の下書き自動保存キー
 
+// 掲載の完成度（Airbnbの「掲載を完成させよう」）。8項目の充足率。
+function listingCompleteness(l: Listing): number {
+  const checks = [
+    (l.photos?.length || 0) >= 5,
+    (l.description?.trim().length || 0) >= 50,
+    (l.amenities?.length || 0) >= 3,
+    ((l.highlights as string[] | undefined)?.length || 0) >= 1,
+    !!l.checkin_instructions?.trim(),
+    l.lat != null && l.lng != null,
+    !!l.check_in_time && !!l.check_out_time,
+    !!l.title?.trim(),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
 // 数量ステッパー（定員・寝室・ベッド・バス）
 function Stepper({
   label, value, min = 0, step = 1, onChange,
@@ -337,6 +352,19 @@ export default function HostListingsPage() {
                   {!l.is_published && <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500">{t.card_draft_badge}</span>}
                 </div>
                 <p className="text-xs text-slate-500">{l.city}・{formatJPY(l.price_per_night)}{t.per_night}</p>
+                {(() => {
+                  const c = listingCompleteness(l);
+                  return c < 100 ? (
+                    <div className="mt-2">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>{t.card_completeness}</span><span>{c}%</span>
+                      </div>
+                      <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-brand-500" style={{ width: `${c}%` }} />
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="mt-3 flex gap-1.5">
                   <button onClick={() => startEdit(l)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600">
                     <Pencil className="h-3.5 w-3.5" /> {t.card_edit}

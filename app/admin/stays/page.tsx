@@ -5,15 +5,32 @@
 // GMV / 予約数 / 決済 / トップ物件 / 月次チャート
 // =========================================================
 import { useEffect, useMemo, useState } from "react";
-import { BadgeJapaneseYen, BarChart3, CalendarCheck2, CreditCard, Home } from "lucide-react";
+import { BadgeJapaneseYen, BarChart3, CalendarCheck2, CreditCard, Download, Home, ScrollText } from "lucide-react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
 import { fetchAllBookings, fetchAllListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
-import { fetchAllPayments, monthlyStats } from "@/lib/stays/v2";
+import { fetchAllPayments, fetchAuditLogs, monthlyStats } from "@/lib/stays/v2";
 import { setListingModeration } from "@/lib/stays/host";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import { formatJPY } from "@/lib/stays/types";
-import type { Booking, Listing, Payment, Review } from "@/lib/stays/types";
+import type { AuditLog, Booking, Listing, Payment, Review } from "@/lib/stays/types";
+
+type Period = "all" | "this" | "last";
+
+function periodBounds(period: Period): [Date, Date] | null {
+  if (period === "all") return null;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (period === "this") return [new Date(y, m, 1), new Date(y, m + 1, 1)];
+  return [new Date(y, m - 1, 1), new Date(y, m, 1)];
+}
+function inPeriod(dateStr: string | undefined, bounds: [Date, Date] | null): boolean {
+  if (!bounds) return true;
+  if (!dateStr) return false;
+  const d = new Date(dateStr).getTime();
+  return d >= bounds[0].getTime() && d < bounds[1].getTime();
+}
 
 function AdminStaysBody() {
   const { t: adminT } = useAdminTranslation();
@@ -22,29 +39,55 @@ function AdminStaysBody() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [period, setPeriod] = useState<Period>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [bk, ls, ps, rv] = await Promise.all([
+      const [bk, ls, ps, rv, lg] = await Promise.all([
         fetchAllBookings(),
         fetchAllListings(),
         fetchAllPayments(),
         fetchAllReviews(),
+        fetchAuditLogs(50),
       ]);
       setBookings(bk);
       setListings(ls);
       setPayments(ps);
       setReviews(rv);
+      setLogs(lg);
       setLoading(false);
     })();
   }, []);
 
-  const active = useMemo(() => bookings.filter((b) => b.status !== "cancelled"), [bookings]);
-  const gmv = active.reduce((s, b) => s + b.total_price, 0);
-  const paidTotal = payments.filter((p) => p.status === "paid" || p.status === "partially_refunded").reduce((s, p) => s + p.amount - p.refund_amount, 0);
-  const refundTotal = payments.reduce((s, p) => s + p.refund_amount, 0);
+  const bounds = useMemo(() => periodBounds(period), [period]);
+  const active = useMemo(
+    () => bookings.filter((b) => b.status !== "cancelled" && inPeriod(b.created_at, bounds)),
+    [bookings, bounds]
+  );
+  const paymentsInPeriod = useMemo(() => payments.filter((pm) => inPeriod(pm.created_at, bounds)), [payments, bounds]);
+  const gmv = active.reduce((acc, b) => acc + b.total_price, 0);
+  const paidTotal = paymentsInPeriod.filter((pm) => pm.status === "paid" || pm.status === "partially_refunded").reduce((acc, pm) => acc + pm.amount - pm.refund_amount, 0);
+  const refundTotal = paymentsInPeriod.reduce((acc, pm) => acc + pm.refund_amount, 0);
   const monthly = useMemo(() => monthlyStats(bookings), [bookings]);
+
+  function exportCsv() {
+    const header = ["listing", "guest", "email", "check_in", "check_out", "guests", "total", "status", "payment", "created_at"];
+    const listingTitle = (id: string) => listings.find((l) => l.id === id)?.title || id;
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = active.map((b) => [
+      listingTitle(b.listing_id), b.guest_name, b.guest_email, b.check_in, b.check_out,
+      b.guests_count, b.total_price, b.status, b.payment_status, b.created_at || "",
+    ].map(esc).join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `stays-bookings-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   const topListings = useMemo(() => {
     const map = new Map<string, { revenue: number; count: number }>();
@@ -77,9 +120,27 @@ function AdminStaysBody() {
 
   return (
     <div className="pb-20 sm:pb-6">
-      <h1 className="mb-5 flex items-center gap-2 text-2xl font-extrabold">
+      <h1 className="mb-4 flex items-center gap-2 text-2xl font-extrabold">
         <BarChart3 className="h-6 w-6 text-brand-600" /> {s.title}
       </h1>
+
+      {/* 期間フィルタ + CSV書き出し */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1.5">
+          {([["all", s.periodAll], ["this", s.periodThisMonth], ["last", s.periodLastMonth]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setPeriod(key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${period === key ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-500"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button onClick={exportCsv} className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white">
+          <Download className="h-3.5 w-3.5" /> {s.exportCsv}
+        </button>
+      </div>
 
       {/* 物件の審査（承認待ち） */}
       {pendingListings.length > 0 && (
@@ -148,6 +209,36 @@ function AdminStaysBody() {
             ))}
             {topListings.length === 0 && (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{s.noData}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 操作ログ（監査ログ） */}
+      <h2 className="mb-3 mt-8 flex items-center gap-2 text-lg font-bold">
+        <ScrollText className="h-5 w-5 text-slate-500" /> {s.auditTitle}
+      </h2>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="px-4 py-3 whitespace-nowrap">{s.auditTime}</th>
+              <th className="px-4 py-3">{s.auditActor}</th>
+              <th className="px-4 py-3">{s.auditAction}</th>
+              <th className="px-4 py-3">{s.auditDetail}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {logs.map((lg) => (
+              <tr key={lg.id}>
+                <td className="whitespace-nowrap px-4 py-2.5 text-xs text-slate-400">{lg.created_at?.slice(0, 16).replace("T", " ")}</td>
+                <td className="px-4 py-2.5 text-xs">{lg.actor_email}<span className="ml-1 text-slate-400">({lg.actor_role})</span></td>
+                <td className="px-4 py-2.5"><span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">{lg.action}</span></td>
+                <td className="px-4 py-2.5 text-xs text-slate-500">{lg.detail}</td>
+              </tr>
+            ))}
+            {logs.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{s.auditEmpty}</td></tr>
             )}
           </tbody>
         </table>
