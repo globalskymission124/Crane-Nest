@@ -247,6 +247,7 @@ const en: AdminDictionary = {
     modTitle: "Listings awaiting review", approve: "Approve", reject: "Reject", untitled: "(Untitled)", perNight: "/night", loading: "Loading…",
     periodAll: "All time", periodThisMonth: "This month", periodLastMonth: "Last month", exportCsv: "Export CSV",
     auditTitle: "Audit log", auditActor: "Actor", auditAction: "Action", auditTarget: "Target", auditDetail: "Detail", auditTime: "Time", auditEmpty: "No logs",
+    tasksTitle: "Operations tasks", taskPending: "Listings to review", taskReports: "Open reports", allClear: "Nothing needs attention 🎉",
   },
 
   languageSwitcher: {

@@ -57,6 +57,7 @@ interface Dict {
   ruleAllowed: string; ruleNotAllowed: string;
   rulePets: string; ruleSmoking: string; ruleEvents: string; ruleChildren: string; petsOk: string;
   highlightsTitle: string; showAllAmenities: string; amenitiesModalTitle: string; close: string; allPhotos: string;
+  ratingBreakdown: string; catCleanliness: string; catAccuracy: string; catCheckin: string; catValue: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
@@ -104,6 +105,7 @@ const en: Dict = {
   ruleAllowed: "Allowed", ruleNotAllowed: "Not allowed",
   rulePets: "Pets", ruleSmoking: "Smoking", ruleEvents: "Parties / events", ruleChildren: "Children", petsOk: "Pets allowed",
   highlightsTitle: "Highlights", showAllAmenities: "Show all amenities", amenitiesModalTitle: "What this place offers", close: "Close", allPhotos: "Show all photos",
+  ratingBreakdown: "Rating breakdown", catCleanliness: "Cleanliness", catAccuracy: "Accuracy", catCheckin: "Check-in", catValue: "Value",
   amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", heating: "Heating", tv: "TV", elevator: "Elevator", hair_dryer: "Hair dryer", iron: "Iron", bathtub: "Bathtub", pool: "Pool", hot_tub: "Hot tub / onsen", workspace: "Workspace", bbq: "BBQ", ev_charger: "EV charger", self_checkin: "Self check-in", breakfast: "Breakfast", smoke_alarm: "Smoke alarm", co_alarm: "Carbon monoxide alarm", fire_extinguisher: "Fire extinguisher", first_aid: "First aid kit" },
   ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin", ryokan: "Ryokan", minshuku: "Minshuku", loft: "Loft", condo: "Condo", townhouse: "Townhouse", bnb: "B&B" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
@@ -150,6 +152,7 @@ const ja: Dict = {
   ruleAllowed: "可", ruleNotAllowed: "不可",
   rulePets: "ペット", ruleSmoking: "喫煙", ruleEvents: "パーティー・イベント", ruleChildren: "子供", petsOk: "ペット可",
   highlightsTitle: "この宿のハイライト", showAllAmenities: "すべてのアメニティを見る", amenitiesModalTitle: "この宿の設備・アメニティ", close: "閉じる", allPhotos: "すべての写真を見る",
+  ratingBreakdown: "評価の内訳", catCleanliness: "清潔さ", catAccuracy: "正確さ", catCheckin: "チェックイン", catValue: "コスパ",
   amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", heating: "暖房", tv: "テレビ", elevator: "エレベーター", hair_dryer: "ドライヤー", iron: "アイロン", bathtub: "バスタブ", pool: "プール", hot_tub: "ジャグジー・温泉", workspace: "ワークスペース", bbq: "バーベキュー設備", ev_charger: "EV充電器", self_checkin: "セルフチェックイン", breakfast: "朝食", smoke_alarm: "煙感知器", co_alarm: "一酸化炭素警報器", fire_extinguisher: "消火器", first_aid: "救急箱" },
   ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ", ryokan: "旅館", minshuku: "民宿", loft: "ロフト", condo: "分譲マンション", townhouse: "タウンハウス", bnb: "B&B" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
@@ -196,6 +199,7 @@ const tw: Dict = {
   ruleAllowed: "可", ruleNotAllowed: "不可",
   rulePets: "寵物", ruleSmoking: "吸菸", ruleEvents: "派對・活動", ruleChildren: "兒童", petsOk: "可攜寵物",
   highlightsTitle: "住宿亮點", showAllAmenities: "顯示所有設施", amenitiesModalTitle: "此住宿提供的設施", close: "關閉", allPhotos: "顯示所有照片",
+  ratingBreakdown: "評分明細", catCleanliness: "清潔度", catAccuracy: "準確度", catCheckin: "入住", catValue: "性價比",
   amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", heating: "暖氣", tv: "電視", elevator: "電梯", hair_dryer: "吹風機", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・溫泉", workspace: "工作空間", bbq: "烤肉設備", ev_charger: "電動車充電", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "煙霧偵測器", co_alarm: "一氧化碳警報器", fire_extinguisher: "滅火器", first_aid: "急救箱" },
   ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋", ryokan: "旅館", minshuku: "民宿(和式)", loft: "閣樓", condo: "住宅大樓", townhouse: "連棟住宅", bnb: "B&B" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
@@ -243,6 +247,7 @@ const zh: Dict = {
   ruleAllowed: "可", ruleNotAllowed: "不可",
   rulePets: "宠物", ruleSmoking: "吸烟", ruleEvents: "派对・活动", ruleChildren: "儿童", petsOk: "可携宠物",
   highlightsTitle: "住宿亮点", showAllAmenities: "显示所有设施", amenitiesModalTitle: "此住宿提供的设施", close: "关闭", allPhotos: "显示所有照片",
+  ratingBreakdown: "评分明细", catCleanliness: "清洁度", catAccuracy: "准确度", catCheckin: "入住", catValue: "性价比",
   amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", heating: "暖气", tv: "电视", elevator: "电梯", hair_dryer: "吹风机", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・温泉", workspace: "工作空间", bbq: "烧烤设备", ev_charger: "电动车充电", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "烟雾探测器", co_alarm: "一氧化碳警报器", fire_extinguisher: "灭火器", first_aid: "急救箱" },
   ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋", ryokan: "旅馆", minshuku: "民宿(和式)", loft: "阁楼", condo: "住宅公寓", townhouse: "联排住宅", bnb: "B&B" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },

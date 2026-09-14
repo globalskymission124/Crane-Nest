@@ -12,6 +12,7 @@ import StaysMap from "@/components/stays/StaysMap";
 import BookingWidget from "@/components/stays/BookingWidget";
 import ReviewsSection from "@/components/stays/ReviewsSection";
 import ReviewHighlights from "@/components/stays/ReviewHighlights";
+import RatingBreakdown from "@/components/stays/RatingBreakdown";
 import ContactHostCard from "@/components/stays/ContactHostCard";
 import SimilarListings from "@/components/stays/SimilarListings";
 import WishlistButton from "@/components/stays/WishlistButton";
@@ -340,6 +341,7 @@ export default function ListingDetailPage({ params }: { params: { id: string } }
           </div>
 
           <div id="reviews">
+            <RatingBreakdown reviews={reviews} />
             <ReviewHighlights reviews={reviews} />
             <ReviewsSection
               listingId={listing.id}

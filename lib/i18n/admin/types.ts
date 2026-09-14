@@ -224,5 +224,6 @@ export interface AdminDictionary {
     modTitle: string; approve: string; reject: string; untitled: string; perNight: string; loading: string;
     periodAll: string; periodThisMonth: string; periodLastMonth: string; exportCsv: string;
     auditTitle: string; auditActor: string; auditAction: string; auditTarget: string; auditDetail: string; auditTime: string; auditEmpty: string;
+    tasksTitle: string; taskPending: string; taskReports: string; allClear: string;
   };
 }

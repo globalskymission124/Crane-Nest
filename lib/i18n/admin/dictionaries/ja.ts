@@ -247,6 +247,7 @@ const ja: AdminDictionary = {
     modTitle: "審査待ちの物件", approve: "承認", reject: "却下", untitled: "（無題）", perNight: "/泊", loading: "読み込み中…",
     periodAll: "全期間", periodThisMonth: "今月", periodLastMonth: "先月", exportCsv: "CSV書き出し",
     auditTitle: "操作ログ", auditActor: "実行者", auditAction: "操作", auditTarget: "対象", auditDetail: "詳細", auditTime: "日時", auditEmpty: "ログはありません",
+    tasksTitle: "運営タスク", taskPending: "審査待ちの物件", taskReports: "未対応の通報", allClear: "未対応の項目はありません 🎉",
   },
 
   languageSwitcher: {

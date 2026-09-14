@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BadgeJapaneseYen, BarChart3, CalendarCheck2, Lightbulb, Star, TrendingUp } from "lucide-react";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
-import { fetchAllListings, fetchAllReviews, fetchBlocks, fetchBookings, averageRating, hostScope, ownedListings } from "@/lib/stays/queries";
+import { fetchAllListings, fetchAllReviews, fetchBlocks, fetchBookings, averageRating, hostScope, ownedListings, SUPERHOST_MIN_RATING, SUPERHOST_MIN_REVIEWS } from "@/lib/stays/queries";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import { upsertListing } from "@/lib/stays/host";
@@ -102,6 +102,37 @@ export default function HostAnalyticsPage() {
       <h1 className="mb-5 flex items-center gap-2 text-2xl font-extrabold">
         <BarChart3 className="h-6 w-6 text-brand-600" /> {p.analytics.title}
       </h1>
+
+      {/* スーパーホストへの進捗 */}
+      {(() => {
+        const isSuper = avgRating >= SUPERHOST_MIN_RATING && reviews.length >= SUPERHOST_MIN_REVIEWS;
+        const ratingPct = Math.min(100, Math.round((avgRating / SUPERHOST_MIN_RATING) * 100));
+        const reviewPct = Math.min(100, Math.round((reviews.length / SUPERHOST_MIN_REVIEWS) * 100));
+        return (
+          <div className={`mb-5 rounded-2xl border p-4 ${isSuper ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+            <p className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-700">
+              <Star className={`h-4 w-4 ${isSuper ? "fill-amber-400 text-amber-400" : "text-slate-400"}`} />
+              {isSuper ? p.analytics.superhostAchieved : p.analytics.superhostTitle}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>{p.analytics.shRating}</span>
+                  <span className="font-semibold text-slate-700">{avgRating ? avgRating.toFixed(2) : "—"} <span className="text-slate-400">/ {p.analytics.shGoal} {SUPERHOST_MIN_RATING}</span></span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${avgRating >= SUPERHOST_MIN_RATING ? "bg-amber-500" : "bg-brand-500"}`} style={{ width: `${ratingPct}%` }} /></div>
+              </div>
+              <div>
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>{p.analytics.shReviews}</span>
+                  <span className="font-semibold text-slate-700">{reviews.length} <span className="text-slate-400">/ {p.analytics.shGoal} {SUPERHOST_MIN_REVIEWS}</span></span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${reviews.length >= SUPERHOST_MIN_REVIEWS ? "bg-amber-500" : "bg-brand-500"}`} style={{ width: `${reviewPct}%` }} /></div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={p.analytics.scPayout} value={formatJPY(payout)} sub={`${p.analytics.scPayoutSubA} ${formatJPY(totalRevenue)}・${p.analytics.scPayoutSubB} ${formatJPY(totalCommission)}`} icon={<BadgeJapaneseYen className="h-4 w-4 text-slate-300" />} />

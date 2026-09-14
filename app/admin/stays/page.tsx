@@ -8,8 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import { BadgeJapaneseYen, BarChart3, CalendarCheck2, CreditCard, Download, Home, ScrollText } from "lucide-react";
 import AuthGuard from "@/components/stays/AuthGuard";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
+import Link from "next/link";
 import { fetchAllBookings, fetchAllListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
-import { fetchAllPayments, fetchAuditLogs, monthlyStats } from "@/lib/stays/v2";
+import { fetchAllPayments, fetchAuditLogs, fetchReports, monthlyStats } from "@/lib/stays/v2";
 import { setListingModeration } from "@/lib/stays/host";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import { formatJPY } from "@/lib/stays/types";
@@ -40,23 +41,26 @@ function AdminStaysBody() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [openReports, setOpenReports] = useState(0);
   const [period, setPeriod] = useState<Period>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [bk, ls, ps, rv, lg] = await Promise.all([
+      const [bk, ls, ps, rv, lg, rp] = await Promise.all([
         fetchAllBookings(),
         fetchAllListings(),
         fetchAllPayments(),
         fetchAllReviews(),
         fetchAuditLogs(50),
+        fetchReports(),
       ]);
       setBookings(bk);
       setListings(ls);
       setPayments(ps);
       setReviews(rv);
       setLogs(lg);
+      setOpenReports(rp.filter((r) => r.status === "open" || r.status === "in_review").length);
       setLoading(false);
     })();
   }, []);
@@ -123,6 +127,29 @@ function AdminStaysBody() {
       <h1 className="mb-4 flex items-center gap-2 text-2xl font-extrabold">
         <BarChart3 className="h-6 w-6 text-brand-600" /> {s.title}
       </h1>
+
+      {/* 運営タスク（未対応の審査・通報を集約） */}
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4">
+        <p className="mb-2 text-sm font-bold text-slate-700">{s.tasksTitle}</p>
+        {pendingListings.length === 0 && openReports === 0 ? (
+          <p className="text-sm text-slate-500">{s.allClear}</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {pendingListings.length > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+                {s.taskPending}
+                <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] text-white">{pendingListings.length}</span>
+              </span>
+            )}
+            {openReports > 0 && (
+              <Link href="/admin/reports" className="flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                {s.taskReports}
+                <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] text-white">{openReports}</span>
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 期間フィルタ + CSV書き出し */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">

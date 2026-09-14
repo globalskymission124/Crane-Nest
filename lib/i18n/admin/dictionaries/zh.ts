@@ -247,6 +247,7 @@ const zh: AdminDictionary = {
     modTitle: "待审核的房源", approve: "核准", reject: "拒绝", untitled: "（无标题）", perNight: "/晚", loading: "加载中…",
     periodAll: "全部期间", periodThisMonth: "本月", periodLastMonth: "上月", exportCsv: "导出CSV",
     auditTitle: "操作日志", auditActor: "执行者", auditAction: "操作", auditTarget: "对象", auditDetail: "详情", auditTime: "时间", auditEmpty: "暂无日志",
+    tasksTitle: "运营任务", taskPending: "待审核房源", taskReports: "未处理举报", allClear: "暂无待处理事项 🎉",
   },
 
   languageSwitcher: {
