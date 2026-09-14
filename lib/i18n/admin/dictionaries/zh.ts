@@ -236,6 +236,17 @@ const zh: AdminDictionary = {
     passportPhotoAlt: (name) => `${name}的护照照片`,
   },
 
+  stays: {
+    title: "住宿平台分析",
+    gmv: "流通总额 (GMV)", activeBookings: "有效预订", unit: "笔",
+    paid: "已结算金额（扣除退款后）", refundLabel: "退款",
+    listings: "房源", publishedLabel: "公开中",
+    reviews: "评价", avgLabel: "平均",
+    monthlyGmv: "各月GMV", monthlyBookings: "各月预订数", monthSuffix: "月",
+    topTitle: "营收最高房源", thProperty: "房源", thArea: "地区", thBookings: "预订数", thRevenue: "营收", noData: "暂无数据",
+    modTitle: "待审核的房源", approve: "核准", reject: "拒绝", untitled: "（无标题）", perNight: "/晚", loading: "加载中…",
+  },
+
   languageSwitcher: {
     label: "显示语言",
   },

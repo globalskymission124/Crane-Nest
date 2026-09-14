@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import ModeSwitchButton from "@/components/stays/ModeSwitchButton";
 import NotificationsBell from "@/components/stays/NotificationsBell";
+import StaysLangSwitcher from "@/components/stays/StaysLangSwitcher";
 import { logout, useStaysSession } from "@/lib/stays/auth";
 import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import { averageRating, fetchAllBookings, fetchAllListings, fetchAllReviews, hostScope, ownedListings, byListingIds } from "@/lib/stays/queries";
@@ -79,6 +80,7 @@ export default function HostMenuPage() {
           <p className="mt-2 text-sm font-semibold text-slate-500">{p.menu.ownerMode}</p>
         </div>
         <div className="flex items-center gap-2">
+          <StaysLangSwitcher />
           <NotificationsBell />
           <Link href="/stays/profile" aria-label={p.menu.profile} className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-100">
             {session?.avatar_url ? (

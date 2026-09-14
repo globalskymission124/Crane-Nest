@@ -211,4 +211,16 @@ export interface AdminDictionary {
   languageSwitcher: {
     label: string;
   };
+
+  // 宿泊プラットフォーム分析ページ
+  stays: {
+    title: string;
+    gmv: string; activeBookings: string; unit: string;
+    paid: string; refundLabel: string;
+    listings: string; publishedLabel: string;
+    reviews: string; avgLabel: string;
+    monthlyGmv: string; monthlyBookings: string; monthSuffix: string;
+    topTitle: string; thProperty: string; thArea: string; thBookings: string; thRevenue: string; noData: string;
+    modTitle: string; approve: string; reject: string; untitled: string; perNight: string; loading: string;
+  };
 }

@@ -236,6 +236,17 @@ const ja: AdminDictionary = {
     passportPhotoAlt: (name) => `${name}のパスポート写真`,
   },
 
+  stays: {
+    title: "宿泊プラットフォーム分析",
+    gmv: "流通総額 (GMV)", activeBookings: "有効予約", unit: "件",
+    paid: "決済済み金額（返金控除後）", refundLabel: "返金",
+    listings: "掲載物件", publishedLabel: "公開中",
+    reviews: "レビュー", avgLabel: "平均",
+    monthlyGmv: "月別GMV", monthlyBookings: "月別予約数", monthSuffix: "月",
+    topTitle: "売上トップ物件", thProperty: "物件", thArea: "エリア", thBookings: "予約数", thRevenue: "売上", noData: "データがありません",
+    modTitle: "審査待ちの物件", approve: "承認", reject: "却下", untitled: "（無題）", perNight: "/泊", loading: "読み込み中…",
+  },
+
   languageSwitcher: {
     label: "表示言語",
   },

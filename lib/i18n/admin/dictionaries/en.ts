@@ -236,6 +236,17 @@ const en: AdminDictionary = {
     passportPhotoAlt: (name) => `Passport photo of ${name}`,
   },
 
+  stays: {
+    title: "Stays platform analytics",
+    gmv: "GMV", activeBookings: "active bookings", unit: "",
+    paid: "Paid (net of refunds)", refundLabel: "Refunds",
+    listings: "Listings", publishedLabel: "Published",
+    reviews: "Reviews", avgLabel: "Avg",
+    monthlyGmv: "Monthly GMV", monthlyBookings: "Monthly bookings", monthSuffix: "",
+    topTitle: "Top listings by revenue", thProperty: "Property", thArea: "Area", thBookings: "Bookings", thRevenue: "Revenue", noData: "No data",
+    modTitle: "Listings awaiting review", approve: "Approve", reject: "Reject", untitled: "(Untitled)", perNight: "/night", loading: "Loading…",
+  },
+
   languageSwitcher: {
     label: "Language",
   },
