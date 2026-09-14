@@ -9,12 +9,13 @@ import { BadgeJapaneseYen, BarChart3, CalendarCheck2, CreditCard, Download, Home
 import AuthGuard from "@/components/stays/AuthGuard";
 import { BarChart, StatCard } from "@/components/stays/MiniChart";
 import Link from "next/link";
-import { fetchAllBookings, fetchAllListings, fetchAllReviews, averageRating } from "@/lib/stays/queries";
-import { fetchAllPayments, fetchAuditLogs, fetchReports, monthlyStats } from "@/lib/stays/v2";
+import { fetchAllBookings, fetchAllListings, fetchAllReviews, averageRating, hostRatingStats } from "@/lib/stays/queries";
+import { fetchAllPayments, fetchAuditLogs, fetchReports, fetchCoupons, monthlyStats } from "@/lib/stays/v2";
 import { setListingModeration } from "@/lib/stays/host";
+import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import { formatJPY } from "@/lib/stays/types";
-import type { AuditLog, Booking, Listing, Payment, Review } from "@/lib/stays/types";
+import type { AuditLog, Booking, Coupon, Host, Listing, Payment, Review } from "@/lib/stays/types";
 
 type Period = "all" | "this" | "last";
 
@@ -42,18 +43,27 @@ function AdminStaysBody() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [openReports, setOpenReports] = useState(0);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [hostNames, setHostNames] = useState<Record<string, string>>({});
   const [period, setPeriod] = useState<Period>("all");
   const [loading, setLoading] = useState(true);
+  const [refunding, setRefunding] = useState<string | null>(null);
+
+  async function loadPayments() {
+    setPayments(await fetchAllPayments());
+  }
 
   useEffect(() => {
     (async () => {
-      const [bk, ls, ps, rv, lg, rp] = await Promise.all([
+      const [bk, ls, ps, rv, lg, rp, cp, hs] = await Promise.all([
         fetchAllBookings(),
         fetchAllListings(),
         fetchAllPayments(),
         fetchAllReviews(),
         fetchAuditLogs(50),
         fetchReports(),
+        fetchCoupons(),
+        supabase.from("stays_hosts").select("id,name"),
       ]);
       setBookings(bk);
       setListings(ls);
@@ -61,9 +71,34 @@ function AdminStaysBody() {
       setReviews(rv);
       setLogs(lg);
       setOpenReports(rp.filter((r) => r.status === "open" || r.status === "in_review").length);
+      setCoupons(cp);
+      const hmap: Record<string, string> = {};
+      for (const h of ((hs.data as Pick<Host, "id" | "name">[]) || [])) hmap[h.id] = h.name;
+      setHostNames(hmap);
       setLoading(false);
     })();
   }, []);
+
+  async function refund(pm: Payment) {
+    const booking = bookings.find((b) => b.id === pm.booking_id);
+    const remaining = pm.amount - pm.refund_amount;
+    if (remaining <= 0) return;
+    if (!confirm(s.rfConfirm + `\n${formatJPY(remaining)}`)) return;
+    setRefunding(pm.id);
+    try {
+      const res = await fetch("/api/stays/refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: booking?.id ?? pm.booking_id, amount: remaining }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      await loadPayments();
+    } catch (e: any) {
+      alert(e?.message || "error");
+    } finally {
+      setRefunding(null);
+    }
+  }
 
   const bounds = useMemo(() => periodBounds(period), [period]);
   const active = useMemo(
@@ -107,6 +142,48 @@ function AdminStaysBody() {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
   }, [active, listings]);
+
+  // ホスト別成績（売上・予約数・キャンセル率・評価）
+  const hostRank = useMemo(() => {
+    const listingHost = new Map(listings.map((l) => [l.id, l.host_id]));
+    const map = new Map<string, { revenue: number; bookings: number; cancelled: number }>();
+    for (const b of bookings) {
+      const hid = listingHost.get(b.listing_id);
+      if (!hid) continue;
+      const cur = map.get(hid) || { revenue: 0, bookings: 0, cancelled: 0 };
+      if (b.status === "cancelled") cur.cancelled++;
+      else cur.revenue += b.total_price;
+      cur.bookings++;
+      map.set(hid, cur);
+    }
+    return [...map.entries()]
+      .map(([hid, v]) => {
+        const st = hostRatingStats(hid, listings, reviews);
+        return { hid, name: hostNames[hid] || hid.slice(0, 8), revenue: v.revenue, bookings: v.bookings, cancelRate: v.bookings ? Math.round((v.cancelled / v.bookings) * 100) : 0, avgRating: st.avgRating, reviewCount: st.reviewCount };
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [bookings, listings, reviews, hostNames]);
+
+  // クーポン効果
+  const couponPerf = useMemo(
+    () =>
+      coupons
+        .map((c) => {
+          const used = bookings.filter((b) => (b.coupon_code || "").toUpperCase() === c.code.toUpperCase() && b.status !== "cancelled");
+          return { code: c.code, uses: used.length, discount: used.reduce((acc, b) => acc + (b.discount_amount || 0), 0), revenue: used.reduce((acc, b) => acc + b.total_price, 0) };
+        })
+        .sort((a, b) => b.uses - a.uses),
+    [coupons, bookings]
+  );
+
+  // 返金可能な決済
+  const bookingMap = useMemo(() => new Map(bookings.map((b) => [b.id, b])), [bookings]);
+  const listingMap2 = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
+  const refundable = useMemo(
+    () => payments.filter((pm) => (pm.status === "paid" || pm.status === "partially_refunded") && pm.amount - pm.refund_amount > 0).slice(0, 20),
+    [payments]
+  );
 
   const pendingListings = useMemo(() => listings.filter((l) => l.moderation_status === "pending"), [listings]);
 
@@ -267,6 +344,94 @@ function AdminStaysBody() {
             {logs.length === 0 && (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{s.auditEmpty}</td></tr>
             )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ホスト別成績 */}
+      <h2 className="mb-3 mt-8 text-lg font-bold">{s.hostRankTitle}</h2>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="px-4 py-3">{s.hrHost}</th>
+              <th className="px-4 py-3">{s.hrRevenue}</th>
+              <th className="px-4 py-3">{s.hrBookings}</th>
+              <th className="px-4 py-3">{s.hrRating}</th>
+              <th className="px-4 py-3">{s.hrCancel}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {hostRank.map((h) => (
+              <tr key={h.hid}>
+                <td className="px-4 py-2.5 font-medium">{h.name}</td>
+                <td className="px-4 py-2.5 font-semibold">{formatJPY(h.revenue)}</td>
+                <td className="px-4 py-2.5">{h.bookings}</td>
+                <td className="px-4 py-2.5">{h.avgRating ? h.avgRating.toFixed(1) : "—"}<span className="ml-1 text-xs text-slate-400">({h.reviewCount})</span></td>
+                <td className="px-4 py-2.5"><span className={h.cancelRate >= 20 ? "text-rose-600" : "text-slate-600"}>{h.cancelRate}%</span></td>
+              </tr>
+            ))}
+            {hostRank.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">{s.noData}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* クーポン効果 */}
+      <h2 className="mb-3 mt-8 text-lg font-bold">{s.couponTitle}</h2>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="px-4 py-3">{s.cpCode}</th>
+              <th className="px-4 py-3">{s.cpUses}</th>
+              <th className="px-4 py-3">{s.cpDiscount}</th>
+              <th className="px-4 py-3">{s.cpRevenue}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {couponPerf.map((c) => (
+              <tr key={c.code}>
+                <td className="px-4 py-2.5 font-mono font-semibold">{c.code}</td>
+                <td className="px-4 py-2.5">{c.uses}</td>
+                <td className="px-4 py-2.5 text-rose-600">-{formatJPY(c.discount)}</td>
+                <td className="px-4 py-2.5 font-semibold">{formatJPY(c.revenue)}</td>
+              </tr>
+            ))}
+            {couponPerf.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{s.cpNone}</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 返金管理 */}
+      <h2 className="mb-3 mt-8 text-lg font-bold">{s.refundTitle}</h2>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="px-4 py-3">{s.rfProperty}</th>
+              <th className="px-4 py-3">{s.rfGuest}</th>
+              <th className="px-4 py-3">{s.rfPaid}</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {refundable.map((pm) => {
+              const b = bookingMap.get(pm.booking_id);
+              const title = b ? listingMap2.get(b.listing_id)?.title : "—";
+              return (
+                <tr key={pm.id}>
+                  <td className="px-4 py-2.5 font-medium">{title || "—"}</td>
+                  <td className="px-4 py-2.5">{b?.guest_name || "—"}</td>
+                  <td className="px-4 py-2.5">{formatJPY(pm.amount - pm.refund_amount)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button onClick={() => refund(pm)} disabled={refunding === pm.id} className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50">
+                      {s.rfAction}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {refundable.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{s.rfNone}</td></tr>}
           </tbody>
         </table>
       </div>

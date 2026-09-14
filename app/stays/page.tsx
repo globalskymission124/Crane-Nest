@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import SearchFilters, { DEFAULT_FILTERS, type Filters } from "@/components/stays/SearchFilters";
-import StaysMap, { type MapMarker } from "@/components/stays/StaysMap";
+import StaysMap, { type MapMarker, type MapBounds } from "@/components/stays/StaysMap";
 import WishlistButton from "@/components/stays/WishlistButton";
 import { buildBlockedNights, isRangeAvailable, todayStr } from "@/lib/stays/availability";
 import { useStaysSession } from "@/lib/stays/auth";
@@ -288,6 +288,20 @@ export default function StaysHomePage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchByMap, setSearchByMap] = useState(false);
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+
+  // 今週末（次の土・日）をセット
+  function setThisWeekend() {
+    const now = new Date();
+    const day = now.getDay(); // 0=日
+    const toSat = (6 - day + 7) % 7 || 7; // 次の土曜まで
+    const sat = new Date(now); sat.setDate(now.getDate() + toSat);
+    const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+    const fmtD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setDateIn(fmtD(sat));
+    setDateOut(fmtD(sun));
+  }
 
   useEffect(() => {
     (async () => {
@@ -365,6 +379,10 @@ export default function StaysHomePage() {
       if (filters.amenities.length && !filters.amenities.every((a) => l.amenities.includes(a))) return false;
       if (filters.instantOnly && !l.instant_book) return false;
       if (filters.petsOk && !l.allow_pets) return false;
+      if (searchByMap && mapBounds) {
+        if (l.lat == null || l.lng == null) return false;
+        if (l.lat < mapBounds.south || l.lat > mapBounds.north || l.lng < mapBounds.west || l.lng > mapBounds.east) return false;
+      }
       if (filters.minRating > 0) {
         const avg = averageRating(reviewsByListing.get(l.id) || []);
         if (avg < filters.minRating) return false;
@@ -392,13 +410,13 @@ export default function StaysHomePage() {
             ((isFeatured(a) ? 100 : 0) + avg(a) + Math.min(1, (reviewsByListing.get(a.id)?.length || 0) * 0.1))
         );
     }
-  }, [listings, q, guests, filters, reviewsByListing, availableIds]);
+  }, [listings, q, guests, filters, reviewsByListing, availableIds, searchByMap, mapBounds]);
 
   const featured = useMemo(() => filtered.filter((l) => isFeatured(l) || averageRating(reviewsByListing.get(l.id) || []) >= 4.8), [filtered, reviewsByListing]);
   const osaka = filtered.filter((l) => /大阪|泉佐野|難波|Osaka|Izumisano/i.test(`${l.city} ${l.title} ${l.address}`));
   const kyoto = filtered.filter((l) => /京都|Kyoto/i.test(`${l.city} ${l.title} ${l.address}`));
   const nights = nightsBetween(dateIn, dateOut);
-  const dateSummary = dateIn && dateOut ? `${dateIn} 至 ${dateOut}` : "选择日期可查看实时空房";
+  const dateSummary = dateIn && dateOut ? `${dateIn} ${t.listTo} ${dateOut}` : t.listPickDates;
   const markers: MapMarker[] = filtered
     .filter((l) => l.lat != null && l.lng != null)
     .map((l) => ({ id: l.id, lat: l.lat!, lng: l.lng!, title: l.title, price: l.price_per_night, href: `/stays/${l.id}` }));
@@ -441,7 +459,7 @@ export default function StaysHomePage() {
           onClick={() => setSearchOpen(true)}
           className="mx-auto flex h-16 w-full max-w-3xl items-center justify-center gap-3 rounded-full bg-white text-lg font-black text-slate-950 shadow-sm sm:hidden"
         >
-          <Search className="h-5 w-5" /> 开始搜索
+          <Search className="h-5 w-5" /> {t.listSearchStart}
         </button>
 
         <div className="hidden items-center gap-4 sm:flex">
@@ -458,8 +476,26 @@ export default function StaysHomePage() {
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
           >
-            <SlidersHorizontal className="h-4 w-4" /> 筛选搜索
+            <SlidersHorizontal className="h-4 w-4" /> {t.listFilter}
           </button>
+        </div>
+
+        {/* 柔軟な日付ショートカット */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={setThisWeekend}
+            className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400"
+          >
+            <CalendarDays className="h-3.5 w-3.5" /> {t.flexWeekend}
+          </button>
+          {(dateIn || dateOut) && (
+            <button
+              onClick={() => { setDateIn(""); setDateOut(""); }}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-400 hover:border-slate-400"
+            >
+              {t.clearDates}
+            </button>
+          )}
         </div>
 
         <div className="mt-5 grid grid-cols-3 text-center text-sm font-bold text-slate-500 sm:hidden">
@@ -482,9 +518,9 @@ export default function StaysHomePage() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-slate-500">
-              {filtered.length} 个房源 · {guests} 位客人 · {dateSummary}
+              {filtered.length} {t.listStaysUnit} · {guests} {t.guestsN} · {dateSummary}
             </p>
-            <h1 className="mt-1 hidden text-2xl font-black text-slate-950 sm:block">直观查找关西住宿</h1>
+            <h1 className="mt-1 hidden text-2xl font-black text-slate-950 sm:block">{t.listFindTitle}</h1>
           </div>
           <div className="flex items-center gap-2">
             <SearchFilters filters={filters} onChange={setFilters} />
@@ -517,7 +553,7 @@ export default function StaysHomePage() {
           <div className="space-y-10">
             {featured.length > 0 && (
               <section>
-                <SectionHeader title="大阪市的热门房源" href="/stays" />
+                <SectionHeader title={t.secPopular} href="/stays" />
                 <div className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
                   {featured.slice(0, 4).map((l) => {
                     const rv = reviewsByListing.get(l.id) || [];
@@ -542,7 +578,7 @@ export default function StaysHomePage() {
 
             {osaka.length > 0 && (
               <section>
-                <SectionHeader title="关西机场与大阪周边" href="/stays" />
+                <SectionHeader title={t.secKansai} href="/stays" />
                 <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
                   {osaka.slice(0, 6).map((l) => {
                     const rv = reviewsByListing.get(l.id) || [];
@@ -566,7 +602,7 @@ export default function StaysHomePage() {
 
             {kyoto.length > 0 && (
               <section>
-                <SectionHeader title="京都市的房源" href="/stays" />
+                <SectionHeader title={t.secKyoto} href="/stays" />
                 <div className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0">
                   {kyoto.slice(0, 4).map((l) => {
                     const rv = reviewsByListing.get(l.id) || [];
@@ -590,14 +626,21 @@ export default function StaysHomePage() {
             )}
 
             <section className="hidden rounded-3xl border border-slate-100 bg-white p-4 shadow-sm lg:block">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-black text-slate-950">地图与价格位置</h2>
-                  <p className="text-sm font-semibold text-slate-500">搜索结果会同步到地图，便于比较机场、难波、京都的距离。</p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-slate-950">{t.mapTitle}</h2>
+                  <p className="text-sm font-semibold text-slate-500">{t.mapDesc}</p>
                 </div>
-                <p className="rounded-full bg-slate-100 px-4 py-2 text-xs font-black text-slate-500">{filtered.length} {t.results}</p>
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">
+                  <input type="checkbox" checked={searchByMap} onChange={(e) => setSearchByMap(e.target.checked)} />
+                  {t.searchThisArea}
+                </label>
               </div>
-              <StaysMap markers={markers} className="h-[420px] overflow-hidden rounded-2xl border border-slate-100" />
+              <StaysMap
+                markers={markers}
+                onBoundsChange={setMapBounds}
+                className="h-[420px] overflow-hidden rounded-2xl border border-slate-100"
+              />
             </section>
           </div>
         )}

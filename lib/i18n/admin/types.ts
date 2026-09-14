@@ -225,5 +225,8 @@ export interface AdminDictionary {
     periodAll: string; periodThisMonth: string; periodLastMonth: string; exportCsv: string;
     auditTitle: string; auditActor: string; auditAction: string; auditTarget: string; auditDetail: string; auditTime: string; auditEmpty: string;
     tasksTitle: string; taskPending: string; taskReports: string; allClear: string;
+    hostRankTitle: string; hrHost: string; hrRevenue: string; hrRating: string; hrCancel: string; hrBookings: string;
+    couponTitle: string; cpCode: string; cpUses: string; cpDiscount: string; cpRevenue: string; cpNone: string;
+    refundTitle: string; rfProperty: string; rfGuest: string; rfPaid: string; rfAction: string; rfConfirm: string; rfNone: string; rfDone: string;
   };
 }

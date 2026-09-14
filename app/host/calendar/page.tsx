@@ -11,6 +11,7 @@ import { Copy, RefreshCw, Plus, Trash2, Link2 } from "lucide-react";
 import { fetchAllListings, fetchBlocks, hostScope, ownedListings } from "@/lib/stays/queries";
 import { addManualBlock, deleteBlock, upsertListing } from "@/lib/stays/host";
 import HostCalendarEditor from "@/components/stays/HostCalendarEditor";
+import HostMultiCalendar from "@/components/stays/HostMultiCalendar";
 import { useStaysSession } from "@/lib/stays/auth";
 import { useHostPagesT } from "@/lib/stays/hostPagesI18n";
 import type { CalendarBlock, Listing } from "@/lib/stays/types";
@@ -112,6 +113,12 @@ export default function HostCalendarPage() {
       <p className="mb-5 text-sm text-slate-500">
         {p.calendar.subtitle}
       </p>
+
+      {listings.length > 0 && (
+        <div className="mb-5">
+          <HostMultiCalendar listings={listings} />
+        </div>
+      )}
 
       <label className="mb-5 block">
         <span className="text-xs font-semibold text-slate-500">{p.calendar.selectListing}</span>

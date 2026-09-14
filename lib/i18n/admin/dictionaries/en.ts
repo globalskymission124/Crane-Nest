@@ -248,6 +248,9 @@ const en: AdminDictionary = {
     periodAll: "All time", periodThisMonth: "This month", periodLastMonth: "Last month", exportCsv: "Export CSV",
     auditTitle: "Audit log", auditActor: "Actor", auditAction: "Action", auditTarget: "Target", auditDetail: "Detail", auditTime: "Time", auditEmpty: "No logs",
     tasksTitle: "Operations tasks", taskPending: "Listings to review", taskReports: "Open reports", allClear: "Nothing needs attention 🎉",
+    hostRankTitle: "Host performance", hrHost: "Host", hrRevenue: "Revenue", hrRating: "Rating", hrCancel: "Cancel rate", hrBookings: "Bookings",
+    couponTitle: "Coupon performance", cpCode: "Code", cpUses: "Uses", cpDiscount: "Total discount", cpRevenue: "Revenue impact", cpNone: "No coupons",
+    refundTitle: "Refund management", rfProperty: "Property", rfGuest: "Guest", rfPaid: "Paid", rfAction: "Refund", rfConfirm: "Refund the full amount?", rfNone: "No refundable payments", rfDone: "Refunded",
   },
 
   languageSwitcher: {

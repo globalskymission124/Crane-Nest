@@ -58,6 +58,10 @@ interface Dict {
   rulePets: string; ruleSmoking: string; ruleEvents: string; ruleChildren: string; petsOk: string;
   highlightsTitle: string; showAllAmenities: string; amenitiesModalTitle: string; close: string; allPhotos: string;
   ratingBreakdown: string; catCleanliness: string; catAccuracy: string; catCheckin: string; catValue: string;
+  listSearchStart: string; listFilter: string; listStaysUnit: string; listPickDates: string; listTo: string; listFindTitle: string;
+  mapTitle: string; mapDesc: string; searchThisArea: string; secPopular: string; secKansai: string; secKyoto: string; flexWeekend: string;
+  saveTemplate: string; templatePrompt: string; chatInputPh: string;
+  wlEmpty: string; wlFind: string; wlNewList: string; wlAll: string; wlUncat: string; wlListPrompt: string; wlDeleteList: string;
   // ラベルマップ
   amenity: Record<string, string>;
   ptype: Record<PropertyType, string>;
@@ -106,6 +110,10 @@ const en: Dict = {
   rulePets: "Pets", ruleSmoking: "Smoking", ruleEvents: "Parties / events", ruleChildren: "Children", petsOk: "Pets allowed",
   highlightsTitle: "Highlights", showAllAmenities: "Show all amenities", amenitiesModalTitle: "What this place offers", close: "Close", allPhotos: "Show all photos",
   ratingBreakdown: "Rating breakdown", catCleanliness: "Cleanliness", catAccuracy: "Accuracy", catCheckin: "Check-in", catValue: "Value",
+  listSearchStart: "Start search", listFilter: "Filters & search", listStaysUnit: "stays", listPickDates: "Pick dates to see live availability", listTo: "to", listFindTitle: "Find your Kansai stay",
+  mapTitle: "Map & prices", mapDesc: "Results sync to the map — compare distance to the airport, Namba and Kyoto.", searchThisArea: "Search this area", secPopular: "Popular stays", secKansai: "Around Kansai Airport & Osaka", secKyoto: "Stays in Kyoto", flexWeekend: "This weekend",
+  saveTemplate: "Save reply template", templatePrompt: "Save this reply as a template?", chatInputPh: "Type a message…",
+  wlEmpty: "No favorites yet.", wlFind: "Find a stay", wlNewList: "+ New list", wlAll: "All", wlUncat: "Unsorted", wlListPrompt: "Name your list", wlDeleteList: "Delete this list?",
   amenity: { wifi: "Wi-Fi", kitchen: "Kitchen", parking: "Free parking", washer: "Washer", air_conditioning: "Air conditioning", heating: "Heating", tv: "TV", elevator: "Elevator", hair_dryer: "Hair dryer", iron: "Iron", bathtub: "Bathtub", pool: "Pool", hot_tub: "Hot tub / onsen", workspace: "Workspace", bbq: "BBQ", ev_charger: "EV charger", self_checkin: "Self check-in", breakfast: "Breakfast", smoke_alarm: "Smoke alarm", co_alarm: "Carbon monoxide alarm", fire_extinguisher: "Fire extinguisher", first_aid: "First aid kit" },
   ptype: { house: "House", apartment: "Apartment", guesthouse: "Guesthouse", hotel: "Hotel", villa: "Villa", cabin: "Cabin", ryokan: "Ryokan", minshuku: "Minshuku", loft: "Loft", condo: "Condo", townhouse: "Townhouse", bnb: "B&B" },
   policy: { flexible: "Flexible — full refund until 1 day before check-in", moderate: "Moderate — full refund until 5 days before, then 50%", strict: "Strict — 50% until 14 days before, then no refund" },
@@ -153,6 +161,10 @@ const ja: Dict = {
   rulePets: "ペット", ruleSmoking: "喫煙", ruleEvents: "パーティー・イベント", ruleChildren: "子供", petsOk: "ペット可",
   highlightsTitle: "この宿のハイライト", showAllAmenities: "すべてのアメニティを見る", amenitiesModalTitle: "この宿の設備・アメニティ", close: "閉じる", allPhotos: "すべての写真を見る",
   ratingBreakdown: "評価の内訳", catCleanliness: "清潔さ", catAccuracy: "正確さ", catCheckin: "チェックイン", catValue: "コスパ",
+  listSearchStart: "検索を開始", listFilter: "絞り込み検索", listStaysUnit: "件", listPickDates: "日付を選ぶと空室を確認できます", listTo: "〜", listFindTitle: "関西の宿を直感的に探す",
+  mapTitle: "地図と価格", mapDesc: "検索結果は地図に連動します。空港・難波・京都からの距離を比較できます。", searchThisArea: "この地域を検索", secPopular: "人気の宿", secKansai: "関空・大阪周辺", secKyoto: "京都の宿", flexWeekend: "今週末",
+  saveTemplate: "定型文に保存", templatePrompt: "この返信を定型文として保存しますか？", chatInputPh: "メッセージを入力…",
+  wlEmpty: "お気に入りはまだありません。", wlFind: "宿を探す", wlNewList: "＋新しいリスト", wlAll: "すべて", wlUncat: "未分類", wlListPrompt: "リスト名を入力", wlDeleteList: "このリストを削除しますか？",
   amenity: { wifi: "Wi-Fi", kitchen: "キッチン", parking: "無料駐車場", washer: "洗濯機", air_conditioning: "エアコン", heating: "暖房", tv: "テレビ", elevator: "エレベーター", hair_dryer: "ドライヤー", iron: "アイロン", bathtub: "バスタブ", pool: "プール", hot_tub: "ジャグジー・温泉", workspace: "ワークスペース", bbq: "バーベキュー設備", ev_charger: "EV充電器", self_checkin: "セルフチェックイン", breakfast: "朝食", smoke_alarm: "煙感知器", co_alarm: "一酸化炭素警報器", fire_extinguisher: "消火器", first_aid: "救急箱" },
   ptype: { house: "一軒家", apartment: "アパート", guesthouse: "ゲストハウス", hotel: "ホテル", villa: "ヴィラ", cabin: "コテージ", ryokan: "旅館", minshuku: "民宿", loft: "ロフト", condo: "分譲マンション", townhouse: "タウンハウス", bnb: "B&B" },
   policy: { flexible: "柔軟（前日まで全額返金）", moderate: "標準（5日前まで全額、以降50%）", strict: "厳格（14日前まで50%、以降返金なし）" },
@@ -200,6 +212,10 @@ const tw: Dict = {
   rulePets: "寵物", ruleSmoking: "吸菸", ruleEvents: "派對・活動", ruleChildren: "兒童", petsOk: "可攜寵物",
   highlightsTitle: "住宿亮點", showAllAmenities: "顯示所有設施", amenitiesModalTitle: "此住宿提供的設施", close: "關閉", allPhotos: "顯示所有照片",
   ratingBreakdown: "評分明細", catCleanliness: "清潔度", catAccuracy: "準確度", catCheckin: "入住", catValue: "性價比",
+  listSearchStart: "開始搜尋", listFilter: "篩選搜尋", listStaysUnit: "筆", listPickDates: "選擇日期以查看空房", listTo: "至", listFindTitle: "直覺尋找關西住宿",
+  mapTitle: "地圖與價格", mapDesc: "搜尋結果會同步至地圖，方便比較機場、難波、京都的距離。", searchThisArea: "搜尋此區域", secPopular: "熱門房源", secKansai: "關西機場與大阪周邊", secKyoto: "京都房源", flexWeekend: "本週末",
+  saveTemplate: "儲存範本", templatePrompt: "將此回覆儲存為範本？", chatInputPh: "輸入訊息…",
+  wlEmpty: "尚無收藏。", wlFind: "尋找住宿", wlNewList: "＋新清單", wlAll: "全部", wlUncat: "未分類", wlListPrompt: "輸入清單名稱", wlDeleteList: "刪除此清單？",
   amenity: { wifi: "Wi-Fi", kitchen: "廚房", parking: "免費停車", washer: "洗衣機", air_conditioning: "空調", heating: "暖氣", tv: "電視", elevator: "電梯", hair_dryer: "吹風機", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・溫泉", workspace: "工作空間", bbq: "烤肉設備", ev_charger: "電動車充電", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "煙霧偵測器", co_alarm: "一氧化碳警報器", fire_extinguisher: "滅火器", first_aid: "急救箱" },
   ptype: { house: "整棟住宅", apartment: "公寓", guesthouse: "民宿", hotel: "飯店", villa: "別墅", cabin: "小木屋", ryokan: "旅館", minshuku: "民宿(和式)", loft: "閣樓", condo: "住宅大樓", townhouse: "連棟住宅", bnb: "B&B" },
   policy: { flexible: "彈性（入住前一天可全額退款）", moderate: "標準（5天前全額、之後退50%）", strict: "嚴格（14天前退50%、之後不退款）" },
@@ -248,6 +264,10 @@ const zh: Dict = {
   rulePets: "宠物", ruleSmoking: "吸烟", ruleEvents: "派对・活动", ruleChildren: "儿童", petsOk: "可携宠物",
   highlightsTitle: "住宿亮点", showAllAmenities: "显示所有设施", amenitiesModalTitle: "此住宿提供的设施", close: "关闭", allPhotos: "显示所有照片",
   ratingBreakdown: "评分明细", catCleanliness: "清洁度", catAccuracy: "准确度", catCheckin: "入住", catValue: "性价比",
+  listSearchStart: "开始搜索", listFilter: "筛选搜索", listStaysUnit: "个", listPickDates: "选择日期可查看实时空房", listTo: "至", listFindTitle: "直观查找关西住宿",
+  mapTitle: "地图与价格", mapDesc: "搜索结果会同步到地图，便于比较机场、难波、京都的距离。", searchThisArea: "搜索此区域", secPopular: "热门房源", secKansai: "关西机场与大阪周边", secKyoto: "京都房源", flexWeekend: "本周末",
+  saveTemplate: "保存范本", templatePrompt: "将此回复保存为范本？", chatInputPh: "输入消息…",
+  wlEmpty: "尚无收藏。", wlFind: "寻找住宿", wlNewList: "＋新清单", wlAll: "全部", wlUncat: "未分类", wlListPrompt: "输入清单名称", wlDeleteList: "删除此清单？",
   amenity: { wifi: "Wi-Fi", kitchen: "厨房", parking: "免费停车", washer: "洗衣机", air_conditioning: "空调", heating: "暖气", tv: "电视", elevator: "电梯", hair_dryer: "吹风机", iron: "熨斗", bathtub: "浴缸", pool: "泳池", hot_tub: "按摩浴缸・温泉", workspace: "工作空间", bbq: "烧烤设备", ev_charger: "电动车充电", self_checkin: "自助入住", breakfast: "早餐", smoke_alarm: "烟雾探测器", co_alarm: "一氧化碳警报器", fire_extinguisher: "灭火器", first_aid: "急救箱" },
   ptype: { house: "整栋住宅", apartment: "公寓", guesthouse: "民宿", hotel: "酒店", villa: "别墅", cabin: "小木屋", ryokan: "旅馆", minshuku: "民宿(和式)", loft: "阁楼", condo: "住宅公寓", townhouse: "联排住宅", bnb: "B&B" },
   policy: { flexible: "灵活（入住前一天可全额退款）", moderate: "标准（5天前全额、之后退50%）", strict: "严格（14天前退50%、之后不退款）" },

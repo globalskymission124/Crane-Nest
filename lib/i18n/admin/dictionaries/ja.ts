@@ -248,6 +248,9 @@ const ja: AdminDictionary = {
     periodAll: "全期間", periodThisMonth: "今月", periodLastMonth: "先月", exportCsv: "CSV書き出し",
     auditTitle: "操作ログ", auditActor: "実行者", auditAction: "操作", auditTarget: "対象", auditDetail: "詳細", auditTime: "日時", auditEmpty: "ログはありません",
     tasksTitle: "運営タスク", taskPending: "審査待ちの物件", taskReports: "未対応の通報", allClear: "未対応の項目はありません 🎉",
+    hostRankTitle: "ホスト別成績", hrHost: "ホスト", hrRevenue: "売上", hrRating: "評価", hrCancel: "キャンセル率", hrBookings: "予約数",
+    couponTitle: "クーポン効果", cpCode: "コード", cpUses: "利用数", cpDiscount: "割引総額", cpRevenue: "売上寄与", cpNone: "クーポンはありません",
+    refundTitle: "返金管理", rfProperty: "物件", rfGuest: "ゲスト", rfPaid: "支払額", rfAction: "返金", rfConfirm: "全額返金しますか？", rfNone: "返金可能な決済はありません", rfDone: "返金済み",
   },
 
   languageSwitcher: {

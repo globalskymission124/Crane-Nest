@@ -248,6 +248,9 @@ const zh: AdminDictionary = {
     periodAll: "全部期间", periodThisMonth: "本月", periodLastMonth: "上月", exportCsv: "导出CSV",
     auditTitle: "操作日志", auditActor: "执行者", auditAction: "操作", auditTarget: "对象", auditDetail: "详情", auditTime: "时间", auditEmpty: "暂无日志",
     tasksTitle: "运营任务", taskPending: "待审核房源", taskReports: "未处理举报", allClear: "暂无待处理事项 🎉",
+    hostRankTitle: "房东成绩", hrHost: "房东", hrRevenue: "营收", hrRating: "评分", hrCancel: "取消率", hrBookings: "预订数",
+    couponTitle: "优惠码效果", cpCode: "代码", cpUses: "使用数", cpDiscount: "折扣总额", cpRevenue: "营收贡献", cpNone: "暂无优惠码",
+    refundTitle: "退款管理", rfProperty: "房源", rfGuest: "访客", rfPaid: "支付额", rfAction: "退款", rfConfirm: "要全额退款吗？", rfNone: "暂无可退款的支付", rfDone: "已退款",
   },
 
   languageSwitcher: {

@@ -15,12 +15,20 @@ export interface MapMarker {
   href?: string;
 }
 
+export interface MapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 interface Props {
   markers: MapMarker[];
   center?: [number, number];
   zoom?: number;
   className?: string;
   onMarkerClick?: (id: string) => void;
+  onBoundsChange?: (b: MapBounds) => void;
 }
 
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
@@ -57,10 +65,13 @@ export default function StaysMap({
   zoom = 12,
   className = "",
   onMarkerClick,
+  onBoundsChange,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const layerRef = useRef<any>(null);
+  const boundsCbRef = useRef(onBoundsChange);
+  boundsCbRef.current = onBoundsChange;
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +86,12 @@ export default function StaysMap({
             attribution: "&copy; OpenStreetMap contributors",
             maxZoom: 19,
           }).addTo(mapRef.current);
+          // 地図移動時に表示範囲を通知（「この地域を検索」用）
+          mapRef.current.on("moveend", () => {
+            if (!boundsCbRef.current || !mapRef.current) return;
+            const b = mapRef.current.getBounds();
+            boundsCbRef.current({ south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() });
+          });
         } else {
           mapRef.current.setView(c, zoom);
         }

@@ -280,6 +280,14 @@ export interface Wishlist {
   id: string;
   user_email: string;
   listing_id: string;
+  collection_id?: string | null;
+  created_at?: string;
+}
+
+export interface WishlistCollection {
+  id: string;
+  user_email: string;
+  name: string;
   created_at?: string;
 }
 

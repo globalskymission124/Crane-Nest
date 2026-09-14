@@ -16,6 +16,7 @@ import type {
   Review,
   StaysUser,
   Wishlist,
+  WishlistCollection,
 } from "./types";
 import { DEFAULT_PLATFORM_SETTINGS, nightsBetween } from "./types";
 
@@ -171,6 +172,38 @@ export async function toggleWishlist(userEmail: string, listingId: string): Prom
   }
   await supabase.from("stays_wishlists").insert({ user_email: userEmail, listing_id: listingId });
   return true;
+}
+
+// ---- ウィッシュリストの複数リスト（コレクション）----
+export async function fetchWishlistCollections(userEmail: string): Promise<WishlistCollection[]> {
+  const { data } = await supabase
+    .from("stays_wishlist_collections")
+    .select("*")
+    .eq("user_email", userEmail)
+    .order("created_at", { ascending: true });
+  return (data as WishlistCollection[]) || [];
+}
+
+export async function createWishlistCollection(userEmail: string, name: string): Promise<WishlistCollection | null> {
+  const { data } = await supabase
+    .from("stays_wishlist_collections")
+    .insert({ user_email: userEmail, name: name.trim() })
+    .select()
+    .single();
+  return (data as WishlistCollection) || null;
+}
+
+export async function deleteWishlistCollection(id: string): Promise<void> {
+  await supabase.from("stays_wishlist_collections").delete().eq("id", id);
+}
+
+// 保存済みの宿を指定リストへ振り分ける（null=未分類）
+export async function setWishlistCollection(userEmail: string, listingId: string, collectionId: string | null): Promise<void> {
+  await supabase
+    .from("stays_wishlists")
+    .update({ collection_id: collectionId })
+    .eq("user_email", userEmail)
+    .eq("listing_id", listingId);
 }
 
 // ---------------- クーポン ----------------

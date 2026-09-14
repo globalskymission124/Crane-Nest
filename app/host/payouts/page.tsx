@@ -135,6 +135,26 @@ export default function HostPayoutsPage() {
         <StatCard label={p.payouts.scPending} value={formatJPY(pending)} sub={p.payouts.scPendingSub} />
       </div>
 
+      {/* 次回の振込予定 */}
+      {pending > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50/60 p-4">
+          <div>
+            <p className="text-sm font-bold text-brand-800">{p.payouts.nextTitle}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{p.payouts.nextNote}</p>
+          </div>
+          <div className="flex gap-6">
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500">{p.payouts.nextDateLabel}</p>
+              <p className="text-sm font-bold text-slate-800">{new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500">{p.payouts.nextAmountLabel}</p>
+              <p className="text-sm font-bold text-brand-700">{formatJPY(pending)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 受取口座 */}
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
