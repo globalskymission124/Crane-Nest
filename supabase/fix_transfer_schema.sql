@@ -21,7 +21,19 @@ alter table transfer_requests
   add column if not exists terminal text;
 
 comment on column transfer_requests.terminal is
-  '関西空港のみ: ターミナル番号（''1'' | ''2''）。それ以外の目的地では NULL。';
+  '空港へ向かう場合: ターミナル番号（''1'' | ''2''）。それ以外の目的地では NULL。';
+
+alter table transfer_requests
+  add column if not exists rinku_route_intent text;
+
+comment on column transfer_requests.rinku_route_intent is
+  'りんくうタウン駅選択時の目的（''nankai'' | ''airport''）。それ以外の目的地では NULL。';
+
+alter table guests
+  add column if not exists address text;
+
+comment on column guests.address is
+  'パスポート登録時に入力された住所。';
 
 -- ---------------------------------------------------------
 -- 0032: 1予約に複数ゲストを紐付ける中間テーブル

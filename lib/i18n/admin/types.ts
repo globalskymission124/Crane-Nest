@@ -187,6 +187,7 @@ export interface AdminDictionary {
     destinationLabel: string;
     bookingDateTimeLabel: string;
     phoneLabel: string;
+    addressLabel: string;
     transferSourceLabel: string;
     checkinSourceLabel: string;
     unregisteredName: string;

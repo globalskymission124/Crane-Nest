@@ -2,6 +2,7 @@
 // 共通の型定義
 // supabase/migrations/0001_init_schema.sql のテーブル定義に対応
 // =========================================================
+import type { TransferRouteIntent } from "./transferRouteIntent";
 
 export type TransferStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
@@ -42,6 +43,7 @@ export interface Guest {
   passport_number: string;
   full_name: string;
   phone_number: string | null;
+  address: string | null;
   passport_image_url: string | null;
 }
 
@@ -50,7 +52,8 @@ export interface TransferRequest {
   guest_id: string;
   room_number: string;
   destination_id: string;
-  terminal: string | null; // 関西空港のみ: "1" | "2"（それ以外の目的地はNULL）
+  terminal: string | null; // 空港へ向かう場合のみ: "1" | "2"（それ以外の目的地はNULL）
+  rinku_route_intent: TransferRouteIntent | null;
   flight_time: string | null; // ISO文字列（任意項目）
   preferred_departure_time: string | null; // "HH:mm" 形式（ゲスト希望の出発時刻。古い予約はNULLの可能性あり）
   suggested_departure_time: string | null; // ISO文字列
@@ -70,6 +73,7 @@ export interface GuestEntry {
   fullName: string;
   passportNumber: string;
   phoneNumber: string;
+  address: string;
   passportImageUrl: string | null;
 }
 
@@ -78,6 +82,7 @@ export interface PassportFormData {
   fullName: string;
   passportNumber: string;
   phoneNumber: string;
+  address: string;
   passportImageUrl: string | null;
   // 同行者（2人目以降）。1名で宿泊する場合は空配列 or 未指定。
   companions?: GuestEntry[];
@@ -87,7 +92,8 @@ export interface TransferFormData {
   transferDate: string; // "YYYY-MM-DD" 形式（送迎希望日、デフォルトは翌日）
   roomNumber: string;
   destinationId: string | null;
-  terminal: string | null; // 関西空港選択時のみ "1" | "2"。それ以外の目的地では null。
+  terminal: string | null; // 空港へ向かう場合のみ "1" | "2"。それ以外の目的地では null。
+  rinkuRouteIntent: TransferRouteIntent | null; // りんくうタウン選択時のみ: 南海線に乗る / 空港へ行く。
   flightTime: string; // "HH:mm" 形式（空文字列の場合は未入力＝任意項目）
   preferredDepartureTime: string; // "HH:mm" 形式（ゲストが希望する送迎時刻、必須・朝10時まで）
   suggestedDepartureTime: string | null; // 算出済みの提案時刻（表示用ラベル文字列）

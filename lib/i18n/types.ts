@@ -27,11 +27,16 @@ export interface Dictionary {
     uploadAlt: string;
     processing: string;
     recognized: string;
+    manualEntryBadge: string;
     reviewHint: string;
     fullNameLabel: string;
     passportNumberLabel: string;
     phoneNumberLabel: string;
     phoneNumberPlaceholder: string;
+    addressLabel: string;
+    addressPlaceholder: string;
+    autoScanSettingLabel: string;
+    autoScanSettingHint: string;
     retake: string;
     next: string;
     primaryGuestLabel: string;
@@ -52,6 +57,11 @@ export interface Dictionary {
     roomLoading: string;
     destinationLabel: string;
     destinationLoading: string;
+    rinkuRouteLabel: string;
+    rinkuRouteRequiredBadge: string;
+    rinkuRouteNankaiOption: string;
+    rinkuRouteAirportOption: string;
+    rinkuRouteNote: string;
     terminalLabel: string;
     terminalRequiredBadge: string;
     terminalNote: string;
@@ -84,6 +94,7 @@ export interface Dictionary {
     roomLabel: string;
     terminalLabel: string;
     terminalValue: (n: number) => string;
+    rinkuRouteIntentLabel: string;
     preferredDepartureLabel: string;
     suggestedDepartureLabel: string;
     specifiedDepartureLabel: string;

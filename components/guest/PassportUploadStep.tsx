@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, Loader2, CheckCircle2, RotateCcw, AlertCircle, UserPlus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Loader2, CheckCircle2, RotateCcw, AlertCircle, UserPlus, X, Settings2 } from "lucide-react";
 import type { PassportFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
 import BannerCarousel from "./BannerCarousel";
+
+const AUTO_SCAN_STORAGE_KEY = "crane_passport_auto_scan_enabled";
 
 // =========================================================
 // パスポートMRZ（機械読取領域）のパース
@@ -149,7 +151,7 @@ async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; pa
   }
 }
 
-type Phase = "idle" | "processing" | "done" | "ocr_failed";
+type Phase = "idle" | "manual" | "processing" | "done" | "ocr_failed";
 
 // 1名分の入力状態（代表者・同行者で共通）
 interface GuestState {
@@ -159,6 +161,7 @@ interface GuestState {
   fullName: string;
   passportNumber: string;
   phoneNumber: string;
+  address: string;
 }
 
 function createGuestState(): GuestState {
@@ -169,6 +172,7 @@ function createGuestState(): GuestState {
     fullName: "",
     passportNumber: "",
     phoneNumber: "",
+    address: "",
   };
 }
 
@@ -185,11 +189,12 @@ interface GuestCaptureCardProps {
   guest: GuestState;
   index: number;
   isPrimary: boolean;
+  autoScanEnabled: boolean;
   onPatch: (patch: Partial<GuestState>) => void;
   onRemove?: () => void;
 }
 
-function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestCaptureCardProps) {
+function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, onRemove }: GuestCaptureCardProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,6 +202,12 @@ function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestC
 
   const handleFileSelected = async (file: File) => {
     const objectUrl = URL.createObjectURL(file);
+
+    if (!autoScanEnabled) {
+      onPatch({ previewUrl: objectUrl, phase: "manual" });
+      return;
+    }
+
     onPatch({ previewUrl: objectUrl, phase: "processing" });
 
     // まず Gemini 3.5 Flash で読み取り、失敗時は Tesseract にフォールバック
@@ -219,9 +230,11 @@ function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestC
 
   const handleRetake = () => {
     if (guest.previewUrl) URL.revokeObjectURL(guest.previewUrl);
-    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", phase: "idle" });
+    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", address: "", phase: "idle" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const showReviewFields = guest.phase === "manual" || guest.phase === "done" || guest.phase === "ocr_failed";
 
   return (
     <div className="flex flex-col gap-3">
@@ -291,15 +304,22 @@ function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestC
               </div>
             )}
 
+            {guest.phase === "manual" && (
+              <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white shadow">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {t.passport.manualEntryBadge}
+              </div>
+            )}
+
             {guest.phase === "ocr_failed" && (
               <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow">
                 <AlertCircle className="h-3.5 w-3.5" />
-                手入力してください
+                {t.passport.manualEntryBadge}
               </div>
             )}
           </div>
 
-          {(guest.phase === "done" || guest.phase === "ocr_failed") && (
+          {showReviewFields && (
             <div className="flex flex-col gap-3 rounded-2xl border border-brand-100/70 bg-gradient-to-b from-brand-50/50 to-white p-4">
               <p className="text-xs text-slate-500">{t.passport.reviewHint}</p>
 
@@ -340,6 +360,22 @@ function GuestCaptureCard({ guest, index, isPrimary, onPatch, onRemove }: GuestC
                 />
               </label>
 
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-slate-600">
+                  {t.passport.addressLabel}
+                  {!isPrimary && (
+                    <span className="ml-1 text-[10px] font-normal text-slate-400">（{t.passport.optionalTag}）</span>
+                  )}
+                </span>
+                <textarea
+                  value={guest.address}
+                  onChange={(e) => onPatch({ address: e.target.value })}
+                  placeholder={t.passport.addressPlaceholder}
+                  rows={2}
+                  className="resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                />
+              </label>
+
               <button
                 type="button"
                 onClick={handleRetake}
@@ -360,6 +396,16 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
   const { t } = useTranslation();
   // guests[0] が代表者、以降が同行者。初期は代表者1名分。
   const [guests, setGuests] = useState<GuestState[]>(() => [createGuestState()]);
+  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
+
+  useEffect(() => {
+    setAutoScanEnabled(localStorage.getItem(AUTO_SCAN_STORAGE_KEY) === "true");
+  }, []);
+
+  const updateAutoScanEnabled = (enabled: boolean) => {
+    setAutoScanEnabled(enabled);
+    localStorage.setItem(AUTO_SCAN_STORAGE_KEY, String(enabled));
+  };
 
   const patchGuest = (id: string, patch: Partial<GuestState>) => {
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
@@ -374,7 +420,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
   };
 
   const primary = guests[0];
-  const primaryCaptured = primary.phase === "done" || primary.phase === "ocr_failed";
+  const primaryCaptured = primary.phase === "manual" || primary.phase === "done" || primary.phase === "ocr_failed";
 
   // 1名でも複数名でも進める。
   //  - 代表者: 写真取得済み + 氏名/番号/電話が揃う
@@ -383,6 +429,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
     if (g.phase === "processing" || !g.previewUrl) return false;
     if (!g.fullName.trim() || !g.passportNumber.trim()) return false;
     if (isPrimary && !g.phoneNumber.trim()) return false;
+    if (isPrimary && !g.address.trim()) return false;
     return true;
   };
 
@@ -394,11 +441,13 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
       fullName: head.fullName,
       passportNumber: head.passportNumber,
       phoneNumber: head.phoneNumber,
+      address: head.address,
       passportImageUrl: head.previewUrl,
       companions: rest.map((g) => ({
         fullName: g.fullName,
         passportNumber: g.passportNumber,
         phoneNumber: g.phoneNumber,
+        address: g.address,
         passportImageUrl: g.previewUrl,
       })),
     });
@@ -417,6 +466,31 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
         <p className="mt-2 text-sm text-slate-500">{t.passport.description}</p>
       </header>
 
+      <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <Settings2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+          <div>
+            <p className="text-sm font-semibold text-slate-700">{t.passport.autoScanSettingLabel}</p>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">{t.passport.autoScanSettingHint}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoScanEnabled}
+          onClick={() => updateAutoScanEnabled(!autoScanEnabled)}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+            autoScanEnabled ? "bg-brand-600" : "bg-slate-300"
+          }`}
+        >
+          <span
+            className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+              autoScanEnabled ? "left-6" : "left-1"
+            }`}
+          />
+        </button>
+      </div>
+
       {/* ゲストごとの撮影カード（代表者＋同行者） */}
       <div className="flex flex-col gap-6">
         {guests.map((guest, index) => (
@@ -425,6 +499,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
             guest={guest}
             index={index}
             isPrimary={index === 0}
+            autoScanEnabled={autoScanEnabled}
             onPatch={(patch) => patchGuest(guest.id, patch)}
             onRemove={index === 0 ? undefined : () => removeGuest(guest.id)}
           />

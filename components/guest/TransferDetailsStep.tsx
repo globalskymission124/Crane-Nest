@@ -7,9 +7,9 @@ import type { Destination, Room, TransferFormData } from "@/lib/types";
 import {
   TRANSFER_DEPARTURE_TIME_OPTIONS,
   calculateSuggestedDepartureTime,
-  isKansaiAirport,
   isWithinTransferServiceHours,
 } from "@/lib/transferTime";
+import { isRinkuTown, requiresTerminalSelection, type TransferRouteIntent } from "@/lib/transferRouteIntent";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import Counter from "./Counter";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -87,8 +87,9 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loadingDestinations, setLoadingDestinations] = useState(true);
   const [destinationId, setDestinationId] = useState<string | null>(null);
-  // 関西空港選択時のみ使用するターミナル（"1" | "2"）。それ以外の目的地では null。
+  // 空港へ向かう時のみ使用するターミナル（"1" | "2"）。それ以外では null。
   const [terminal, setTerminal] = useState<string | null>(null);
+  const [rinkuRouteIntent, setRinkuRouteIntent] = useState<TransferRouteIntent | null>(null);
 
   // 初期値は空にして、ゲストに必ず「チェックアウト日」を選ばせる（明日のまま誤送信を防ぐ）。
   const [transferDate, setTransferDate] = useState<string>("");
@@ -169,8 +170,14 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   const selectedRoom = rooms.find((r) => r.id === roomId) ?? null;
   const selectedDestination = destinations.find((d) => d.id === destinationId) ?? null;
 
-  // 関西空港を選んでいる時だけターミナル選択を表示・必須にする。
-  const showTerminalSelector = Boolean(selectedDestination && isKansaiAirport(selectedDestination.name));
+  const showRinkuRouteSelector = Boolean(selectedDestination && isRinkuTown(selectedDestination.name));
+  const showTerminalSelector = Boolean(
+    selectedDestination && requiresTerminalSelection(selectedDestination.name, rinkuRouteIntent)
+  );
+
+  useEffect(() => {
+    if (!showRinkuRouteSelector) setRinkuRouteIntent(null);
+  }, [showRinkuRouteSelector]);
 
   // 目的地が関西空港以外に変わったら、選択済みのターミナルをリセットする。
   useEffect(() => {
@@ -178,7 +185,7 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
   }, [showTerminalSelector]);
 
   const calculatedSuggestedDepartureTime =
-    selectedDestination && isKansaiAirport(selectedDestination.name) && flightTime
+    selectedDestination && showTerminalSelector && flightTime
       ? calculateSuggestedDepartureTime(flightTime)
       : null;
   const suggestedDepartureTime =
@@ -187,13 +194,15 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
       : null;
 
   const validPreferredDepartureTime = isWithinTransferServiceHours(preferredDepartureTime);
-  // 関西空港を選んだ場合はターミナル選択が必須。
+  // 空港へ向かう場合はターミナル選択が必須。
   const terminalSatisfied = !showTerminalSelector || terminal !== null;
+  const rinkuRouteSatisfied = !showRinkuRouteSelector || rinkuRouteIntent !== null;
   // フライト時刻は任意。希望出発時刻は送迎手配に必須で、朝10時までのみ対応。
   const canProceed =
     roomId !== null &&
     destinationId !== null &&
     validPreferredDepartureTime &&
+    rinkuRouteSatisfied &&
     terminalSatisfied &&
     transferDate !== "" &&
     dateConfirmed;
@@ -206,6 +215,7 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
         roomNumber: selectedRoom.name,
         destinationId,
         terminal: showTerminalSelector ? terminal : null,
+        rinkuRouteIntent: showRinkuRouteSelector ? rinkuRouteIntent : null,
         flightTime,
         preferredDepartureTime,
         suggestedDepartureTime,
@@ -372,7 +382,42 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
           )}
         </section>
 
-        {/* ターミナル選択（関西空港を選んだ時のみ表示） */}
+        {/* りんくうタウンを選んだ時の目的選択 */}
+        {showRinkuRouteSelector && (
+          <section>
+            <div className="mb-2 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-slate-700">{t.transfer.rinkuRouteLabel}</h2>
+              <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600">
+                {t.transfer.rinkuRouteRequiredBadge}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                { value: "nankai" as const, label: t.transfer.rinkuRouteNankaiOption },
+                { value: "airport" as const, label: t.transfer.rinkuRouteAirportOption },
+              ].map((option) => {
+                const selected = rinkuRouteIntent === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setRinkuRouteIntent(option.value)}
+                    className={`rounded-2xl border px-4 py-3.5 text-center text-sm font-semibold transition active:scale-[0.98] ${
+                      selected
+                        ? "border-brand-600 bg-brand-50 text-brand-700 ring-2 ring-brand-100"
+                        : "border-slate-200 text-slate-600 hover:border-brand-300"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-xs text-slate-400">{t.transfer.rinkuRouteNote}</p>
+          </section>
+        )}
+
+        {/* ターミナル選択（空港へ向かう時のみ表示） */}
         {showTerminalSelector && (
           <section>
             <div className="mb-2 flex items-center gap-2">

@@ -6,6 +6,7 @@
 import { supabase } from "./supabase";
 import { formatTime } from "./adminSchedule";
 import { sendWxPusher, type WxPusherSendResult } from "./wxpusher";
+import { formatTransferRouteIntent, type TransferRouteIntent } from "./transferRouteIntent";
 
 export interface TransferBookingAlertResult {
   wxpusher: WxPusherSendResult;
@@ -15,6 +16,8 @@ interface TransferAlertRow {
   id: string;
   room_number: string;
   transfer_date: string | null;
+  terminal: string | null;
+  rinku_route_intent: TransferRouteIntent | null;
   flight_time: string | null;
   preferred_departure_time: string | null;
   passenger_count: number;
@@ -42,6 +45,8 @@ function buildContent(row: TransferAlertRow): string {
   const guest = pickOne(row.guests);
   const destination = pickOne(row.destinations);
   const luggageTotal = row.luggage_large + row.luggage_small + row.luggage_special;
+  const routeIntent = formatTransferRouteIntent(row.rinku_route_intent, row.terminal);
+  const terminalLine = !routeIntent && row.terminal ? `ターミナル：ターミナル${row.terminal}` : null;
 
   return [
     buildTitle(),
@@ -50,20 +55,22 @@ function buildContent(row: TransferAlertRow): string {
     `送迎日：${row.transfer_date || "未設定"}`,
     `希望出発時刻：${row.preferred_departure_time || "未設定"}`,
     `行き先：${destination?.name || "未設定"}`,
+    routeIntent ? `りんくう目的：${routeIntent}` : null,
+    terminalLine,
     `部屋：${row.room_number}`,
     `ゲスト名：${guest?.full_name || "未登録"}`,
     `連絡先：${guest?.phone_number || "未登録"}`,
     `乗車人数：${row.passenger_count}名`,
     `荷物：大型${row.luggage_large} / 小型${row.luggage_small} / 特殊${row.luggage_special}（計${luggageTotal}）`,
     `フライト時刻：${formatTime(row.flight_time)}`,
-  ].join("\n");
+  ].filter((line): line is string => line !== null).join("\n");
 }
 
 async function getTransferRequest(id: string): Promise<TransferAlertRow | null> {
   const { data, error } = await supabase
     .from("transfer_requests")
     .select(
-      `id, room_number, transfer_date, flight_time, preferred_departure_time,
+      `id, room_number, transfer_date, terminal, rinku_route_intent, flight_time, preferred_departure_time,
        passenger_count, luggage_large, luggage_small, luggage_special,
        guests ( full_name, phone_number ),
        destinations ( name )`

@@ -23,6 +23,7 @@ interface GuestPerson {
   passportNumber: string;
   nationality: string | null;
   phoneNumber: string | null;
+  address: string | null;
   email: string | null;
   passportImageUrl: string | null;
   isPrimary: boolean;
@@ -47,6 +48,7 @@ interface GuestRecord {
   passportNumber: string;
   nationality: string | null;
   phoneNumber: string | null;
+  address: string | null;
   email: string | null;
   passportImageUrl: string | null;
   // 予約に含まれる全ゲスト（代表者を先頭に、同行者が続く）
@@ -59,6 +61,7 @@ interface RawGuest {
   full_name: string;
   passport_number: string;
   phone_number: string | null;
+  address: string | null;
   passport_image_url: string | null;
 }
 
@@ -111,6 +114,7 @@ function toPerson(guest: RawGuest, isPrimary: boolean, t: AdminDictionary): Gues
     passportNumber: guest.passport_number ?? "—",
     nationality: null,
     phoneNumber: guest.phone_number ?? null,
+    address: guest.address ?? null,
     email: null,
     passportImageUrl: guest.passport_image_url ?? null,
     isPrimary,
@@ -123,6 +127,7 @@ function toCheckinPerson(row: RawCheckinRow, t: AdminDictionary): GuestPerson {
     passportNumber: row.passport_number ?? "—",
     nationality: row.nationality ?? null,
     phoneNumber: row.phone ?? null,
+    address: null,
     email: row.email ?? null,
     passportImageUrl: row.passport_image_url ?? null,
     isPrimary: true,
@@ -169,6 +174,7 @@ function toTransferRecord(row: RawTransferRow, links: RawTransferLink[] | undefi
     passportNumber: primary?.passportNumber ?? "—",
     nationality: primary?.nationality ?? null,
     phoneNumber: primary?.phoneNumber ?? null,
+    address: primary?.address ?? null,
     email: primary?.email ?? null,
     passportImageUrl: primary?.passportImageUrl ?? null,
     guests: people,
@@ -199,6 +205,7 @@ function toCheckinRecord(row: RawCheckinRow, t: AdminDictionary): GuestRecord {
     passportNumber: person.passportNumber,
     nationality: person.nationality,
     phoneNumber: person.phoneNumber,
+    address: person.address,
     email: person.email,
     passportImageUrl: person.passportImageUrl,
     guests: [person],
@@ -296,7 +303,7 @@ async function fetchTransferRecords(t: AdminDictionary): Promise<GuestRecord[]> 
     .select(
       `id, created_at, room_number, transfer_date, flight_time, preferred_departure_time, suggested_departure_time,
        passenger_count, luggage_large, luggage_small, luggage_special, status,
-       guests ( full_name, passport_number, phone_number, passport_image_url ),
+       guests ( full_name, passport_number, phone_number, address, passport_image_url ),
        destinations ( name )`
     )
     .order("created_at", { ascending: false });
@@ -310,7 +317,7 @@ async function fetchTransferRecords(t: AdminDictionary): Promise<GuestRecord[]> 
   if (ids.length > 0) {
     const { data: linkData, error: linkError } = await supabase
       .from("transfer_request_guests")
-      .select("transfer_request_id, is_primary, guests ( full_name, passport_number, phone_number, passport_image_url )")
+      .select("transfer_request_id, is_primary, guests ( full_name, passport_number, phone_number, address, passport_image_url )")
       .in("transfer_request_id", ids);
 
     if (!linkError && linkData) {
@@ -419,6 +426,7 @@ export default function GuestRecordsManager() {
               passportNumber: record.passportNumber,
               nationality: record.nationality,
               phoneNumber: record.phoneNumber,
+              address: record.address,
               email: record.email,
               passportImageUrl: record.passportImageUrl,
               isPrimary: true,
@@ -450,6 +458,7 @@ export default function GuestRecordsManager() {
             person.passportNumber,
             nonEmptyCell(person.nationality),
             contactCell(person),
+            nonEmptyCell(person.address),
             nonEmptyCell(record.roomNumber),
             nonEmptyCell(record.destinationName),
             nonEmptyCell(record.departureTime),
@@ -692,6 +701,15 @@ export default function GuestRecordsManager() {
                     <span className="flex items-center gap-1 text-sm font-semibold text-slate-800">
                       <Phone className="h-3 w-3" />
                       {detailRecord.phoneNumber}
+                    </span>
+                  </div>
+                )}
+                {detailRecord.address && (
+                  <div className="flex flex-col gap-0.5 rounded-xl bg-slate-50 px-3 py-2.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t.records.addressLabel}</span>
+                    <span className="flex items-center gap-1 text-sm font-semibold text-slate-800">
+                      <MapPin className="h-3 w-3" />
+                      {detailRecord.address}
                     </span>
                   </div>
                 )}

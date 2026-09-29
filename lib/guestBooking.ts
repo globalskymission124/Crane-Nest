@@ -156,6 +156,7 @@ async function saveGuestEntry(entry: GuestEntry, requirePhoto = false): Promise<
     passport_number: passportNumber,
     full_name: entry.fullName.trim(),
     phone_number: entry.phoneNumber || null,
+    address: entry.address?.trim() || null,
   };
   if (uploadedImageUrl) {
     guestPayload.passport_image_url = uploadedImageUrl;
@@ -211,6 +212,7 @@ export async function submitBooking(
       fullName: passport.fullName,
       passportNumber: passport.passportNumber,
       phoneNumber: passport.phoneNumber,
+      address: passport.address,
       passportImageUrl: passport.passportImageUrl,
     };
     const companionEntries = passport.companions ?? [];
@@ -235,6 +237,7 @@ export async function submitBooking(
         room_number: transfer.roomNumber,
         destination_id: transfer.destinationId,
         terminal: transfer.terminal,
+        rinku_route_intent: transfer.rinkuRouteIntent,
         transfer_date: transfer.transferDate,
         flight_time: transfer.flightTime
           ? toIsoFromTimeInput(transfer.flightTime, transfer.transferDate)

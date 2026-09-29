@@ -2,9 +2,9 @@
 // 出発推奨時刻の算出ロジック
 // 関西国際空港（KIX）行きの場合のみ「フライト時刻の2.5時間前」を提案する。
 // =========================================================
+import { isKansaiAirportDestination } from "./transferRouteIntent";
 
 const KIX_LEAD_TIME_MINUTES = 2.5 * 60; // 2.5時間 = 150分
-const KIX_NAME_KEYWORDS = ["関西国際空港", "関空", "kix", "kansai"];
 export const TRANSFER_SERVICE_END_TIME = "10:00";
 const TRANSFER_SERVICE_END_MINUTES = 10 * 60;
 
@@ -14,8 +14,7 @@ export const TRANSFER_DEPARTURE_TIME_OPTIONS: string[] = Array.from(
 );
 
 export function isKansaiAirport(destinationName: string): boolean {
-  const normalized = destinationName.toLowerCase();
-  return KIX_NAME_KEYWORDS.some((keyword) => normalized.includes(keyword.toLowerCase()));
+  return isKansaiAirportDestination(destinationName);
 }
 
 /**

@@ -32,6 +32,7 @@ function buildTicketPayload(
     room: transfer.roomNumber,
     destination: destinationName,
     terminal: transfer.terminal,
+    rinkuRouteIntent: transfer.rinkuRouteIntent,
     departure:
       transfer.suggestedDepartureTime ??
       transfer.preferredDepartureTime ??
@@ -82,6 +83,14 @@ export default function BookingCompleteStep({
 
   // 「指定した出発時間」をご希望の出発時刻欄として明示表示する（推奨時刻と重複しても、ご本人が指定した内容を確実に提示するため）
   const showSpecifiedDeparture = Boolean(transfer.preferredDepartureTime);
+  const routeIntentLabel =
+    transfer.rinkuRouteIntent === "nankai"
+      ? t.transfer.rinkuRouteNankaiOption
+      : transfer.rinkuRouteIntent === "airport"
+        ? `${t.transfer.rinkuRouteAirportOption}${
+            transfer.terminal ? ` (${t.complete.terminalValue(Number(transfer.terminal))})` : ""
+          }`
+        : null;
 
   const total = luggageTotal(transfer);
 
@@ -189,6 +198,13 @@ export default function BookingCompleteStep({
             <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-sm">
               <span className="text-slate-500">{t.complete.specifiedDepartureLabel}</span>
               <span className="font-semibold text-slate-700">{transfer.preferredDepartureTime}</span>
+            </div>
+          )}
+
+          {routeIntentLabel && (
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-sm">
+              <span className="text-slate-500">{t.complete.rinkuRouteIntentLabel}</span>
+              <span className="font-semibold text-slate-700">{routeIntentLabel}</span>
             </div>
           )}
 
