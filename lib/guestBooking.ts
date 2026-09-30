@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getReservationToken } from "./craneLink";
 import { isWithinTransferServiceHours } from "./transferTime";
 import type { GuestEntry, PassportFormData, TransferFormData } from "./types";
 
@@ -230,9 +231,9 @@ export async function submitBooking(
       if (companionGuestId) linkedGuestIds.add(companionGuestId);
     }
 
-    const { data: transferRow, error: transferError } = await supabase
-      .from("transfer_requests")
-      .insert({
+    // 予約つき QR（?r=）から開いたときは、その合言葉も保存する（お部屋・送迎のシステムと確実に紐づく）。
+    const reservationToken = getReservationToken();
+    const transferPayload = {
         guest_id: primaryGuestId,
         room_number: transfer.roomNumber,
         destination_id: transfer.destinationId,
@@ -250,10 +251,17 @@ export async function submitBooking(
         luggage_large: transfer.luggageLarge,
         luggage_small: transfer.luggageSmall,
         luggage_special: transfer.luggageSpecial,
-        status: "pending",
-      })
+        status: "pending" as const,
+    };
+    let { data: transferRow, error: transferError } = await supabase
+      .from("transfer_requests")
+      .insert((reservationToken ? { ...transferPayload, reservation_token: reservationToken } : transferPayload) as typeof transferPayload)
       .select("id")
       .single();
+    // SQL（0039）をまだ実行していないときは、合言葉なしで保存する（予約は止めない）。
+    if (transferError && reservationToken && /reservation_token/.test(transferError.message || "")) {
+      ({ data: transferRow, error: transferError } = await supabase.from("transfer_requests").insert(transferPayload).select("id").single());
+    }
 
     if (transferError) throw bookingSaveError("送迎予約の保存", transferError);
     if (!transferRow) throw new Error("送迎予約を保存しましたが、予約IDを取得できませんでした。");

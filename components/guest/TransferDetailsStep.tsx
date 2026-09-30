@@ -10,6 +10,7 @@ import {
   isWithinTransferServiceHours,
 } from "@/lib/transferTime";
 import { isRinkuTown, requiresTerminalSelection, type TransferRouteIntent } from "@/lib/transferRouteIntent";
+import { fetchReservationPrefill, findRoomByKanji } from "@/lib/craneLink";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import Counter from "./Counter";
 import LanguageSwitcher from "./LanguageSwitcher";
@@ -166,6 +167,24 @@ export default function TransferDetailsStep({ onBack, onNext }: TransferDetailsS
       cancelled = true;
     };
   }, []);
+
+  // 予約つき QR（?r=）から開いたときは、お部屋とチェックアウト日を最初から入れる。
+  // 日付の「チェックアウト日で間違いない」の確認は、今までどおりゲストに押してもらう。
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    if (loadingRooms || prefilled) return;
+    let cancelled = false;
+    fetchReservationPrefill().then((p) => {
+      if (cancelled || !p) return;
+      const room = findRoomByKanji(rooms, p.room);
+      if (room) setRoomId(room.id);
+      if (p.checkOut) setTransferDate((cur) => cur || p.checkOut!);
+      setPrefilled(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadingRooms, rooms, prefilled]);
 
   const selectedRoom = rooms.find((r) => r.id === roomId) ?? null;
   const selectedDestination = destinations.find((d) => d.id === destinationId) ?? null;
