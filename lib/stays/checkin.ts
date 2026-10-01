@@ -68,24 +68,54 @@ export async function deleteCheckinPage(id: string) {
   if (error) throw error;
 }
 
+// stays_checkin_guests / stays_users はブラウザから直接読めない（migration 0040）。
+// 保存・一覧・自分のパスポート情報はサーバー API (/api/stays/checkin, /api/stays/account) 経由。
+async function postJson<T>(url: string, payload: Record<string, unknown>): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((json as any)?.error || "通信に失敗しました");
+  return json as T;
+}
+
 export async function submitCheckinGuest(
   payload: Omit<CheckinGuest, "id" | "created_at">
-): Promise<CheckinGuest> {
-  const { data, error } = await supabase.from("stays_checkin_guests").insert(payload).select().single();
-  if (error) throw error;
-  return data as CheckinGuest;
+): Promise<{ id: string }> {
+  return postJson("/api/stays/checkin", { action: "submit", guest: payload });
 }
 
-export async function fetchCheckinGuests(hostId: string): Promise<CheckinGuest[]> {
-  const { data } = await supabase
-    .from("stays_checkin_guests")
-    .select("*")
-    .eq("host_id", hostId)
-    .order("created_at", { ascending: false });
-  return (data as CheckinGuest[]) || [];
+// オーナー: 自分のページに登録されたゲスト一覧（写真は期限つきリンク）
+export async function fetchCheckinGuests(_hostId: string): Promise<CheckinGuest[]> {
+  try {
+    return await postJson<CheckinGuest[]>("/api/stays/checkin", { action: "host_list" });
+  } catch {
+    return [];
+  }
 }
 
-// パスポート画像アップロード
+// ログイン中ゲストの保存済みパスポート情報（ワンタップチェックイン・プロフィール用）
+export interface MyPassportProfile {
+  name: string;
+  email: string;
+  phone: string | null;
+  passport_number: string | null;
+  nationality: string | null;
+  passport_image_url: string | null; // 保存値（転送用）
+  passport_image_preview: string | null; // 表示用の期限つきリンク
+}
+export async function fetchMyPassportProfile(): Promise<MyPassportProfile | null> {
+  try {
+    return await postJson<MyPassportProfile>("/api/stays/account", { action: "profile" });
+  } catch {
+    return null;
+  }
+}
+
+// パスポート画像アップロード（非公開バケット。戻り値はバケット内のパス）
 export async function uploadHostPassport(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) {
     throw new Error("画像ファイルを選択してください / Please choose an image file");
@@ -98,13 +128,12 @@ export async function uploadHostPassport(file: File): Promise<string> {
     contentType: "image/jpeg",
   });
   if (error) throw error;
-  const { data } = supabase.storage.from(PASSPORT_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  return path;
 }
 
 // CSV生成（Excelで開けるようBOM付きUTF-8）
 export function guestsToCsv(guests: CheckinGuest[]): string {
-  const header = ["登録日時", "氏名", "パスポート番号", "国籍", "電話", "メール", "チェックイン日", "パスポート画像URL"];
+  const header = ["登録日時", "氏名", "パスポート番号", "国籍", "電話", "メール", "チェックイン日", "パスポート画像URL（30分有効）"];
   const rows = guests.map((g) => [
     g.created_at?.replace("T", " ").slice(0, 16) || "",
     g.full_name,

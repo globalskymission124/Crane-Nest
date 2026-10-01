@@ -209,12 +209,13 @@ export async function sendMessage(
       let target: string | null = null;
       let title = "";
       if (senderRole === "guest") {
-        const { data: hostUser } = await supabase
-          .from("stays_users")
+        // stays_users は非公開のため、オーナーの連絡先メールは stays_hosts から引く
+        const { data: hostRow } = await supabase
+          .from("stays_hosts")
           .select("email")
-          .eq("host_id", c.host_id)
+          .eq("id", c.host_id)
           .maybeSingle();
-        target = (hostUser as any)?.email || null;
+        target = (hostRow as any)?.email || null;
         title = `新着メッセージ: ${c.guest_name}`;
       } else {
         target = c.guest_email;

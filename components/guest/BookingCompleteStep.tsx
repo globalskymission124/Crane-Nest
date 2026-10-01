@@ -6,7 +6,7 @@ import { CheckCircle2, Image as ImageIcon, Luggage, Users } from "lucide-react";
 import type { Destination, PassportFormData, Room, TransferFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import { GUEST_WIFI } from "@/lib/guestWifi";
-import type { JapanTravelCardData } from "@/lib/stays/travelCard";
+import { validUntilFrom, type JapanTravelCardData } from "@/lib/stays/travelCard";
 import JapanTravelCard from "@/components/stays/JapanTravelCard";
 import LanguageSwitcher from "./LanguageSwitcher";
 import WifiAccessCard from "./WifiAccessCard";
@@ -120,6 +120,24 @@ export default function BookingCompleteStep({
       },
       wifi: GUEST_WIFI,
       generatedAt: new Date().toISOString(),
+      // 代表者＋同行者（写真はこの端末内のプレビュー。サーバーには公開URLを作らない）
+      travelers: [
+        { ...passport, companions: undefined },
+        ...(passport.companions ?? []),
+      ]
+        .filter((p) => p.fullName?.trim())
+        .map((p, i) => ({
+          name: p.fullName,
+          passportNumber: p.passportNumber || null,
+          nationality: null,
+          phone: p.phoneNumber || null,
+          email: null,
+          address: p.address || null,
+          passportImageUrl: p.passportImageUrl,
+          isPrimary: i === 0,
+        })),
+      departureDate: transfer.transferDate || null,
+      validUntil: validUntilFrom(transfer.transferDate),
     }),
     [passport, transfer, destination, bookingReference, total]
   );

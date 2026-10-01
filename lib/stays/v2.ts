@@ -115,39 +115,30 @@ export async function addPoints(
 }
 
 // ---------------- 友達紹介（リファラル） ----------------
-function genReferralCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+// stays_users はサーバー経由でのみ扱う（/api/stays/account）
+async function accountApi<T>(payload: Record<string, unknown>): Promise<T> {
+  const res = await fetch("/api/stays/account", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((json as any)?.error || "通信に失敗しました");
+  return json as T;
 }
 
 // 自分の紹介コードを取得（未発行なら発行して保存）
-export async function ensureReferralCode(userId: string): Promise<string> {
-  const { data } = await supabase.from("stays_users").select("referral_code").eq("id", userId).maybeSingle();
-  const existing = (data as any)?.referral_code;
-  if (existing) return existing;
-  const code = genReferralCode();
-  await supabase.from("stays_users").update({ referral_code: code }).eq("id", userId);
+export async function ensureReferralCode(_userId: string): Promise<string> {
+  const { code } = await accountApi<{ code: string }>({ action: "referral_code" });
   return code;
 }
 
-// 新規登録時に紹介コードを適用（双方にボーナスpt付与）
-export async function applyReferral(newUserId: string, newUserEmail: string, refCode: string): Promise<boolean> {
+// 新規登録時に紹介コードを適用（双方にボーナスpt付与。判定はサーバー側）
+export async function applyReferral(_newUserId: string, _newUserEmail: string, refCode: string): Promise<boolean> {
   try {
-    const code = refCode.trim().toUpperCase();
-    if (!code) return false;
-    const { data: referrer } = await supabase
-      .from("stays_users")
-      .select("id,email,referral_code")
-      .eq("referral_code", code)
-      .maybeSingle();
-    if (!referrer || (referrer as any).email === newUserEmail) return false;
-    const settings = await fetchPlatformSettings();
-    const bonus = settings.referral_bonus_points ?? 500;
-    await supabase.from("stays_users").update({ referred_by: code }).eq("id", newUserId);
-    await addPoints(newUserEmail, bonus, `友達紹介ボーナス（コード: ${code}）`);
-    await addPoints((referrer as any).email, bonus, "友達紹介ボーナス（紹介成立）");
-    await notify((referrer as any).email, "友達紹介が成立しました", `${bonus}ポイントを獲得しました`, "/stays/profile");
-    return true;
+    const { applied } = await accountApi<{ applied: boolean }>({ action: "apply_referral", code: refCode });
+    return applied;
   } catch {
     return false;
   }
@@ -346,16 +337,15 @@ export async function fetchAuditLogs(limit = 100): Promise<AuditLog[]> {
 
 // ---------------- ユーザー管理（管理者） ----------------
 export async function fetchUsers(): Promise<StaysUser[]> {
-  const { data } = await supabase
-    .from("stays_users")
-    .select("id,name,email,role,host_id,avatar_url,is_suspended,created_at")
-    .order("created_at", { ascending: false });
-  return (data as StaysUser[]) || [];
+  try {
+    return await accountApi<StaysUser[]>({ action: "admin_list_users" });
+  } catch {
+    return [];
+  }
 }
 
 export async function updateUser(id: string, patch: Partial<StaysUser>) {
-  const { error } = await supabase.from("stays_users").update(patch).eq("id", id);
-  if (error) throw error;
+  await accountApi({ action: "admin_update_user", id, patch });
 }
 
 // ---------------- ゲストの予約履歴 ----------------

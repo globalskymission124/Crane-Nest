@@ -10,10 +10,10 @@ import {
   fetchCheckinPageBySlug,
   submitCheckinGuest,
   uploadHostPassport,
+  fetchMyPassportProfile,
   type CheckinPage,
 } from "@/lib/stays/checkin";
 import { useStaysSession } from "@/lib/stays/auth";
-import { supabase } from "@/lib/supabase";
 import WifiAccessCard, { type WifiAccessCardLabels } from "@/components/guest/WifiAccessCard";
 
 const CHECKIN_WIFI_LABELS: WifiAccessCardLabels = {
@@ -66,24 +66,18 @@ export default function GuestCheckinPage({ params }: { params: { slug: string } 
   // ログイン済みでプロフィールにパスポート保存済みなら「ワンタップチェックイン」を提示
   useEffect(() => {
     if (!session) return;
-    supabase
-      .from("stays_users")
-      .select("name,passport_number,nationality,phone,email,passport_image_url")
-      .eq("id", session.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const d = data as any;
-        if (d?.passport_number) {
-          setSaved({
-            full_name: d.name,
-            passport_number: d.passport_number,
-            nationality: d.nationality || "",
-            phone: d.phone || null,
-            email: d.email,
-            passport_image_url: d.passport_image_url || null,
-          });
-        }
-      });
+    fetchMyPassportProfile().then((d) => {
+      if (d?.passport_number) {
+        setSaved({
+          full_name: d.name,
+          passport_number: d.passport_number,
+          nationality: d.nationality || "",
+          phone: d.phone || null,
+          email: d.email,
+          passport_image_url: d.passport_image_url || null,
+        });
+      }
+    });
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ワンタップチェックイン: 保存済み情報をそのままホストへ転送

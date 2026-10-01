@@ -1,740 +1,318 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+// =========================================================
+// JAPAN TRAVEL CARD（プロトタイプ v2）
+//
+// 来日中の旅行者が、宿のフロントでパスポートを毎回取り出さなくて済むよう、
+// 宿泊者名簿に必要な情報と日本の緊急連絡先を「スクショ1枚」にまとめたカード。
+//   - 代表者＋同行者を1人1枚。スワイプ / ボタンで切り替え
+//   - 項目名はゲストの言語を大きく、日本語を小さく（フロントのスタッフ用）
+//   - パスポート写真は透かし入り・MRZ（下部の読み取り欄）を隠して表示
+//   - 緊急連絡先は色とアイコンで区別し、タップで発信（+81 形式）
+//   - 公的な身分証明書ではない旨と有効期限（出国予定日 + 3日）を表示
+// =========================================================
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  Anchor,
-  BadgeCheck,
-  CalendarDays,
-  Camera,
-  Copy,
-  Download,
-  Eye,
-  EyeOff,
-  Flame,
-  Hotel,
-  IdCard,
-  Languages,
-  LockKeyhole,
-  MapPin,
-  Phone,
-  Plane,
-  ShieldAlert,
-  ShieldCheck,
-  Smartphone,
-  Sparkles,
-  Wifi,
-  X,
-} from "lucide-react";
-import type { ComponentType } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import type { JapanTravelCardData } from "@/lib/stays/travelCard";
-import { maskPassportNumber } from "@/lib/stays/travelCard";
+import type { JapanTravelCardData, JapanTravelPerson } from "@/lib/stays/travelCard";
 import { buildWifiQrPayload } from "@/lib/guestWifi";
+import { embassyFor, MOFA_EMBASSY_LIST_URL, toInternationalDial } from "@/lib/stays/embassies";
+import s from "./JapanTravelCard.module.css";
 
 interface Props {
   data: JapanTravelCardData;
 }
 
-function valueOrDash(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return "-";
-  const text = String(value).trim();
-  return text || "-";
-}
+type Lang = "en" | "zh-Hans" | "zh-Hant" | "ko" | "ja";
+type FieldKey = "name" | "pp" | "nat" | "addr" | "tel" | "mail";
 
-function copyText(value: string | null | undefined, onCopied: (label: string) => void, label: string) {
-  const text = value?.trim();
-  if (!text || typeof navigator === "undefined" || !navigator.clipboard) return;
-  navigator.clipboard.writeText(text).then(() => {
-    onCopied(label);
-  });
-}
+const JA: Record<FieldKey, string> = { name: "氏名", pp: "旅券番号", nat: "国籍", addr: "本国住所", tel: "電話", mail: "メール" };
+const EN: Record<FieldKey, string> = { name: "Name", pp: "Passport No.", nat: "Nationality", addr: "Home address", tel: "Phone", mail: "Email" };
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+const L: Record<Lang, Record<FieldKey, string> & Record<string, string>> = {
+  en: { chip: "English", ...EN, opt: "optional", photo: "Passport photo", lead: "Lead guest", comp: "Companion", sos: "EMERGENCY",
+    free: "110 · 119 · 118 free, 24h", police: "Police", fire: "Ambulance / Fire", advice: "Not sure if urgent?", coast: "At sea",
+    hotline: "Visitor hotline 24h · EN/中文/한국어", embassy: "Embassy", embassyList: "Find your embassy",
+    notId: "Not an official ID. Show your passport if asked.", valid: "Valid until", lost: "Lost passport: 110 → Embassy",
+    hide: "Hide No.", photoBtn: "Photo", shot: "Screenshot view", back: "Back", copied: "Copied", tip: "Tap a value to copy it." },
+  "zh-Hans": { chip: "简体中文", name: "姓名", pp: "护照号码", nat: "国籍", addr: "本国住址", tel: "电话", mail: "电子邮箱", opt: "选填",
+    photo: "护照照片", lead: "主要入住人", comp: "同行者", sos: "紧急联系", free: "110·119·118 免费·24小时",
+    police: "警察", fire: "救护车 / 消防", advice: "急救咨询", coast: "海上事故", hotline: "访日游客热线 24小时 · 中文",
+    embassy: "大使馆", embassyList: "查找大使馆", notId: "本卡并非官方身份证件，如被要求请出示护照。", valid: "有效期至",
+    lost: "护照遗失：110 → 大使馆", hide: "隐藏号码", photoBtn: "照片", shot: "截图模式", back: "返回", copied: "已复制", tip: "点击内容即可复制。" },
+  "zh-Hant": { chip: "繁體中文", name: "姓名", pp: "護照號碼", nat: "國籍", addr: "本國地址", tel: "電話", mail: "電子郵件", opt: "選填",
+    photo: "護照照片", lead: "主要住宿人", comp: "同行者", sos: "緊急聯絡", free: "110·119·118 免費·24小時",
+    police: "警察", fire: "救護車 / 消防", advice: "急救諮詢", coast: "海上事故", hotline: "訪日旅客熱線 24小時 · 中文",
+    embassy: "大使館", embassyList: "查詢駐日機構", notId: "本卡並非官方身分證件，如被要求請出示護照。", valid: "有效期限",
+    lost: "護照遺失：110 → 大使館", hide: "隱藏號碼", photoBtn: "照片", shot: "截圖模式", back: "返回", copied: "已複製", tip: "點選內容即可複製。" },
+  ko: { chip: "한국어", name: "성명", pp: "여권 번호", nat: "국적", addr: "본국 주소", tel: "전화", mail: "이메일", opt: "선택",
+    photo: "여권 사진", lead: "대표자", comp: "동행자", sos: "긴급 연락처", free: "110·119·118 무료·24시간",
+    police: "경찰", fire: "구급차 / 소방", advice: "구급 상담", coast: "해상 사고", hotline: "방일 외국인 핫라인 24시간 · 한국어",
+    embassy: "대사관", embassyList: "대사관 찾기", notId: "공식 신분증이 아닙니다. 요청 시 여권을 제시해 주세요.", valid: "유효기간",
+    lost: "여권 분실: 110 → 대사관", hide: "번호 숨기기", photoBtn: "사진", shot: "스크린샷 보기", back: "돌아가기", copied: "복사됨", tip: "값을 누르면 복사됩니다." },
+  ja: { chip: "日本語", ...JA, opt: "任意", photo: "旅券写真", lead: "代表者", comp: "同行者", sos: "緊急連絡先",
+    free: "110・119・118 無料・24時間", police: "警察", fire: "救急・消防", advice: "救急相談", coast: "海上の事故",
+    hotline: "訪日外国人ホットライン 24時間", embassy: "大使館", embassyList: "大使館を探す",
+    notId: "公的な身分証明書ではありません。求められたらパスポートを提示してください。", valid: "有効期限",
+    lost: "パスポート紛失：110 → 大使館", hide: "番号を隠す", photoBtn: "写真", shot: "スクショ用表示", back: "戻る", copied: "コピーしました", tip: "値をタップするとコピーできます。" },
 };
+const LANGS: Lang[] = ["en", "zh-Hans", "zh-Hant", "ko", "ja"];
 
-// 日本の緊急連絡先。番号は総務省・観光庁(JNTO)の公式情報に基づく。
-// 番号は全言語共通。ラベルのみ言語切替する（カード内蔵トグル）。
-// dial はタップ発信用（ハイフンなし）、number は表示用。
-type EmergencyKey = "police" | "fire" | "coast" | "hotline";
-
-const EMERGENCY_CONTACTS: {
-  key: EmergencyKey;
-  icon: ComponentType<{ className?: string }>;
-  number: string;
-  dial: string;
-  accent: string; // アイコン背景色
-}[] = [
-  { key: "police", icon: ShieldAlert, number: "110", dial: "110", accent: "bg-red-600" },
-  { key: "fire", icon: Flame, number: "119", dial: "119", accent: "bg-orange-600" },
-  { key: "coast", icon: Anchor, number: "118", dial: "118", accent: "bg-sky-600" },
-  { key: "hotline", icon: Languages, number: "050-3816-2787", dial: "05038162787", accent: "bg-emerald-600" },
-];
-
-// カードは /stays/travel-card では LanguageProvider の外側で描画されるため、
-// アプリの i18n には依存せずカード内で完結する翻訳テーブルを持つ。
-// カード全体（本人情報・滞在・WiFi・緊急連絡先）で共通の言語コード。
-type CardLang = "ja" | "en" | "zh" | "ko";
-
-const CARD_LANG_ORDER: { code: CardLang; label: string }[] = [
-  { code: "ja", label: "日本語" },
-  { code: "en", label: "EN" },
-  { code: "zh", label: "中文" },
-  { code: "ko", label: "한국어" },
-];
-
-const EMERGENCY_STRINGS: Record<
-  CardLang,
-  {
-    title: string;
-    subtitle: string;
-    footnote: string;
-    contacts: Record<EmergencyKey, { label: string; sub: string }>;
-  }
-> = {
-  ja: {
-    title: "緊急連絡先",
-    subtitle: "タップで発信できます",
-    footnote: "110・119・118 は通話無料・24時間対応です。",
-    contacts: {
-      police: { label: "警察", sub: "事件・事故" },
-      fire: { label: "消防・救急", sub: "火事・急病" },
-      coast: { label: "海上保安庁", sub: "海の事故" },
-      hotline: { label: "JNTO 多言語ホットライン", sub: "24時間 · 英中韓など" },
-    },
-  },
-  en: {
-    title: "Emergency in Japan",
-    subtitle: "Tap a number to call",
-    footnote: "110 / 119 / 118 are toll-free and available 24 hours.",
-    contacts: {
-      police: { label: "Police", sub: "Crime · Accident" },
-      fire: { label: "Fire · Ambulance", sub: "Fire · Sudden illness" },
-      coast: { label: "Coast Guard", sub: "Accidents at sea" },
-      hotline: { label: "JNTO Visitor Hotline", sub: "24h · Multilingual" },
-    },
-  },
-  zh: {
-    title: "日本紧急联络电话",
-    subtitle: "点击号码即可拨打",
-    footnote: "110 / 119 / 118 免费、24 小时受理。",
-    contacts: {
-      police: { label: "警察", sub: "案件 · 事故" },
-      fire: { label: "消防 · 急救", sub: "火灾 · 急病" },
-      coast: { label: "海上保安厅", sub: "海上事故" },
-      hotline: { label: "JNTO 多语言热线", sub: "24 小时 · 多语言" },
-    },
-  },
-  ko: {
-    title: "일본 긴급 연락처",
-    subtitle: "번호를 누르면 전화가 연결됩니다",
-    footnote: "110 · 119 · 118 은 무료이며 24시간 대응합니다.",
-    contacts: {
-      police: { label: "경찰", sub: "사건 · 사고" },
-      fire: { label: "소방 · 구급", sub: "화재 · 응급" },
-      coast: { label: "해상보안청", sub: "해상 사고" },
-      hotline: { label: "JNTO 다국어 핫라인", sub: "24시간 · 다국어" },
-    },
-  },
-};
-
-// カード本体（本人情報・滞在・WiFi・操作ボタン）の翻訳テーブル。
-interface CardStrings {
-  companion: string;
-  show: string;
-  hide: string;
-  screenshot: string;
-  addHome: string;
-  showToHotel: string;
-  backToNormal: string;
-  copiedSuffix: string; // 「〇〇 をコピーしました」の後半
-  closeScreenshot: string;
-  passportMini: string;
-  contactMini: string;
-  rowName: string;
-  rowPassport: string;
-  rowNationality: string;
-  rowPhone: string;
-  rowEmail: string;
-  photoHidden: string;
-  photoNone: string;
-  copyForHotel: string;
-  revealToCopy: string;
-  hotelFormLabel: string;
-  findStay: string;
-  disclaimer: string;
-  currentStay: string;
-  guests: string;
-  luggage: string;
-  noTransfer: string;
-  wifiTitle: string;
-  wifiNetwork: string;
-  wifiPassword: string;
-  wifiPasswordLabel: string;
+function detectLang(): Lang {
+  if (typeof navigator === "undefined") return "en";
+  const n = (navigator.languages && navigator.languages[0]) || navigator.language || "en";
+  if (/^zh-(TW|HK|MO|Hant)/i.test(n)) return "zh-Hant";
+  if (/^zh/i.test(n)) return "zh-Hans";
+  if (/^ko/i.test(n)) return "ko";
+  return "en"; // 日本語端末はスタッフの確認用が多いので、ゲスト向けの英語を既定にする
 }
 
-const CARD_STRINGS: Record<CardLang, CardStrings> = {
-  ja: {
-    companion: "Crane Nest パスポートコンパニオン",
-    show: "表示",
-    hide: "隠す",
-    screenshot: "スクショ",
-    addHome: "ホームに追加",
-    showToHotel: "宿に見せる",
-    backToNormal: "通常表示へ戻る",
-    copiedSuffix: "をコピーしました",
-    closeScreenshot: "スクショ表示を閉じる",
-    passportMini: "Passport",
-    contactMini: "Contact",
-    rowName: "氏名",
-    rowPassport: "パスポート番号",
-    rowNationality: "国籍",
-    rowPhone: "電話番号",
-    rowEmail: "メール",
-    photoHidden: "パスポート写真は非表示",
-    photoNone: "パスポート写真なし",
-    copyForHotel: "宿泊施設用にコピー",
-    revealToCopy: "表示してコピー",
-    hotelFormLabel: "宿泊施設用フォーム",
-    findStay: "次の宿を探す",
-    disclaimer: "公的な身分証ではありません。宿泊台帳への入力補助として、ご本人の端末上で提示してください。",
-    currentStay: "現在のご滞在",
-    guests: "人数",
-    luggage: "荷物",
-    noTransfer: "送迎予約が保存されると、ここに最新の滞在情報が表示されます。",
-    wifiTitle: "Crane Nest ゲスト WiFi",
-    wifiNetwork: "ネットワーク",
-    wifiPassword: "パスワード",
-    wifiPasswordLabel: "WiFi パスワード",
-  },
-  en: {
-    companion: "Crane Nest Passport Companion",
-    show: "Show",
-    hide: "Hide",
-    screenshot: "Screenshot",
-    addHome: "Add to Home",
-    showToHotel: "Show to hotel",
-    backToNormal: "Back to normal view",
-    copiedSuffix: " copied",
-    closeScreenshot: "Close screenshot view",
-    passportMini: "Passport",
-    contactMini: "Contact",
-    rowName: "Name",
-    rowPassport: "Passport No.",
-    rowNationality: "Nationality",
-    rowPhone: "Phone",
-    rowEmail: "Email",
-    photoHidden: "Passport photo hidden",
-    photoNone: "No passport photo",
-    copyForHotel: "Copy for hotel",
-    revealToCopy: "Show & copy",
-    hotelFormLabel: "hotel form",
-    findStay: "Find your next stay",
-    disclaimer: "This is not an official ID. Please present it on your own device to help fill in the hotel guest register.",
-    currentStay: "Current stay",
-    guests: "Guests",
-    luggage: "Luggage",
-    noTransfer: "Your latest stay details will appear here once a transfer booking is saved.",
-    wifiTitle: "Crane Nest Guest WiFi",
-    wifiNetwork: "Network",
-    wifiPassword: "Password",
-    wifiPasswordLabel: "WiFi password",
-  },
-  zh: {
-    companion: "Crane Nest 护照随行卡",
-    show: "显示",
-    hide: "隐藏",
-    screenshot: "截图",
-    addHome: "添加到主屏幕",
-    showToHotel: "出示给住宿方",
-    backToNormal: "返回普通视图",
-    copiedSuffix: " 已复制",
-    closeScreenshot: "关闭截图视图",
-    passportMini: "护照",
-    contactMini: "联系方式",
-    rowName: "姓名",
-    rowPassport: "护照号码",
-    rowNationality: "国籍",
-    rowPhone: "电话",
-    rowEmail: "邮箱",
-    photoHidden: "护照照片已隐藏",
-    photoNone: "无护照照片",
-    copyForHotel: "复制给住宿方",
-    revealToCopy: "显示并复制",
-    hotelFormLabel: "住宿登记表",
-    findStay: "寻找下一处住宿",
-    disclaimer: "这不是官方身份证件。请在本人设备上出示，仅用于协助填写住宿登记表。",
-    currentStay: "当前住宿",
-    guests: "人数",
-    luggage: "行李",
-    noTransfer: "保存接送预约后，这里将显示最新的住宿信息。",
-    wifiTitle: "Crane Nest 访客 WiFi",
-    wifiNetwork: "网络",
-    wifiPassword: "密码",
-    wifiPasswordLabel: "WiFi 密码",
-  },
-  ko: {
-    companion: "Crane Nest 여권 컴패니언",
-    show: "표시",
-    hide: "숨기기",
-    screenshot: "스크린샷",
-    addHome: "홈에 추가",
-    showToHotel: "숙소에 보여주기",
-    backToNormal: "일반 보기로 돌아가기",
-    copiedSuffix: " 복사했습니다",
-    closeScreenshot: "스크린샷 보기 닫기",
-    passportMini: "여권",
-    contactMini: "연락처",
-    rowName: "이름",
-    rowPassport: "여권 번호",
-    rowNationality: "국적",
-    rowPhone: "전화",
-    rowEmail: "이메일",
-    photoHidden: "여권 사진 숨김",
-    photoNone: "여권 사진 없음",
-    copyForHotel: "숙소용으로 복사",
-    revealToCopy: "표시 후 복사",
-    hotelFormLabel: "숙소 등록 양식",
-    findStay: "다음 숙소 찾기",
-    disclaimer: "공식 신분증이 아닙니다. 숙박 대장 작성을 돕기 위해 본인 기기에서 제시해 주세요.",
-    currentStay: "현재 숙박",
-    guests: "인원",
-    luggage: "수하물",
-    noTransfer: "픽업 예약이 저장되면 최신 숙박 정보가 여기에 표시됩니다.",
-    wifiTitle: "Crane Nest 게스트 WiFi",
-    wifiNetwork: "네트워크",
-    wifiPassword: "비밀번호",
-    wifiPasswordLabel: "WiFi 비밀번호",
-  },
+const mask = (v: string) => (v.length <= 4 ? "****" : v.slice(0, 2) + "•".repeat(Math.max(v.length - 4, 2)) + v.slice(-2));
+
+const ICON: Record<string, JSX.Element> = {
+  police: <path d="M12 2 4 5v6c0 5.2 3.4 9.7 8 11 4.6-1.3 8-5.8 8-11V5z" />,
+  fire: <path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z" />,
+  advice: <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2zm2.1-7.7-.9.9A3.4 3.4 0 0 0 13 13h-2v-.5a4 4 0 0 1 1.2-2.8l1.2-1.3A2 2 0 1 0 10 7H8a4 4 0 1 1 7.1 2.3z" />,
+  coast: <path d="M12 2a3 3 0 0 0-1 5.8V10H8v2h3v7.9A7 7 0 0 1 5 13H3a9 9 0 0 0 18 0h-2a7 7 0 0 1-6 6.9V12h3v-2h-3V7.8A3 3 0 0 0 12 2zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />,
+  hotline: <path d="M3 4h18v12H9l-6 4.5zm4 5v2h2V9zm4 0v2h2V9zm4 0v2h2V9z" />,
+  embassy: <path d="M12 2 2 7v2h20V7zM4 10v8h3v-8zm6.5 0v8h3v-8zM17 10v8h3v-8zM2 19.5V22h20v-2.5z" />,
 };
+const PHONE_PATH =
+  "M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z";
 
-// アプリ側のロケール（guesthouse_locale）を初期値として尊重する。
-// es / fr など未対応の言語は英語にフォールバックする。
-function resolveInitialLang(): CardLang {
-  if (typeof window === "undefined") return "ja";
-  try {
-    const saved = window.localStorage.getItem("guesthouse_locale");
-    if (saved === "ja" || saved === "en" || saved === "zh" || saved === "ko") return saved;
-    if (saved === "es" || saved === "fr") return "en";
-  } catch {
-    // localStorage が使えない環境では既定値
-  }
-  return "ja";
-}
-
-// 言語はカード全体で共有し、親から prop で受け取る。
-function EmergencyContactsCard({ lang }: { lang: CardLang }) {
-  const s = EMERGENCY_STRINGS[lang];
-
+function Tile({ kind, num, href, label, wide }: { kind: string; num: string; href: string; label: React.ReactNode; wide?: boolean }) {
+  const external = href.startsWith("http");
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="bg-[#0b1e46] px-5 py-3.5 text-white">
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600/90">
-            <ShieldAlert className="h-5 w-5" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-black leading-tight">{s.title}</p>
-            <p className="truncate text-[11px] font-semibold text-slate-300">{s.subtitle}</p>
-          </div>
-        </div>
+    <a
+      className={`${s.t} ${s[kind]} ${wide ? s.w2 : ""}`}
+      href={href}
+      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+      aria-label={`${num} — call`}
+    >
+      <div className={s.top}>
+        <span className={`${s.num} ${wide ? s.numSm : ""}`}>{num}</span>
+        <span className={s.ico}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">{ICON[kind]}</svg>
+        </span>
       </div>
-      <div className="grid gap-2 p-4 sm:grid-cols-2">
-        {EMERGENCY_CONTACTS.map((contact) => {
-          const Icon = contact.icon;
-          const text = s.contacts[contact.key];
-          return (
-            <a
-              key={contact.number}
-              href={`tel:${contact.dial}`}
-              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${contact.accent}`}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
-                  {text.label}
-                </span>
-                <span className="block truncate font-mono text-lg font-black leading-tight text-slate-900">
-                  {contact.number}
-                </span>
-                <span className="block truncate text-[10px] font-semibold text-slate-400">{text.sub}</span>
-              </span>
-              <Phone className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-slate-600" />
-            </a>
-          );
-        })}
+      <div className={s.what}>
+        <svg className={s.call} viewBox="0 0 24 24" aria-hidden="true"><path d={PHONE_PATH} /></svg>
+        <span>{label}</span>
       </div>
-      <p className="border-t border-slate-100 px-4 py-2.5 text-[10px] font-semibold leading-4 text-slate-400">
-        {s.footnote}
-      </p>
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  copyValue,
-  onCopied,
-}: {
-  label: string;
-  value: string;
-  copyValue?: string | null;
-  onCopied: (label: string) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 py-3 last:border-b-0">
-      <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">{label}</span>
-      <span className="flex min-w-0 items-center gap-2 text-right">
-        <span className="truncate text-sm font-bold text-slate-900">{value}</span>
-        {copyValue && (
-          <button
-            type="button"
-            onClick={() => copyText(copyValue, onCopied, label)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-400 hover:text-slate-900"
-            aria-label={label}
-          >
-            <Copy className="h-4 w-4" />
-          </button>
-        )}
-      </span>
-    </div>
+    </a>
   );
 }
 
 export default function JapanTravelCard({ data }: Props) {
-  const [revealed, setRevealed] = useState(false);
-  const [presentation, setPresentation] = useState(false);
-  const [screenshotMode, setScreenshotMode] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [lang, setLang] = useState<CardLang>("ja");
+  const [lang, setLang] = useState<Lang>("en");
+  const [idx, setIdx] = useState(0);
+  const [masked, setMasked] = useState(false);
+  const [photoOn, setPhotoOn] = useState(true);
+  const [shot, setShot] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const touchX = useRef<number | null>(null);
 
-  // 言語の初期値はマウント後に決定する（SSR とクライアントの不一致を避ける）。
-  useEffect(() => {
-    setLang(resolveInitialLang());
-  }, []);
+  useEffect(() => setLang(detectLang()), []);
 
-  const c = CARD_STRINGS[lang];
+  const people: JapanTravelPerson[] = useMemo(() => {
+    if (data.travelers?.length) return data.travelers;
+    const p = data.profile;
+    return [{
+      name: p.name, passportNumber: p.passportNumber, nationality: p.nationality, phone: p.phone,
+      email: p.email, address: null, passportImageUrl: p.passportImageUrl, isPrimary: true,
+    }];
+  }, [data]);
 
-  const { profile, latestTransfer, wifi } = data;
-  const passportDisplay = revealed ? valueOrDash(profile.passportNumber) : maskPassportNumber(profile.passportNumber);
-  const wifiPayload = useMemo(() => buildWifiQrPayload(wifi), [wifi]);
-  const hotelFormText = [
-    `Name: ${valueOrDash(profile.name)}`,
-    `Passport No: ${valueOrDash(profile.passportNumber)}`,
-    `Nationality: ${valueOrDash(profile.nationality)}`,
-    `Phone: ${valueOrDash(profile.phone)}`,
-    `Email: ${valueOrDash(profile.email)}`,
-  ].join("\n");
+  const t = L[lang];
+  const g = people[Math.min(idx, people.length - 1)];
+  const pp = g.passportNumber ? (masked ? mask(g.passportNumber) : g.passportNumber) : "";
+  const embassy = embassyFor(g.nationality);
+  const arrive = null as string | null; // 入国日はまだ保存していない（今後追加）
+  const depart = data.departureDate ?? data.latestTransfer?.transferDate ?? null;
+  const validUntil = data.validUntil ?? null;
+  const wifiPayload = useMemo(() => buildWifiQrPayload(data.wifi), [data.wifi]);
 
-  const onCopied = (label: string) => {
-    setCopied(label);
-    window.setTimeout(() => setCopied(null), 1800);
-  };
+  const go = (d: number) => setIdx((i) => (i + d + people.length) % people.length);
 
-  useEffect(() => {
-    const handler = (event: Event) => {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
+  function copy(value: string | null | undefined) {
+    const v = value?.trim();
+    if (!v) return;
+    const done = () => {
+      setToast(t.copied);
+      window.setTimeout(() => setToast(null), 1400);
     };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  async function installShortcut() {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      await installPrompt.userChoice;
-      setInstallPrompt(null);
-      return;
-    }
-
-    const url = window.location.href;
-    if (navigator.share) {
-      await navigator.share({ title: "JAPAN TRAVEL CARD", url }).catch(() => undefined);
-      return;
-    }
-
-    copyText(url, onCopied, "Travel Card URL");
+    if (navigator.clipboard) navigator.clipboard.writeText(v).then(done, () => undefined);
   }
 
-  const openPresentation = () => {
-    setRevealed(true);
-    setPresentation(true);
-  };
-
-  const openScreenshotMode = () => {
-    setPresentation(true);
-    setScreenshotMode(true);
-  };
-
-  const closeScreenshotMode = () => {
-    setScreenshotMode(false);
-    setPresentation(false);
-  };
-
-  // カード全体で共有する言語スイッチャー（緊急連絡先も連動する）。
-  const langSwitcher = (
-    <div className="flex flex-wrap gap-1.5">
-      {CARD_LANG_ORDER.map((option) => {
-        const active = option.code === lang;
-        return (
-          <button
-            key={option.code}
-            type="button"
-            onClick={() => setLang(option.code)}
-            aria-pressed={active}
-            className={`rounded-md px-2.5 py-1.5 text-xs font-bold transition ${
-              active
-                ? "bg-[#0b1e46] text-white"
-                : "border border-slate-300 bg-white text-slate-600 hover:border-slate-500"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+  const field = (key: FieldKey, value: string | null | undefined, cls = "", wide = false, optional = false, sub?: string) => (
+    <div className={`${s.f} ${wide ? s.wide : ""}`}>
+      <div className={s.lab}>
+        <span className={s.pri}>{t[key]}</span>
+        <span>{lang === "ja" ? EN[key] : JA[key]}</span>
+        {optional && <span className={s.opt}>{t.opt}</span>}
+      </div>
+      <button type="button" className={s.copy} onClick={() => copy(value)} aria-label={t[key]}>
+        <span className={`${s.v} ${cls}`}>
+          {value?.trim() ? value : "—"}
+          {sub && <span className={s.sub}>{sub}</span>}
+        </span>
+      </button>
     </div>
   );
 
-  return (
-    <div className={screenshotMode ? "fixed inset-0 z-50 overflow-y-auto bg-[#eef4fb] px-3 py-4 sm:px-8 sm:py-8" : "mx-auto max-w-5xl"}>
-      {/* Crane Feather ブランドのヒーローバナー（全モード共通） */}
-      <div className="mb-4 overflow-hidden rounded-xl border border-blue-100 shadow-sm">
+  const showPhoto = photoOn && Boolean(g.passportImageUrl);
+  const wm = Array(9).fill(`CRANE TRAVEL CARD · HOTEL REGISTRATION ONLY${validUntil ? ` · VALID UNTIL ${validUntil}` : ""}`);
+
+  const card = (
+    <article
+      className={s.card}
+      onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        if (touchX.current == null || people.length < 2) return;
+        const dx = e.changedTouches[0].clientX - touchX.current;
+        touchX.current = null;
+        if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+      }}
+    >
+      <header className={s.hero}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/travel-card-hero.jpg"
-          alt="Crane Feather International — Japan Travel Card"
-          className="w-full object-cover"
-        />
+        <img src="/travel-card-hero-ink.webp" alt="Crane Feather International — Japan Travel Card" />
+        <div className={s.heroMeta}>
+          <span className={s.pill}>
+            <b>{idx + 1}/{people.length}</b> {g.isPrimary ? t.lead : t.comp}
+          </span>
+          {(arrive || depart) && (
+            <span className={s.pill}>
+              {arrive && <>IN <b>{arrive.slice(5)}</b> </>}
+              {depart && <>OUT <b>{depart.slice(5)}</b></>}
+            </span>
+          )}
+        </div>
+      </header>
+
+      <div className={s.staff}>
+        <span className={s.staffTag}>受付</span>
+        宿泊者名簿の記入用に、パスポートの内容を転記したカードです。原本の確認が必要な場合はお申し付けください。
       </div>
 
-      {screenshotMode && (
-        <button
-          type="button"
-          onClick={closeScreenshotMode}
-          className="fixed right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[#0b1e46] text-white shadow-lg"
-          aria-label={c.closeScreenshot}
-        >
-          <X className="h-5 w-5" />
-        </button>
-      )}
-
-      {!screenshotMode && <div className="mb-4 flex justify-end">{langSwitcher}</div>}
-
-      {!presentation && !screenshotMode && (
-        <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-blue-700">
-              <Sparkles className="h-4 w-4" />
-              {c.companion}
-            </p>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-[#0b1e46] sm:text-3xl">JAPAN TRAVEL CARD</h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setRevealed((current) => !current)}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-800 shadow-sm"
-            >
-              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {revealed ? c.hide : c.show}
-            </button>
-            <button
-              type="button"
-              onClick={openScreenshotMode}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-800 shadow-sm"
-            >
-              <Camera className="h-4 w-4" />
-              {c.screenshot}
-            </button>
-            <button
-              type="button"
-              onClick={installShortcut}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-800 shadow-sm"
-            >
-              {installPrompt ? <Download className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
-              {c.addHome}
-            </button>
-            <button
-              type="button"
-              onClick={openPresentation}
-              className="flex items-center gap-2 rounded-lg bg-[#0b1e46] px-4 py-2 text-sm font-black text-white shadow-sm"
-            >
-              <Hotel className="h-4 w-4" />
-              {c.showToHotel}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {presentation && !screenshotMode && (
-        <button
-          type="button"
-          onClick={() => setPresentation(false)}
-          className="mb-4 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700"
-        >
-          {c.backToNormal}
-        </button>
-      )}
-
-      {copied && !screenshotMode && (
-        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">
-          {copied}
-          {c.copiedSuffix}
-        </p>
-      )}
-
-      <section className={screenshotMode ? "mx-auto grid max-w-4xl gap-4" : "grid gap-4 lg:grid-cols-[1.1fr_0.9fr]"}>
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
-          <div className="relative bg-[#0b1e46] px-5 py-5 text-white sm:px-7 sm:py-7">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-700 via-sky-400 to-blue-500" />
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-200">Japan Travel Card</p>
-                <p className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{profile.name}</p>
-                <p className="mt-2 text-sm font-semibold text-slate-300">{valueOrDash(profile.nationality)}</p>
-              </div>
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10">
-                <IdCard className="h-9 w-9 text-sky-200" />
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{c.passportMini}</p>
-                <p className="mt-1 font-mono text-lg font-black">{passportDisplay}</p>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{c.contactMini}</p>
-                <p className="mt-1 truncate text-sm font-bold">{valueOrDash(profile.phone ?? profile.email)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 p-5 sm:grid-cols-[180px_1fr] sm:p-7">
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-              {profile.passportImageUrl && revealed ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profile.passportImageUrl} alt="" className="aspect-[3/4] h-full w-full object-cover object-top" />
-              ) : (
-                <div className="flex aspect-[3/4] h-full w-full flex-col items-center justify-center gap-3 px-5 text-center text-slate-400">
-                  <LockKeyhole className="h-9 w-9" />
-                  <span className="text-xs font-bold">{profile.passportImageUrl ? c.photoHidden : c.photoNone}</span>
-                </div>
-              )}
-            </div>
-
+      <div className={s.fields}>
+        {field("name", g.name, s.vName, true)}
+        {field("pp", pp, s.vPp, true)}
+        {showPhoto ? (
+          <div className={s.idrow}>
             <div>
-              <div className="rounded-lg border border-slate-200 px-4">
-                <DetailRow label={c.rowName} value={valueOrDash(profile.name)} copyValue={profile.name} onCopied={onCopied} />
-                <DetailRow
-                  label={c.rowPassport}
-                  value={passportDisplay}
-                  copyValue={revealed ? profile.passportNumber : null}
-                  onCopied={onCopied}
-                />
-                <DetailRow label={c.rowNationality} value={valueOrDash(profile.nationality)} copyValue={profile.nationality} onCopied={onCopied} />
-                <DetailRow label={c.rowPhone} value={valueOrDash(profile.phone)} copyValue={profile.phone} onCopied={onCopied} />
-                <DetailRow label={c.rowEmail} value={valueOrDash(profile.email)} copyValue={profile.email} onCopied={onCopied} />
+              <div className={s.photo} role="img" aria-label={t.photo}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={g.passportImageUrl!} alt="" />
+                <div className={s.mrz}>MRZ hidden</div>
+                <div className={s.wm}><p>{wm.map((line, i) => <span key={i}>{line}<br /></span>)}</p></div>
               </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => (revealed ? copyText(hotelFormText, onCopied, c.hotelFormLabel) : setRevealed(true))}
-                  className="flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-black text-white shadow-sm"
-                >
-                  <Copy className="h-4 w-4" />
-                  {revealed ? c.copyForHotel : c.revealToCopy}
-                </button>
-                <Link
-                  href="/stays"
-                  className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-800"
-                >
-                  <Plane className="h-4 w-4" />
-                  {c.findStay}
-                </Link>
-              </div>
-
-              <p className="mt-4 flex items-start gap-2 text-xs font-semibold leading-5 text-slate-500">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                {c.disclaimer}
-              </p>
+              <div className={s.photoCap}>{t.photo} · {t.opt}</div>
+            </div>
+            <div className={s.stack}>
+              {field("nat", g.nationality, s.vSmall)}
+              {field("tel", g.phone, s.vSmall, false, true)}
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {field("nat", g.nationality, s.vSmall)}
+            {field("tel", g.phone, s.vSmall, false, true)}
+          </>
+        )}
+        {field("addr", g.address, s.vSmall, true, true)}
+        {g.email ? field("mail", g.email, s.vSmall, true, true) : null}
+      </div>
 
-        <div className="grid gap-4">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="flex items-center gap-2 text-sm font-black text-slate-900">
-                <BadgeCheck className="h-5 w-5 text-emerald-600" />
-                {c.currentStay}
-              </p>
-              {latestTransfer?.bookingReference && (
-                <span className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[11px] font-black text-slate-600">
-                  {latestTransfer.bookingReference}
-                </span>
-              )}
-            </div>
-
-            {latestTransfer ? (
-              <div className="space-y-3 text-sm">
-                <p className="flex items-center gap-2 font-bold text-slate-800">
-                  <Hotel className="h-4 w-4 text-slate-400" />
-                  {latestTransfer.roomNumber}
-                </p>
-                <p className="flex items-center gap-2 font-bold text-slate-800">
-                  <MapPin className="h-4 w-4 text-slate-400" />
-                  {latestTransfer.destinationName}
-                </p>
-                <p className="flex items-center gap-2 font-bold text-slate-800">
-                  <CalendarDays className="h-4 w-4 text-slate-400" />
-                  {valueOrDash(latestTransfer.transferDate)}
-                  {latestTransfer.departureTime ? ` / ${latestTransfer.departureTime}` : ""}
-                </p>
-                <p className="text-xs font-semibold text-slate-500">
-                  {c.guests} {valueOrDash(latestTransfer.passengers)} / {c.luggage} {latestTransfer.luggageTotal}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm font-semibold leading-6 text-slate-500">{c.noTransfer}</p>
-            )}
-          </div>
-
-          <EmergencyContactsCard lang={lang} />
-
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="mb-4 flex items-center gap-2 text-sm font-black text-slate-900">
-              <Wifi className="h-5 w-5 text-blue-700" />
-              {c.wifiTitle}
-            </p>
-            <div className="grid grid-cols-[116px_1fr] gap-4">
-              <div className="rounded-lg border border-slate-200 bg-white p-2">
-                <QRCodeSVG value={wifiPayload} size={96} includeMargin />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{c.wifiNetwork}</p>
-                <p className="truncate font-bold text-slate-900">{wifi.ssid}</p>
-                <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{c.wifiPassword}</p>
-                <button
-                  type="button"
-                  onClick={() => copyText(wifi.password, onCopied, c.wifiPasswordLabel)}
-                  className="mt-1 flex max-w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left font-mono text-xs font-black text-slate-800"
-                >
-                  <Copy className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{wifi.password}</span>
-                </button>
-              </div>
-            </div>
-          </div>
+      <section className={s.sos} aria-label="Emergency in Japan">
+        <h2 className={s.sosHead}>{t.sos} <span>{t.free}</span></h2>
+        <div className={s.sosGrid}>
+          <Tile kind="police" num="110" href="tel:110" label={<b>{t.police}</b>} />
+          <Tile kind="fire" num="119" href="tel:119" label={<b>{t.fire}</b>} />
+          <Tile kind="advice" num="#7119" href="tel:%237119" label={<b>{t.advice}</b>} />
+          <Tile kind="coast" num="118" href="tel:118" label={<b>{t.coast}</b>} />
+          <Tile kind="hotline" num="050-3816-2787" href="tel:+815038162787" wide label={<><b>JNTO</b> {t.hotline}</>} />
+          {embassy?.tel ? (
+            <Tile kind="embassy" num={embassy.tel} href={`tel:${toInternationalDial(embassy.tel)}`} wide label={<><b>{t.embassy}</b> {embassy.name}</>} />
+          ) : (
+            <Tile kind="embassy" num={t.embassyList} href={embassy?.url || MOFA_EMBASSY_LIST_URL} wide label={<><b>{t.embassy}</b> {embassy?.name || "MOFA list"}</>} />
+          )}
         </div>
       </section>
+
+      <footer className={s.foot}>
+        <span>
+          {t.notId}
+          <br />
+          {t.lost}
+          {validUntil && <> · {t.valid} <b>{validUntil}</b></>}
+        </span>
+        <span className={s.tag}>EXPERIENCE JAPAN.<span>BEYOND LIMITS.</span></span>
+      </footer>
+    </article>
+  );
+
+  if (shot) {
+    return (
+      <div className={s.shot}>
+        {card}
+        <button type="button" className={s.exit} onClick={() => setShot(false)}>{t.back}</button>
+        {toast && <div className={s.toast}>{toast}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={s.root}>
+      <div className={s.controls}>
+        <div className={s.row} role="group" aria-label="Language">
+          {LANGS.map((k) => (
+            <button key={k} type="button" className={s.chip} aria-pressed={k === lang} onClick={() => setLang(k)}>
+              {L[k].chip}
+            </button>
+          ))}
+        </div>
+        {people.length > 1 && (
+          <div className={s.row} role="group" aria-label="Traveler">
+            {people.map((p, i) => (
+              <button key={i} type="button" className={s.chip} aria-pressed={i === idx} onClick={() => setIdx(i)}>
+                {/* パスポート表記は「姓 名」なので、2語目（名）を出す */}
+                {p.name.trim().split(/\s+/)[1] || p.name.trim().split(/\s+/)[0] || `#${i + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={s.row}>
+          <button type="button" className={s.chip} aria-pressed={masked} onClick={() => setMasked((m) => !m)}>{t.hide}</button>
+          {g.passportImageUrl && (
+            <button type="button" className={s.chip} aria-pressed={photoOn} onClick={() => setPhotoOn((v) => !v)}>{t.photoBtn}</button>
+          )}
+          <span className={s.spacer} />
+          <button type="button" className={s.chip} onClick={() => { setShot(true); window.scrollTo(0, 0); }}>📸 {t.shot}</button>
+        </div>
+        <p className={s.note}>{t.tip}</p>
+      </div>
+
+      {card}
+
+      <div className={s.extras}>
+        <div className={s.panel}>
+          <div>
+            <h3>鶴印帳 Tsuru-in Stamp Book</h3>
+            <p>Collect a seal at every Crane Feather stay. (Prototype)</p>
+          </div>
+          <Link className={s.panelLink} href="/stays/tsuru-in">Open</Link>
+        </div>
+        <div className={s.panel}>
+          <QRCodeSVG value={wifiPayload} size={72} />
+          <div>
+            <h3>Wi-Fi · {data.wifi.ssid}</h3>
+            <p>Scan to connect (at Crane Nest).</p>
+          </div>
+        </div>
+      </div>
+      {toast && <div className={s.toast}>{toast}</div>}
     </div>
   );
 }

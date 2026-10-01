@@ -14,7 +14,7 @@ import { updateProfile, setPassword, useStaysSession } from "@/lib/stays/auth";
 import { resizeImage } from "@/lib/stays/image";
 import { uploadSiteImage } from "@/lib/site/cms";
 import { uploadHostPassport } from "@/lib/stays/checkin";
-import { supabase } from "@/lib/supabase";
+import { fetchMyPassportProfile } from "@/lib/stays/checkin";
 import { audit, ensureReferralCode, fetchBookingsByEmail, fetchPointsBalance } from "@/lib/stays/v2";
 import { getTier, staysToNextTier, LOYALTY_LABELS, type LoyaltyTier } from "@/lib/stays/loyalty";
 import { useStaysT } from "@/lib/stays/i18n";
@@ -52,20 +52,14 @@ function ProfileBody() {
         setTier(getTier(bs));
         setNextInfo(staysToNextTier(bs));
       });
-      // 保存済みパスポート情報を取得
-      supabase
-        .from("stays_users")
-        .select("passport_number,nationality,passport_image_url")
-        .eq("id", session.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          const d = data as any;
-          if (d) {
-            setPpNo(d.passport_number || "");
-            setPpNat(d.nationality || "");
-            setPpImg(d.passport_image_url || null);
-          }
-        });
+      // 保存済みパスポート情報を取得（stays_users はサーバー経由でのみ読める）
+      fetchMyPassportProfile().then((d) => {
+        if (d) {
+          setPpNo(d.passport_number || "");
+          setPpNat(d.nationality || "");
+          setPpImg(d.passport_image_url || null);
+        }
+      });
     }
   }, [session?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

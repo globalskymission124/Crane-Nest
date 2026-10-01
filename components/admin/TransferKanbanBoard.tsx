@@ -119,42 +119,28 @@ export default function TransferKanbanBoard() {
     setState("loading");
 
     async function load() {
-      const SELECT_FIELDS = `id, room_number, flight_time, suggested_departure_time, preferred_departure_time,
-           passenger_count, luggage_large, luggage_small, luggage_special, status,
-           guests ( full_name, passport_image_url ),
-           destinations ( name, image_url )`;
-
-      // transfer_date で絞り込んだ新形式データ
-      const { data: newData, error: newError } = await supabase
-        .from("transfer_requests")
-        .select(SELECT_FIELDS)
-        .neq("status", "cancelled")
-        .eq("transfer_date", selectedDate)
-        .order("suggested_departure_time", { ascending: true, nullsFirst: true })
-        .order("flight_time", { ascending: true, nullsFirst: false });
-
-      // 後方互換: transfer_date がない古いレコードは flight_time 範囲で取得
-      const { data: legacyData, error: legacyError } = await supabase
-        .from("transfer_requests")
-        .select(SELECT_FIELDS)
-        .neq("status", "cancelled")
-        .is("transfer_date", null)
-        .gte("flight_time", dateStart.toISOString())
-        .lt("flight_time", dateEnd.toISOString())
-        .order("suggested_departure_time", { ascending: true, nullsFirst: true })
-        .order("flight_time", { ascending: true });
+      // パスポート情報を含むため、管理者ログインを確認するサーバー API から読む
+      const res = await fetch("/api/admin/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          kind: "kanban",
+          date: selectedDate,
+          rangeStart: dateStart.toISOString(),
+          rangeEnd: dateEnd.toISOString(),
+        }),
+      }).catch(() => null);
+      const json = res ? await res.json().catch(() => null) : null;
 
       if (cancelled) return;
 
-      if (newError && legacyError) {
+      if (!res?.ok || !json?.rows) {
         setState("error");
         return;
       }
 
-      const combined = [
-        ...((newData ?? []) as unknown as RawTransferRow[]),
-        ...((legacyData ?? []) as unknown as RawTransferRow[]),
-      ];
+      const combined = json.rows as RawTransferRow[];
       setCards(combined.map((row) => toCard(row, t, rooms)).filter(isWithinMorningTransferBoard));
       setState("ready");
     }

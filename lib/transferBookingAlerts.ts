@@ -3,7 +3,7 @@
 //   新しい送迎予約が保存されたあと、管理者/家族のWeChatへ通知する。
 //   WxPusher appToken と UID はサーバ環境変数からのみ読む。
 // =========================================================
-import { supabase } from "./supabase";
+import { supabaseAdmin } from "./server/admin";
 import { formatTime } from "./adminSchedule";
 import { sendWxPusher, type WxPusherSendResult } from "./wxpusher";
 import { formatTransferRouteIntent, type TransferRouteIntent } from "./transferRouteIntent";
@@ -67,7 +67,8 @@ function buildContent(row: TransferAlertRow): string {
 }
 
 async function getTransferRequest(id: string): Promise<TransferAlertRow | null> {
-  const { data, error } = await supabase
+  // guests は anon から読めないため service_role で読む（サーバー専用）
+  const { data, error } = await supabaseAdmin()
     .from("transfer_requests")
     .select(
       `id, room_number, transfer_date, terminal, rinku_route_intent, flight_time, preferred_departure_time,

@@ -11,7 +11,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Calendar, Clock, Download, ExternalLink, Hash, IdCard, ImageOff, Loader2, MapPin, Phone, Users, X } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { useAdminTranslation } from "@/lib/i18n/admin/AdminLanguageProvider";
 import type { AdminDictionary } from "@/lib/i18n/admin/types";
 
@@ -297,54 +296,50 @@ function contactCell(person: GuestPerson): string {
   return parts.length > 0 ? parts.join(" / ") : "—";
 }
 
-async function fetchTransferRecords(t: AdminDictionary): Promise<GuestRecord[]> {
-  const { data, error } = await supabase
-    .from("transfer_requests")
-    .select(
-      `id, created_at, room_number, transfer_date, flight_time, preferred_departure_time, suggested_departure_time,
-       passenger_count, luggage_large, luggage_small, luggage_special, status,
-       guests ( full_name, passport_number, phone_number, address, passport_image_url ),
-       destinations ( name )`
-    )
-    .order("created_at", { ascending: false });
+// パスポート情報はブラウザから直接読めない（migration 0040）。
+// 管理者ログインを確認するサーバー API からまとめて受け取る（写真は期限つきリンク）。
+interface RecordsPayload {
+  transfers: RawTransferRow[];
+  links: RawTransferLink[];
+  checkins: RawCheckinRow[];
+}
 
-  if (error || !data) throw error ?? new Error("transfer_requests returned no data");
-
-  const rows = data as unknown as RawTransferRow[];
-  const ids = rows.map((row) => row.id);
-  const linksByTransfer = new Map<string, RawTransferLink[]>();
-
-  if (ids.length > 0) {
-    const { data: linkData, error: linkError } = await supabase
-      .from("transfer_request_guests")
-      .select("transfer_request_id, is_primary, guests ( full_name, passport_number, phone_number, address, passport_image_url )")
-      .in("transfer_request_id", ids);
-
-    if (!linkError && linkData) {
-      for (const link of linkData as unknown as RawTransferLink[]) {
-        const existing = linksByTransfer.get(link.transfer_request_id) ?? [];
-        existing.push(link);
-        linksByTransfer.set(link.transfer_request_id, existing);
-      }
-    } else if (linkError) {
-      console.warn("[records] transfer_request_guests could not be loaded:", linkError.message, linkError);
-    }
+let recordsRequest: Promise<RecordsPayload> | null = null;
+function loadRecordsPayload(): Promise<RecordsPayload> {
+  if (!recordsRequest) {
+    recordsRequest = fetch("/api/admin/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ kind: "records" }),
+    })
+      .then(async (res) => {
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || `records request failed (${res.status})`);
+        return json as RecordsPayload;
+      })
+      .finally(() => {
+        // 次に画面を開いたときは取り直す（リンクの期限切れを防ぐ）
+        setTimeout(() => (recordsRequest = null), 0);
+      });
   }
+  return recordsRequest;
+}
 
-  return rows.map((row) => toTransferRecord(row, linksByTransfer.get(row.id), t));
+async function fetchTransferRecords(t: AdminDictionary): Promise<GuestRecord[]> {
+  const { transfers, links } = await loadRecordsPayload();
+  const linksByTransfer = new Map<string, RawTransferLink[]>();
+  for (const link of links) {
+    const existing = linksByTransfer.get(link.transfer_request_id) ?? [];
+    existing.push(link);
+    linksByTransfer.set(link.transfer_request_id, existing);
+  }
+  return transfers.map((row) => toTransferRecord(row, linksByTransfer.get(row.id), t));
 }
 
 async function fetchCheckinRecords(t: AdminDictionary): Promise<GuestRecord[]> {
-  const { data, error } = await supabase
-    .from("stays_checkin_guests")
-    .select(
-      `id, created_at, full_name, passport_number, nationality, phone, email, checkin_date, passport_image_url,
-       stays_checkin_pages ( title )`
-    )
-    .order("created_at", { ascending: false });
-
-  if (error || !data) throw error ?? new Error("stays_checkin_guests returned no data");
-  return (data as unknown as RawCheckinRow[]).map((row) => toCheckinRecord(row, t));
+  const { checkins } = await loadRecordsPayload();
+  return checkins.map((row) => toCheckinRecord(row, t));
 }
 
 export default function GuestRecordsManager() {
