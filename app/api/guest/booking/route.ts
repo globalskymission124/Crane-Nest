@@ -78,15 +78,20 @@ export async function POST(req: Request) {
     const primaryId = await saveGuest(primary);
     if (!primaryId) return fail("代表者のパスポート情報を保存できませんでした。");
 
+    // 同行者: 保存できなかった人がいたら、黙って飛ばさずに名前を返してやり直してもらう
     const linked = new Set<string>([primaryId]);
+    const failed: string[] = [];
     for (const c of companions) {
       try {
         const id = await saveGuest(c);
         if (id) linked.add(id);
+        else if (str(c.fullName) || str(c.passportNumber)) failed.push(str(c.fullName) || str(c.passportNumber));
       } catch (e) {
-        console.warn("[booking] companion skipped:", (e as Error).message);
+        console.warn("[booking] companion failed:", (e as Error).message);
+        failed.push(str(c.fullName) || str(c.passportNumber) || "?");
       }
     }
+    if (failed.length) return fail(`同行者の登録に失敗しました: ${failed.join(", ")}。もう一度お試しください。`, 500);
 
     const db = supabaseAdmin();
     const num = (v: unknown) => Math.max(0, Math.min(99, Number(v) || 0));

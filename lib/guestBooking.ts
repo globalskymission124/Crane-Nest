@@ -18,10 +18,10 @@ const PASSPORT_BUCKET = "passport-photos";
 
 // Canvas APIでJPEG圧縮。長辺を最大 MAX_PX に縮小し品質 QUALITY で圧縮する。
 // ブラウザ環境のみ（SSR時はスキップ）。
-const MAX_PX = 1280;
+const MAX_PX = 1600;
 const QUALITY = 0.82;
 
-async function compressImage(blob: Blob): Promise<Blob> {
+export async function compressImage(blob: Blob): Promise<Blob> {
   if (typeof window === "undefined") return blob;
   return new Promise<Blob>((resolve) => {
     const img = new Image();
@@ -60,8 +60,8 @@ async function uploadPassportPhotoOnce(previewUrl: string): Promise<string> {
     throw new Error("プレビュー画像が空です（撮り直しが必要な可能性があります）");
   }
 
-  // JPEG圧縮してサイズを削減
-  const blob = await compressImage(rawBlob);
+  // JPEG圧縮してサイズを削減（撮影時に縮小済みなら小さいのでそのまま）
+  const blob = rawBlob.size < 900_000 && rawBlob.type === "image/jpeg" ? rawBlob : await compressImage(rawBlob);
   const path = `${crypto.randomUUID()}.jpg`;
 
   const { error: uploadError } = await supabase.storage.from(PASSPORT_BUCKET).upload(path, blob, {
@@ -82,7 +82,7 @@ async function uploadPassportPhotoOnce(previewUrl: string): Promise<string> {
 // パスポート写真をアップロードする。
 // 一時的なネットワーク不調で写真が欠落する事故を防ぐため、最大3回リトライする。
 // すべて失敗した場合は null を返し、最後のエラーを返り値の2要素目に含める。
-async function uploadPassportPhoto(
+export async function uploadPassportPhoto(
   previewUrl: string
 ): Promise<{ url: string | null; error: Error | null }> {
   const MAX_ATTEMPTS = 3;
@@ -115,8 +115,9 @@ interface SubmitBookingResult {
 //  - requirePhoto=true（代表者）で、写真があるのにアップロードに失敗した場合は
 //    予約を黙って成立させず例外を投げる（写真の取りこぼしを防ぐ）
 async function prepareEntry(entry: GuestEntry, requirePhoto = false) {
-  let photoPath: string | null = null;
-  if (entry.passportImageUrl && entry.passportNumber?.trim() && entry.fullName?.trim()) {
+  // 撮影した直後にアップロード済みなら、そのパスを使う（送信時にまとめて上げない）
+  let photoPath: string | null = entry.photoPath ?? null;
+  if (!photoPath && entry.passportImageUrl && entry.passportNumber?.trim() && entry.fullName?.trim()) {
     const { url, error } = await uploadPassportPhoto(entry.passportImageUrl);
     photoPath = url;
     if (!url && requirePhoto) {
@@ -160,13 +161,12 @@ export async function submitBooking(
         phoneNumber: passport.phoneNumber,
         address: passport.address,
         passportImageUrl: passport.passportImageUrl,
+        photoPath: passport.photoPath ?? null,
       },
       true
     );
-    const companions = [];
-    for (const companion of passport.companions ?? []) {
-      companions.push(await prepareEntry(companion));
-    }
+    // 同行者は並行して準備（未アップロードの写真だけここで上げる）
+    const companions = await Promise.all((passport.companions ?? []).map((c) => prepareEntry(c)));
 
     // 保存はサーバー側で行う（guests / transfer_request_guests はブラウザから読めない）
     const res = await fetch("/api/guest/booking", {

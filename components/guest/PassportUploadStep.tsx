@@ -6,6 +6,7 @@ import type { PassportFormData } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
 import BannerCarousel from "./BannerCarousel";
+import { compressImage, uploadPassportPhoto } from "@/lib/guestBooking";
 
 const AUTO_SCAN_STORAGE_KEY = "crane_passport_auto_scan_enabled";
 
@@ -88,7 +89,7 @@ async function preprocessMrz(imageUrl: string): Promise<string> {
 }
 
 // ファイルを base64 データURLに変換する
-function fileToDataUrl(file: File): Promise<string> {
+function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
@@ -98,7 +99,7 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 // Gemini 3.5 Flash（サーバー側APIルート経由）でパスポートを読み取る
-async function runGeminiOcr(file: File): Promise<{ fullName: string; passportNumber: string }> {
+async function runGeminiOcr(file: Blob): Promise<{ fullName: string; passportNumber: string }> {
   try {
     const dataUrl = await fileToDataUrl(file);
     const res = await fetch("/api/passport/ocr", {
@@ -116,6 +117,14 @@ async function runGeminiOcr(file: File): Promise<{ fullName: string; passportNum
     console.warn("Gemini OCR failed:", err);
     return { fullName: "", passportNumber: "" };
   }
+}
+
+// Tesseract は重い（スマホのメモリを大量に使う）ので、何人分あっても 1 人ずつ順番に動かす
+let tesseractQueue: Promise<unknown> = Promise.resolve();
+function runTesseractQueued(imageUrl: string) {
+  const job = tesseractQueue.then(() => runTesseractOcr(imageUrl));
+  tesseractQueue = job.catch(() => null);
+  return job;
 }
 
 // Tesseract.js を動的インポートしてパスポート画像からMRZを読み取る（Gemini失敗時のフォールバック）
@@ -162,6 +171,9 @@ interface GuestState {
   passportNumber: string;
   phoneNumber: string;
   address: string;
+  // 撮影直後のアップロード（送信ボタンを待たずに 1 人ずつ保存する）
+  upload: "idle" | "uploading" | "done" | "error";
+  photoPath: string | null;
 }
 
 function createGuestState(): GuestState {
@@ -173,6 +185,8 @@ function createGuestState(): GuestState {
     passportNumber: "",
     phoneNumber: "",
     address: "",
+    upload: "idle",
+    photoPath: null,
   };
 }
 
@@ -200,8 +214,18 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
 
   const label = isPrimary ? t.passport.primaryGuestLabel : `${t.passport.companionLabel} ${index}`;
 
+  // 撮った写真はすぐ小さくして（長辺 1600px の JPEG・数百 KB）、その場でアップロードする。
+  //  - iPhone の元写真 (3〜6MB) を何人分も抱えると Safari がページを読み込み直して入力が消える
+  //  - 読み取り (OCR) の送信がサーバーの上限 (約 4.5MB) を超えて失敗していた
+  const startUpload = (url: string) => {
+    onPatch({ upload: "uploading", photoPath: null });
+    uploadPassportPhoto(url).then(({ url: path }) => onPatch(path ? { upload: "done", photoPath: path } : { upload: "error" }));
+  };
+
   const handleFileSelected = async (file: File) => {
-    const objectUrl = URL.createObjectURL(file);
+    const small = await compressImage(file).catch(() => file as Blob);
+    const objectUrl = URL.createObjectURL(small);
+    startUpload(objectUrl);
 
     if (!autoScanEnabled) {
       onPatch({ previewUrl: objectUrl, phase: "manual" });
@@ -210,10 +234,10 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
 
     onPatch({ previewUrl: objectUrl, phase: "processing" });
 
-    // まず Gemini 3.5 Flash で読み取り、失敗時は Tesseract にフォールバック
-    let result = await runGeminiOcr(file);
+    // まず Gemini 3.5 Flash で読み取り（小さくした写真を送る）、失敗時は Tesseract（1 人ずつ順番）
+    let result = await runGeminiOcr(small);
     if (!result.fullName && !result.passportNumber) {
-      result = await runTesseractOcr(objectUrl);
+      result = (await runTesseractQueued(objectUrl)) as { fullName: string; passportNumber: string };
     }
 
     onPatch({
@@ -230,7 +254,7 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
 
   const handleRetake = () => {
     if (guest.previewUrl) URL.revokeObjectURL(guest.previewUrl);
-    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", address: "", phase: "idle" });
+    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", address: "", phase: "idle", upload: "idle", photoPath: null });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -289,6 +313,14 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
           <div className="relative overflow-hidden rounded-2xl border border-brand-100 shadow-sm shadow-brand-700/10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={guest.previewUrl} alt={t.passport.uploadAlt} className="h-48 w-full object-cover" />
+
+            {/* 写真の保存状態 (1 人ずつ) */}
+            <div className={`absolute right-2 top-2 rounded-full px-2.5 py-1 text-xs font-semibold ${guest.upload === "done" ? "bg-emerald-600/90 text-white" : guest.upload === "error" ? "bg-red-600/90 text-white" : "bg-black/60 text-white"}`}>
+              {guest.upload === "done" ? "✓ Saved" : guest.upload === "error" ? "⚠ Retry" : guest.upload === "uploading" ? "Saving…" : ""}
+            </div>
+            {guest.upload === "error" && guest.previewUrl && (
+              <button type="button" onClick={() => startUpload(guest.previewUrl!)} className="absolute right-2 top-10 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-red-700">↻</button>
+            )}
 
             {guest.phase === "processing" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/50 text-white">
@@ -427,6 +459,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
   //  - 同行者: 写真取得済み + 氏名/番号が揃う（電話は任意）+ 処理中でない
   const isGuestReady = (g: GuestState, isPrimary: boolean) => {
     if (g.phase === "processing" || !g.previewUrl) return false;
+    if (g.upload === "uploading") return false; // 写真の保存が終わるまで待つ
     if (!g.fullName.trim() || !g.passportNumber.trim()) return false;
     if (isPrimary && !g.phoneNumber.trim()) return false;
     if (isPrimary && !g.address.trim()) return false;
@@ -443,12 +476,14 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
       phoneNumber: head.phoneNumber,
       address: head.address,
       passportImageUrl: head.previewUrl,
+      photoPath: head.photoPath,
       companions: rest.map((g) => ({
         fullName: g.fullName,
         passportNumber: g.passportNumber,
         phoneNumber: g.phoneNumber,
         address: g.address,
         passportImageUrl: g.previewUrl,
+        photoPath: g.photoPath,
       })),
     });
   };
