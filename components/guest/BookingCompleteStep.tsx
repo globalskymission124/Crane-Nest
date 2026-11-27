@@ -10,6 +10,8 @@ import { validUntilFrom, type JapanTravelCardData } from "@/lib/stays/travelCard
 import JapanTravelCard from "@/components/stays/JapanTravelCard";
 import LanguageSwitcher from "./LanguageSwitcher";
 import WifiAccessCard from "./WifiAccessCard";
+import ConciergeButton from "./ConciergeButton";
+import { countryName } from "@/lib/countries";
 
 interface BookingCompleteStepProps {
   passport: PassportFormData;
@@ -103,7 +105,7 @@ export default function BookingCompleteStep({
         name: passport.fullName,
         email: null,
         phone: passport.phoneNumber || null,
-        nationality: null,
+        nationality: passport.nationality ? countryName(passport.nationality, "en") : null,
         passportNumber: passport.passportNumber,
         passportImageUrl: passport.passportImageUrl,
         avatarUrl: null,
@@ -129,7 +131,7 @@ export default function BookingCompleteStep({
         .map((p, i) => ({
           name: p.fullName,
           passportNumber: p.passportNumber || null,
-          nationality: null,
+          nationality: p.nationality ? countryName(p.nationality, "en") : null,
           phone: p.phoneNumber || null,
           email: null,
           address: p.address || null,
@@ -156,6 +158,9 @@ export default function BookingCompleteStep({
         <h1 className="mt-1 text-xl font-bold">{t.complete.title}</h1>
         <p className="mt-2 text-sm text-slate-500">{t.complete.description}</p>
       </header>
+
+      {/* コンシェルジュ (Crane-Interigent-Switch) へ。車内でまだなら 🌏 WELCOME の地球儀がそこで流れる */}
+      <ConciergeButton className="mb-5" />
 
       <WifiAccessCard labels={t.wifi} className="mb-5" />
 

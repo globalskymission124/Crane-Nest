@@ -7,6 +7,8 @@ import { useTranslation } from "@/lib/i18n/LanguageProvider";
 import LanguageSwitcher from "./LanguageSwitcher";
 import BannerCarousel from "./BannerCarousel";
 import { compressImage, uploadPassportPhoto } from "@/lib/guestBooking";
+import CountrySelect from "./CountrySelect";
+import { fromMrz, fromPhone, fromBrowser, fromText } from "@/lib/countries";
 
 const AUTO_SCAN_STORAGE_KEY = "crane_passport_auto_scan_enabled";
 
@@ -17,9 +19,10 @@ const AUTO_SCAN_STORAGE_KEY = "crane_passport_auto_scan_enabled";
 //   Line1: P<COUNTRY<SURNAME<<GIVENNAME<<<<...  (44文字)
 //   Line2: PASSPORT_NO+CHECK+COUNTRY+DOB+CHK+SEX+EXPIRY+CHK+PERSONAL+CHK (44文字)
 // =========================================================
-function parseMrzLines(lines: string[]): { fullName: string; passportNumber: string } {
+function parseMrzLines(lines: string[]): { fullName: string; passportNumber: string; nationality: string } {
   let fullName = "";
   let passportNumber = "";
+  let issuing = "", nat = "";
 
   for (const raw of lines) {
     // OCRのノイズを除去し大文字英数字と < のみ残す
@@ -28,6 +31,7 @@ function parseMrzLines(lines: string[]): { fullName: string; passportNumber: str
     // Line1 判定: P< で始まる 40文字以上
     if ((line.startsWith("P<") || line.startsWith("PC")) && line.length >= 40) {
       // 3文字の国コードをスキップして名前フィールドを取得
+      issuing = line.slice(2, 5).replace(/</g, ""); // 発行国 (香港・マカオの判定用)
       const nameField = line.slice(5); // "P<JPN" の5文字をスキップ
       const nameParts = nameField.split("<<");
       const surname = (nameParts[0] ?? "").replace(/</g, " ").trim();
@@ -45,10 +49,11 @@ function parseMrzLines(lines: string[]): { fullName: string; passportNumber: str
     // Line2 判定: 先頭9文字が英数字（パスポート番号）+ チェックディジット
     if (!passportNumber && line.length >= 28 && /^[A-Z0-9]{9}[0-9]/.test(line)) {
       passportNumber = line.slice(0, 9).replace(/<+$/, "");
+      nat = line.slice(10, 13).replace(/</g, ""); // 国籍 (3 文字)
     }
   }
 
-  return { fullName, passportNumber };
+  return { fullName, passportNumber, nationality: fromMrz(nat, issuing) ?? "" };
 }
 
 // MRZ領域を切り出し、3倍拡大＋2値化（白黒）で前処理する
@@ -99,7 +104,7 @@ function fileToDataUrl(file: Blob): Promise<string> {
 }
 
 // Gemini 3.5 Flash（サーバー側APIルート経由）でパスポートを読み取る
-async function runGeminiOcr(file: Blob): Promise<{ fullName: string; passportNumber: string }> {
+async function runGeminiOcr(file: Blob): Promise<{ fullName: string; passportNumber: string; nationality: string }> {
   try {
     const dataUrl = await fileToDataUrl(file);
     const res = await fetch("/api/passport/ocr", {
@@ -107,15 +112,16 @@ async function runGeminiOcr(file: Blob): Promise<{ fullName: string; passportNum
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64: dataUrl, mimeType: file.type || "image/jpeg" }),
     });
-    if (!res.ok) return { fullName: "", passportNumber: "" };
+    if (!res.ok) return { fullName: "", passportNumber: "", nationality: "" };
     const data = await res.json();
     return {
       fullName: String(data.fullName ?? "").trim(),
       passportNumber: String(data.passportNumber ?? "").trim(),
+      nationality: fromMrz(data.nationality, data.issuingCountry) ?? "",
     };
   } catch (err) {
     console.warn("Gemini OCR failed:", err);
-    return { fullName: "", passportNumber: "" };
+    return { fullName: "", passportNumber: "", nationality: "" };
   }
 }
 
@@ -128,7 +134,7 @@ function runTesseractQueued(imageUrl: string) {
 }
 
 // Tesseract.js を動的インポートしてパスポート画像からMRZを読み取る（Gemini失敗時のフォールバック）
-async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; passportNumber: string }> {
+async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; passportNumber: string; nationality: string }> {
   try {
     // MRZ領域を前処理
     const mrzImage = await preprocessMrz(imageUrl);
@@ -156,7 +162,7 @@ async function runTesseractOcr(imageUrl: string): Promise<{ fullName: string; pa
     return parseMrzLines(lines);
   } catch (err) {
     console.warn("OCR failed:", err);
-    return { fullName: "", passportNumber: "" };
+    return { fullName: "", passportNumber: "", nationality: "" };
   }
 }
 
@@ -171,6 +177,9 @@ interface GuestState {
   passportNumber: string;
   phoneNumber: string;
   address: string;
+  /** 国籍 (2 文字)。natBy = どこから決めたか (パスポートの読み取り / 電話番号 / 端末の言語 / 本人が選んだ) */
+  nationality: string;
+  natBy: "ocr" | "address" | "phone" | "browser" | "user" | null;
   // 撮影直後のアップロード（送信ボタンを待たずに 1 人ずつ保存する）
   upload: "idle" | "uploading" | "done" | "error";
   photoPath: string | null;
@@ -185,6 +194,8 @@ function createGuestState(): GuestState {
     passportNumber: "",
     phoneNumber: "",
     address: "",
+    nationality: "",
+    natBy: null,
     upload: "idle",
     photoPath: null,
   };
@@ -237,12 +248,14 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
     // まず Gemini 3.5 Flash で読み取り（小さくした写真を送る）、失敗時は Tesseract（1 人ずつ順番）
     let result = await runGeminiOcr(small);
     if (!result.fullName && !result.passportNumber) {
-      result = (await runTesseractQueued(objectUrl)) as { fullName: string; passportNumber: string };
+      result = (await runTesseractQueued(objectUrl)) as { fullName: string; passportNumber: string; nationality: string };
     }
 
     onPatch({
       fullName: result.fullName,
       passportNumber: result.passportNumber,
+      // パスポートから国籍が読めたら、それを選んでおく (本人が選び直したものは上書きしない)
+      ...(result.nationality && guest.natBy !== "user" ? { nationality: result.nationality, natBy: "ocr" as const } : {}),
       phase: result.fullName || result.passportNumber ? "done" : "ocr_failed",
     });
   };
@@ -254,7 +267,7 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
 
   const handleRetake = () => {
     if (guest.previewUrl) URL.revokeObjectURL(guest.previewUrl);
-    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", address: "", phase: "idle", upload: "idle", photoPath: null });
+    onPatch({ previewUrl: null, fullName: "", passportNumber: "", phoneNumber: "", address: "", nationality: "", natBy: null, phase: "idle", upload: "idle", photoPath: null });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -375,6 +388,14 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
                 />
               </label>
 
+              <CountrySelect
+                value={guest.nationality || null}
+                suggested={guest.nationality || fromBrowser()}
+                autoPicked={!!guest.nationality && guest.natBy !== "user"}
+                required={isPrimary}
+                onChange={(a2) => onPatch({ nationality: a2, natBy: "user" })}
+              />
+
               <label className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-slate-600">
                   {t.passport.phoneNumberLabel}
@@ -386,7 +407,11 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
                   type="tel"
                   inputMode="tel"
                   value={guest.phoneNumber}
-                  onChange={(e) => onPatch({ phoneNumber: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value, c = fromPhone(v);
+                    // 国番号 (+886 など) から国籍を選んでおく (パスポートから読めた・本人が選んだときはそのまま)
+                    onPatch(c && (!guest.natBy || guest.natBy === "phone" || guest.natBy === "browser") ? { phoneNumber: v, nationality: c, natBy: "phone" } : { phoneNumber: v });
+                  }}
                   placeholder={t.passport.phoneNumberPlaceholder}
                   className="rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                 />
@@ -401,7 +426,11 @@ function GuestCaptureCard({ guest, index, isPrimary, autoScanEnabled, onPatch, o
                 </span>
                 <textarea
                   value={guest.address}
-                  onChange={(e) => onPatch({ address: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value, c = fromText(v);
+                    // 住所の国名・都市名 (Taipei / 서울 / Toronto …) から国籍を予想 (パスポートから読めた・本人が選んだときはそのまま)
+                    onPatch(c && guest.natBy !== "user" && guest.natBy !== "ocr" ? { address: v, nationality: c, natBy: "address" } : { address: v });
+                  }}
                   placeholder={t.passport.addressPlaceholder}
                   rows={2}
                   className="resize-none rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
@@ -463,6 +492,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
     if (!g.fullName.trim() || !g.passportNumber.trim()) return false;
     if (isPrimary && !g.phoneNumber.trim()) return false;
     if (isPrimary && !g.address.trim()) return false;
+    if (isPrimary && !g.nationality) return false;
     return true;
   };
 
@@ -475,6 +505,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
       passportNumber: head.passportNumber,
       phoneNumber: head.phoneNumber,
       address: head.address,
+      nationality: head.nationality || null,
       passportImageUrl: head.previewUrl,
       photoPath: head.photoPath,
       companions: rest.map((g) => ({
@@ -482,6 +513,7 @@ export default function PassportUploadStep({ onNext }: PassportUploadStepProps) 
         passportNumber: g.passportNumber,
         phoneNumber: g.phoneNumber,
         address: g.address,
+        nationality: g.nationality || null,
         passportImageUrl: g.previewUrl,
         photoPath: g.photoPath,
       })),

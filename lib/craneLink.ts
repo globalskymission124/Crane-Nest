@@ -48,6 +48,14 @@ export function fetchReservationPrefill(): Promise<ReservationPrefill | null> {
   return cache;
 }
 
+/** 登録完了のあと「コンシェルジュを開く」: Crane-Interigent-Switch の /g/go が、合言葉からその予約のコンシェルジュ (4 桁の確認なし) を開く。
+ *  車内 (iPad など) でまだ 🌏 WELCOME の地球儀が流れていなければ、コンシェルジュで自動で流れる。合言葉が無いときは共用スペースのページ */
+export function conciergeUrl(locale: string): string {
+  const l = ["ja", "en", "zh", "ko"].includes(locale) ? locale : "en";
+  const token = getReservationToken();
+  return token ? `${SWITCH_URL}/g/go?r=${encodeURIComponent(token)}&wc=1&lang=${l}` : `${SWITCH_URL}/g/lounge?lang=${l}`;
+}
+
 /** お部屋の漢字（「春」）→ このシステムのお部屋（「春咏」）。名前の中に同じ漢字があるもの */
 export function findRoomByKanji<T extends { id: string; name: string }>(rooms: T[], kanji: string | null): T | null {
   if (!kanji) return null;

@@ -74,6 +74,7 @@ export interface GuestEntry {
   passportNumber: string;
   phoneNumber: string;
   address: string;
+  nationality?: string | null;
   passportImageUrl: string | null;
   // 撮影直後にアップロード済みのバケット内パス（未アップロードなら null）
   photoPath?: string | null;
@@ -85,6 +86,8 @@ export interface PassportFormData {
   passportNumber: string;
   phoneNumber: string;
   address: string;
+  /** 国籍 (ISO 2 文字: TW / HK / KR …) */
+  nationality?: string | null;
   passportImageUrl: string | null;
   photoPath?: string | null;
   // 同行者（2人目以降）。1名で宿泊する場合は空配列 or 未指定。

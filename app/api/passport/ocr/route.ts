@@ -27,13 +27,23 @@ const RESPONSE_SCHEMA = {
       description:
         "Passport number (alphanumeric, no spaces). Empty string if not readable.",
     },
+    nationality: {
+      type: "string",
+      description:
+        "Holder's nationality as the 3-letter ICAO/ISO code printed in the MRZ (e.g. TWN, CHN, KOR, USA, GBR, D for Germany). Empty string if not readable.",
+    },
+    issuingCountry: {
+      type: "string",
+      description:
+        "Issuing state 3-letter code from the MRZ first line (e.g. HKG for Hong Kong SAR passports, MAC for Macao). Empty string if not readable.",
+    },
   },
   required: ["fullName", "passportNumber"],
 } as const;
 
 const PROMPT = [
   "You are an OCR engine specialized in passports.",
-  "Read this passport image and extract the holder's full name and passport number.",
+  "Read this passport image and extract the holder's full name, passport number, nationality code and issuing state code.",
   "Prefer the machine-readable zone (MRZ, the two lines of '<' at the bottom) when present, as it is the most reliable source.",
   "For the name: use Latin letters only, surname first followed by given names, separated by a single space. Do not include '<' characters.",
   "For the passport number: alphanumeric only, uppercase, no spaces or '<'.",
@@ -41,7 +51,7 @@ const PROMPT = [
   "Return only the requested fields.",
 ].join(" ");
 
-type OcrResult = { fullName: string; passportNumber: string };
+type OcrResult = { fullName: string; passportNumber: string; nationality?: string; issuingCountry?: string };
 
 export async function POST(req: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -114,6 +124,8 @@ export async function POST(req: Request) {
             .replace(/[^A-Za-z0-9]/g, "")
             .toUpperCase()
             .trim(),
+          nationality: String(obj.nationality ?? "").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 3),
+          issuingCountry: String(obj.issuingCountry ?? "").replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 3),
         };
       } catch {
         console.warn("Gemini returned non-JSON text:", text);

@@ -22,6 +22,8 @@ interface EntryIn {
   passportNumber?: string;
   phoneNumber?: string;
   address?: string;
+  /** 国籍 (ISO 2 文字) */
+  nationality?: string | null;
   photoPath?: string | null;
 }
 
@@ -40,6 +42,8 @@ async function saveGuest(entry: EntryIn): Promise<string | null> {
     phone_number: str(entry.phoneNumber, 40) || null,
     address: str(entry.address, 300) || null,
   };
+  const nat = str(entry.nationality, 2).toUpperCase();
+  if (/^[A-Z]{2}$/.test(nat)) payload.nationality = nat; // migration 0050 (guests.nationality)
   if (photoPath) payload.passport_image_url = photoPath; // 新しい写真があるときだけ更新
 
   const db = supabaseAdmin();
@@ -50,12 +54,16 @@ async function saveGuest(entry: EntryIn): Promise<string | null> {
     .maybeSingle();
   if (lookupError) throw new Error("既存パスポート情報の確認に失敗しました");
 
+  // 国籍の列がまだ無い (SQL 未実行) ときは、国籍なしで保存し直す
+  const noNat = (e: { message?: string } | null) => !!e && /nationality/i.test(e.message || "");
   if (existing?.id) {
-    const { error } = await db.from("guests").update(payload).eq("id", existing.id);
+    let { error } = await db.from("guests").update(payload).eq("id", existing.id);
+    if (noNat(error)) { delete payload.nationality; ({ error } = await db.from("guests").update(payload).eq("id", existing.id)); }
     if (error) console.warn("[booking] guest update skipped:", error.message);
     return existing.id as string;
   }
-  const { data: row, error } = await db.from("guests").insert(payload).select("id").single();
+  let { data: row, error } = await db.from("guests").insert(payload).select("id").single();
+  if (noNat(error)) { delete payload.nationality; ({ data: row, error } = await db.from("guests").insert(payload).select("id").single()); }
   if (error || !row) throw new Error("パスポート情報の保存に失敗しました");
   return row.id as string;
 }

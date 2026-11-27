@@ -134,6 +134,7 @@ async function prepareEntry(entry: GuestEntry, requirePhoto = false) {
     passportNumber: entry.passportNumber,
     phoneNumber: entry.phoneNumber || "",
     address: entry.address || "",
+    nationality: entry.nationality || null,
     photoPath,
   };
 }
@@ -160,6 +161,7 @@ export async function submitBooking(
         passportNumber: passport.passportNumber,
         phoneNumber: passport.phoneNumber,
         address: passport.address,
+        nationality: passport.nationality ?? null,
         passportImageUrl: passport.passportImageUrl,
         photoPath: passport.photoPath ?? null,
       },
